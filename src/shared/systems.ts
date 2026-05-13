@@ -1,4 +1,4 @@
-import systemsData from '../../systems.json' with { type: 'json' }
+import systemsData from '../../systems.json'
 
 export type SystemConfig = {
   system_id: string
