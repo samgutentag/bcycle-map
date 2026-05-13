@@ -39,4 +39,25 @@ describe('snapshotsToParquet', () => {
     expect(back.length).toBe(100)
     expect(back[99]!.station.num_bikes_available).toBe(9)
   })
+
+  it('preserves boolean fields through round-trip', async () => {
+    const trueRow = { ...sample, is_installed: true, is_renting: true, is_returning: true }
+    const falseRow = {
+      ...sample,
+      station_id: 'x_off',
+      is_installed: false,
+      is_renting: false,
+      is_returning: true,
+    }
+    const buf = await snapshotsToParquet([
+      { snapshot_ts: 1, station: trueRow },
+      { snapshot_ts: 2, station: falseRow },
+    ])
+    const back = await parquetToSnapshots(buf)
+    expect(back[0]!.station.is_installed).toBe(true)
+    expect(back[0]!.station.is_renting).toBe(true)
+    expect(back[1]!.station.is_installed).toBe(false)
+    expect(back[1]!.station.is_renting).toBe(false)
+    expect(back[1]!.station.is_returning).toBe(true)
+  })
 })

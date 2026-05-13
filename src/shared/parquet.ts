@@ -6,7 +6,7 @@ import {
   Table as WasmTable,
   WriterPropertiesBuilder,
   Compression,
-} from 'parquet-wasm/node'
+} from 'parquet-wasm/bundler'
 
 export type SnapshotRow = {
   snapshot_ts: number
@@ -52,20 +52,46 @@ function flatten(rows: SnapshotRow[]): FlatRow[] {
   }))
 }
 
+// wasm-bindgen objects expose `.free()`, but consuming calls like `writeParquet` and
+// `intoIPCStream` already destroy the object internally. Calling `.free()` twice trips a
+// "null pointer passed to rust" error. The `__wbg_ptr` field is zeroed on destruction, so
+// only free when it's still non-zero — that way exceptions before consumption still clean up.
+type WasmFreeable = { free(): void; __wbg_ptr?: number }
+
+function freeIfAlive(obj: WasmFreeable | null | undefined): void {
+  if (obj && obj.__wbg_ptr !== 0) obj.free()
+}
+
 export async function snapshotsToParquet(rows: SnapshotRow[]): Promise<Uint8Array> {
   const arrowTable = tableFromJSON(flatten(rows))
   const ipc = tableToIPC(arrowTable, 'stream')
-  const wasmTable = WasmTable.fromIPCStream(ipc)
-  const writerProperties = new WriterPropertiesBuilder()
-    .setCompression(Compression.SNAPPY)
-    .build()
-  return writeParquet(wasmTable, writerProperties)
+  // WASM-allocated objects need explicit .free() so long-running Workers don't leak.
+  const wasmTable = WasmTable.fromIPCStream(ipc) as unknown as WasmFreeable
+  try {
+    const writerProperties = new WriterPropertiesBuilder()
+      .setCompression(Compression.SNAPPY)
+      .build() as unknown as WasmFreeable
+    try {
+      return writeParquet(wasmTable as never, writerProperties as never)
+    } finally {
+      freeIfAlive(writerProperties)
+    }
+  } finally {
+    freeIfAlive(wasmTable)
+  }
 }
 
 export async function parquetToSnapshots(buf: Uint8Array): Promise<SnapshotRow[]> {
-  const wasmTable = readParquet(buf)
-  const arrowTable = tableFromIPC(wasmTable.intoIPCStream())
-  const records = arrowTable.toArray() as unknown as FlatRow[]
+  const wasmTable = readParquet(buf) as unknown as WasmFreeable & {
+    intoIPCStream(): Uint8Array
+  }
+  let records: FlatRow[]
+  try {
+    const arrowTable = tableFromIPC(wasmTable.intoIPCStream())
+    records = arrowTable.toArray() as unknown as FlatRow[]
+  } finally {
+    freeIfAlive(wasmTable)
+  }
 
   return records.map((r) => {
     const station: StationSnapshot = {
