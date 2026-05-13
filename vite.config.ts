@@ -17,6 +17,16 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        // Vendor split: keeps MapLibre + React in their own chunks so app-code
+        // deploys don't bust those (large, slow-changing) caches.
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-maplibre': ['maplibre-gl'],
+        },
+      },
+    },
   },
   test: {
     environment: 'happy-dom',
