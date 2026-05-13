@@ -19,7 +19,14 @@ function colorFor(value: number, min: number, max: number): string {
 
 export default function HourOfWeekHeatmap({ data }: Props) {
   if (data.length === 0) {
-    return <div className="p-8 text-center text-neutral-500">No data for this range.</div>
+    return (
+      <div className="relative w-full h-40 rounded-md border border-dashed border-neutral-300 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 flex items-center justify-center">
+        <div className="text-center px-6">
+          <div className="text-sm font-medium text-neutral-700">Not enough data yet</div>
+          <div className="text-xs text-neutral-500 mt-1">Hour-of-week patterns need at least a week of history. Check back soon.</div>
+        </div>
+      </div>
+    )
   }
 
   const lookup = new Map<string, number>()

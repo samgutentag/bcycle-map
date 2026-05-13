@@ -7,7 +7,14 @@ const PAD = 32
 
 export default function SystemBikesOverTime({ data }: Props) {
   if (data.length === 0) {
-    return <div className="p-8 text-center text-neutral-500">No data for this range.</div>
+    return (
+      <div className="relative w-full h-48 rounded-md border border-dashed border-neutral-300 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 flex items-center justify-center">
+        <div className="text-center px-6">
+          <div className="text-sm font-medium text-neutral-700">Not enough data yet</div>
+          <div className="text-xs text-neutral-500 mt-1">Check back soon. New snapshots land every two minutes; parquet seals at the top of each hour.</div>
+        </div>
+      </div>
+    )
   }
 
   const xs = data.map(d => d.snapshot_ts)

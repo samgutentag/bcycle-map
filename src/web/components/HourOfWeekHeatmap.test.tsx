@@ -23,6 +23,6 @@ describe('HourOfWeekHeatmap', () => {
 
   it('renders empty-state for zero rows', () => {
     const { container } = render(<HourOfWeekHeatmap data={[]} />)
-    expect(container.textContent).toMatch(/no data/i)
+    expect(container.textContent).toMatch(/not enough data/i)
   })
 })

@@ -20,7 +20,7 @@ describe('SystemBikesOverTime', () => {
 
   it('renders an empty-state message for zero rows', () => {
     const { container } = render(<SystemBikesOverTime data={[]} />)
-    expect(container.textContent).toMatch(/no data/i)
+    expect(container.textContent).toMatch(/not enough data/i)
   })
 
   it('renders y-axis min and max labels', () => {

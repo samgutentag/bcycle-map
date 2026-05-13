@@ -14,6 +14,7 @@ export default function SpatialDensityMap({ baseUrl, system, atTs }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
+  const boundsSetRef = useRef(false)
   const { data, loading } = useStationSnapshots({ baseUrl, system, atTs })
 
   useEffect(() => {
@@ -36,7 +37,26 @@ export default function SpatialDensityMap({ baseUrl, system, atTs }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!overlayRef.current || !data) return
+    if (!overlayRef.current || !data || !mapRef.current) return
+
+    // First data load: cap pan + zoom to 1.5x the stations' bbox.
+    if (!boundsSetRef.current && data.length > 0) {
+      const lats = data.map(d => d.lat)
+      const lons = data.map(d => d.lon)
+      const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+      const minLon = Math.min(...lons), maxLon = Math.max(...lons)
+      const latPad = (maxLat - minLat) * 0.25
+      const lonPad = (maxLon - minLon) * 0.25
+      const bounds: [[number, number], [number, number]] = [
+        [minLon - lonPad, minLat - latPad],
+        [maxLon + lonPad, maxLat + latPad],
+      ]
+      mapRef.current.setMaxBounds(bounds)
+      mapRef.current.fitBounds(bounds, { padding: 40, duration: 0 })
+      mapRef.current.setMinZoom(mapRef.current.getZoom() - 0.5)
+      boundsSetRef.current = true
+    }
+
     const layer = new HexagonLayer({
       id: 'station-hex',
       data,
