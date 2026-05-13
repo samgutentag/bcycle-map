@@ -1,8 +1,19 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { pollOnce } from './poller'
+import { pollOnce, writeSnapshotToKV, currentBufferKey } from './poller'
 import type { SystemConfig } from '../shared/systems'
+import type { KVNamespace } from '@cloudflare/workers-types'
+
+function makeKV(): KVNamespace {
+  const store = new Map<string, string>()
+  return {
+    get: vi.fn(async (key: string) => store.get(key) ?? null),
+    put: vi.fn(async (key: string, value: string) => { store.set(key, value) }),
+    delete: vi.fn(async (key: string) => { store.delete(key) }),
+    list: vi.fn(async () => ({ keys: [...store.keys()].map(name => ({ name })), list_complete: true, cursor: '' })),
+  } as unknown as KVNamespace
+}
 
 const discovery = JSON.parse(
   readFileSync(join(__dirname, '../shared/fixtures/gbfs-discovery.json'), 'utf8')
@@ -47,5 +58,41 @@ describe('pollOnce', () => {
     expect(result.stations.length).toBe(stationInfo.data.stations.length)
     expect(result.stations[0]).toHaveProperty('lat')
     expect(result.stations[0]).toHaveProperty('num_bikes_available')
+  })
+})
+
+describe('writeSnapshotToKV', () => {
+  it('writes latest and appends to the current-hour buffer', async () => {
+    const kv = makeKV()
+    const snap = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692030 })
+    await writeSnapshotToKV(kv, snap)
+    const latest = await kv.get(`system:${snap.system.system_id}:latest`)
+    expect(latest).not.toBeNull()
+    expect(JSON.parse(latest!).snapshot_ts).toBe(1778692030)
+    const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
+    const buf = await kv.get(bufKey)
+    expect(buf).not.toBeNull()
+    const parsed = JSON.parse(buf!)
+    expect(Array.isArray(parsed)).toBe(true)
+    expect(parsed.length).toBe(1)
+    expect(parsed[0].snapshot_ts).toBe(1778692030)
+  })
+
+  it('appends a second snapshot to the existing buffer for the same hour', async () => {
+    const kv = makeKV()
+    const snap1 = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692030 })
+    const snap2 = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692150 })
+    await writeSnapshotToKV(kv, snap1)
+    await writeSnapshotToKV(kv, snap2)
+    const bufKey = currentBufferKey(snap1.system.system_id, snap1.snapshot_ts)
+    const buf = JSON.parse((await kv.get(bufKey))!)
+    expect(buf.length).toBe(2)
+  })
+})
+
+describe('currentBufferKey', () => {
+  it('keys by system_id and UTC YYYY-MM-DD-HH', () => {
+    const key = currentBufferKey('bcycle_santabarbara', 1778692030)
+    expect(key).toMatch(/^system:bcycle_santabarbara:buffer:\d{4}-\d{2}-\d{2}-\d{2}$/)
   })
 })

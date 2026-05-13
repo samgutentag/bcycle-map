@@ -5,8 +5,9 @@ import {
   normalizeSystemInformation,
   mergeSnapshot,
 } from '../shared/normalize'
-import type { KVValue } from '../shared/types'
+import type { KVValue, BufferEntry } from '../shared/types'
 import type { SystemConfig } from '../shared/systems'
+import type { KVNamespace } from '@cloudflare/workers-types'
 
 type PollDeps = {
   fetchImpl?: typeof fetch
@@ -50,4 +51,41 @@ export async function pollOnce(
     snapshot_ts: now(),
     stations: mergeSnapshot(statics, dyns),
   }
+}
+
+export function currentBufferKey(systemId: string, snapshotTs: number): string {
+  const d = new Date(snapshotTs * 1000)
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  return `system:${systemId}:buffer:${yyyy}-${mm}-${dd}-${hh}`
+}
+
+export function latestKey(systemId: string): string {
+  return `system:${systemId}:latest`
+}
+
+export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise<void> {
+  await kv.put(latestKey(snap.system.system_id), JSON.stringify(snap))
+
+  const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
+  const existing = await kv.get(bufKey)
+  const buffer: BufferEntry[] = existing ? JSON.parse(existing) : []
+  buffer.push({
+    snapshot_ts: snap.snapshot_ts,
+    stations: snap.stations.map(s => ({
+      station_id: s.station_id,
+      num_bikes_available: s.num_bikes_available,
+      num_docks_available: s.num_docks_available,
+      bikes_electric: s.bikes_electric,
+      bikes_classic: s.bikes_classic,
+      bikes_smart: s.bikes_smart,
+      is_installed: s.is_installed,
+      is_renting: s.is_renting,
+      is_returning: s.is_returning,
+      last_reported: s.last_reported,
+    })),
+  })
+  await kv.put(bufKey, JSON.stringify(buffer))
 }
