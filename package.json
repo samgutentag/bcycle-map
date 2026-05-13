@@ -13,6 +13,7 @@
     "deploy:worker": "wrangler deploy"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
     "@cloudflare/workers-types": "^4.20260511.1",
     "@types/node": "^20.12.0",
     "typescript": "^5.4.0",
