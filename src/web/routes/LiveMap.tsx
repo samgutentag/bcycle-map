@@ -57,6 +57,7 @@ export default function LiveMap() {
   const mapRef = useRef<MlMap | null>(null)
   const markersRef = useRef<Map<string, Marker>>(new Map())
   const popupRef = useRef<maplibregl.Popup | null>(null)
+  const boundsSetRef = useRef(false)
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
@@ -105,6 +106,25 @@ export default function LiveMap() {
   useEffect(() => {
     if (!mapRef.current || !data) return
     const map = mapRef.current
+
+    // First data load: cap pan + zoom to 1.5x the stations' bbox.
+    if (!boundsSetRef.current && data.stations.length > 0) {
+      const lats = data.stations.map(s => s.lat)
+      const lons = data.stations.map(s => s.lon)
+      const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+      const minLon = Math.min(...lons), maxLon = Math.max(...lons)
+      const latPad = (maxLat - minLat) * 0.25  // 25% each side = 1.5x total span
+      const lonPad = (maxLon - minLon) * 0.25
+      const bounds: [[number, number], [number, number]] = [
+        [minLon - lonPad, minLat - latPad],
+        [maxLon + lonPad, maxLat + latPad],
+      ]
+      map.setMaxBounds(bounds)
+      map.fitBounds(bounds, { padding: 40, duration: 0 })
+      map.setMinZoom(map.getZoom() - 0.5)
+      boundsSetRef.current = true
+    }
+
     const seen = new Set<string>()
 
     for (const s of data.stations) {
