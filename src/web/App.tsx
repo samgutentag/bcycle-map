@@ -15,6 +15,7 @@ export default function App() {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<LiveMap />} />
+          <Route path="/station/:stationId" element={<LiveMap />} />
           <Route path="/explore" element={<Explore />} />
         </Routes>
       </main>

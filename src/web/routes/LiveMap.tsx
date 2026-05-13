@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
@@ -57,6 +58,24 @@ export default function LiveMap() {
   const markersRef = useRef<Map<string, Marker>>(new Map())
   const popupRef = useRef<maplibregl.Popup | null>(null)
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
+  const { stationId: urlStationId } = useParams<{ stationId: string }>()
+  const navigate = useNavigate()
+
+  function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
+    popupRef.current?.remove()
+    if (fly) {
+      map.flyTo({ center: [s.lon, s.lat], zoom: 15, duration: 800 })
+    }
+    const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '280px' })
+      .setLngLat([s.lon, s.lat])
+      .setHTML(buildPopupHTML(s, Math.floor(Date.now() / 1000)))
+      .addTo(map)
+    popup.on('close', () => {
+      // Only navigate home if this popup is still the current one
+      if (popupRef.current === popup) navigate('/')
+    })
+    popupRef.current = popup
+  }
 
   // boot the map once
   useEffect(() => {
@@ -69,6 +88,14 @@ export default function LiveMap() {
     })
     return () => { mapRef.current?.remove(); mapRef.current = null }
   }, [])
+
+  // open the popup whenever URL or data resolves a station
+  useEffect(() => {
+    if (!mapRef.current || !data || !urlStationId) return
+    const station = data.stations.find(s => s.station_id === urlStationId)
+    if (!station) return
+    openStationPopup(station, mapRef.current, true)
+  }, [urlStationId, data])
 
   // sync markers when data updates
   useEffect(() => {
@@ -103,11 +130,7 @@ export default function LiveMap() {
       // rebind click each render so the closure captures the latest station snapshot
       el.onclick = (ev) => {
         ev.stopPropagation()
-        popupRef.current?.remove()
-        popupRef.current = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '280px' })
-          .setLngLat([s.lon, s.lat])
-          .setHTML(buildPopupHTML(s, Math.floor(Date.now() / 1000)))
-          .addTo(map)
+        navigate(`/station/${s.station_id}`)
       }
     }
 
