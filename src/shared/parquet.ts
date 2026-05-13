@@ -6,7 +6,7 @@ import {
   Table as WasmTable,
   WriterPropertiesBuilder,
   Compression,
-} from 'parquet-wasm/bundler'
+} from 'parquet-wasm/node'
 
 export type SnapshotRow = {
   snapshot_ts: number
