@@ -62,7 +62,12 @@ export default function LiveMap() {
   const navigate = useNavigate()
 
   function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
-    popupRef.current?.remove()
+    // Clear ref BEFORE removing the old popup so its close event doesn't
+    // misread this as a user dismissal and navigate us back to '/'.
+    const oldPopup = popupRef.current
+    popupRef.current = null
+    oldPopup?.remove()
+
     if (fly) {
       map.flyTo({ center: [s.lon, s.lat], zoom: 15, duration: 800 })
     }
@@ -71,7 +76,6 @@ export default function LiveMap() {
       .setHTML(buildPopupHTML(s, Math.floor(Date.now() / 1000)))
       .addTo(map)
     popup.on('close', () => {
-      // Only navigate home if this popup is still the current one
       if (popupRef.current === popup) navigate('/')
     })
     popupRef.current = popup
