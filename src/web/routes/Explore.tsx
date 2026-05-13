@@ -37,7 +37,7 @@ export default function Explore() {
       )}
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700 mb-2">Total bikes available over time</h3>
+        <h3 className="text-sm font-semibold text-neutral-700 mb-2">Bikes and open docks over time</h3>
         {totals.loading && <div className="p-8 text-center text-neutral-500">Loading…</div>}
         {totals.error && <div className="p-8 text-center text-red-600">{totals.error.message}</div>}
         {totals.data && <SystemBikesOverTime data={totals.data} />}
