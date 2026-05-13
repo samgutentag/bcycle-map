@@ -1,0 +1,25 @@
+{
+    "ttl": 60,
+    "data": {
+        "rental_apps": {
+            "android": {
+                "store_uri": "https://play.google.com/store/apps/details?id=com.bcycle",
+                "discovery_uri": "bcycle://"
+            },
+            "ios": {
+                "store_uri": "https://apps.apple.com/us/app/bcycle/id371185597",
+                "discovery_uri": "bcycle://"
+            }
+        },
+        "purchase_url": null,
+        "system_id": "bcycle_santabarbara",
+        "name": "Santa Barbara BCycle",
+        "language": "en",
+        "url": "https://santabarbara.bcycle.com",
+        "phone_number": "855-964-3904",
+        "email": "santabarbara@bcycle.com",
+        "timezone": "America/Los_Angeles"
+    },
+    "version": "1.1",
+    "last_updated": 1778700548
+}

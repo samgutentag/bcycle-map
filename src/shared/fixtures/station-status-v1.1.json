@@ -1,0 +1,1199 @@
+{
+    "ttl": 60,
+    "last_updated": 1778700548,
+    "data": {
+        "stations": [
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 8,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4852"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4853"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 6,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 6,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4854"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4855"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4856"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 6,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 6,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4857"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4858"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 6,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 6,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4859"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 7,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 7,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4860"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4861"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4862"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4863"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 7,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4864"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4865"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4868"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4869"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 6,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 6,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4870"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 9,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4871"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4873"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4874"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4876"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 7,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4877"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4880"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4905"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4906"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4911"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 7,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4928"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4933"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4940"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4941"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 9,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4942"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4947"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4972"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4973"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4993"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4994"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4995"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 9,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4996"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 15,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_4997"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 8,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_5014"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_5015"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_5020"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_6023"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_6028"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 10,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_6030"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_6036"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_6037"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 8,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 8,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7051"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 21,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7132"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7202"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7203"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7204"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7205"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7206"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7207"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7208"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 8,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7209"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7212"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7213"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 8,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7231"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7232"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7269"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7270"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7296"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 6,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7300"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 5,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 5,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7301"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 4,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 4,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7302"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7326"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7329"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7334"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7335"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 1,
+                "num_bikes_available": 4,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 4,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7339"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7340"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7359"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 3,
+                "num_bikes_available": 3,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 3,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7360"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 4,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 4,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7365"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7374"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7388"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 0,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 0,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7392"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 2,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7397"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 6,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 6,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7674"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 7,
+                "num_bikes_available": 2,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 2,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7675"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 4,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7680"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 5,
+                "num_bikes_available": 1,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 1,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7722"
+            },
+            {
+                "is_returning": 1,
+                "is_renting": 1,
+                "is_installed": 1,
+                "num_docks_available": 0,
+                "num_bikes_available": 4,
+                "last_reported": 1778700548,
+                "num_bikes_available_types": {
+                    "electric": 4,
+                    "smart": 0,
+                    "classic": 0
+                },
+                "station_id": "bcycle_santabarbara_7778"
+            }
+        ]
+    },
+    "version": "1.1"
+}
