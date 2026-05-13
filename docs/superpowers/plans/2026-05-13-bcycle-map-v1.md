@@ -4,13 +4,30 @@
 
 **Goal:** Ship a hosted live map of Santa Barbara BCycle station availability, polling the GBFS feed every 120s and storing snapshots for later historical analysis. Deploy end-to-end on Cloudflare's free tier.
 
-**Architecture:** Cloudflare-native: Pages frontend (React + Vite + TS + MapLibre), three Workers (poller cron, read API HTTP, smoke test cron), KV for hot path (latest snapshot + intra-hour buffer), R2 for cold path (sealed parquet partitions). One repo, one wrangler config, multiple Worker entry points.
+**Architecture:** Cloudflare-native for the hot path (Pages frontend + Workers for poller/read API/smoke), KV for hot data (latest snapshot + intra-hour buffer). For the cold path, **a GitHub Action does hourly parquet compaction** (Worker bundle size limits + parquet-wasm pulled us over the 1 MiB Workers Free script-size cap, so the spec's documented fallback is in play). The GH Action reads the KV buffer via Cloudflare's REST API and writes parquet to R2 via the S3-compatible API.
 
-**Tech Stack:** TypeScript, Vite, React, Tailwind, MapLibre GL JS, Cloudflare Workers, KV, R2, parquet-wasm, Vitest, Miniflare, Wrangler 3.
+**Tech Stack:** TypeScript, Vite, React, Tailwind, MapLibre GL JS, Cloudflare Workers, KV, R2, parquet-wasm (Node-side only), GitHub Actions, Vitest, Miniflare, Wrangler 3.
 
 **Scope:** Covers v1 of the spec **except** the `/explore` Kepler view. That ships as Plan 2 once data has accumulated.
 
 **Reference spec:** `docs/superpowers/specs/2026-05-13-bcycle-map-design.md`
+
+---
+
+## Amendment 2026-05-13 (mid-execution)
+
+During Task 9 (parquet serializer) a `wrangler deploy --dry-run` revealed the poller bundle landed at **1.86 MiB compressed** with `parquet-wasm` included. Workers Free tier caps script size at 1 MiB compressed. The spec's documented fallback is now in effect: **`parquet-wasm` is removed from the Worker bundle. Compaction moves to a GitHub Action.**
+
+Concrete changes to the plan below:
+
+- **Task 9 cleanup (between Tasks 9 and 10):** `src/shared/parquet.ts` reverts to `parquet-wasm/node` import only. The Vitest alias added in commit `fbe76b6` goes away. This module is now Node-only — it's imported from `scripts/compact.ts`, never from a Worker.
+- **Task 13 (compaction) shrinks:** removed entirely from the poller Worker. The Worker stops at "write KV buffer." The buffer accumulates in KV across an hour with no per-cycle parquet work.
+- **Task 14 (poller scheduled handler):** simpler. Just `pollOnce` + `writeSnapshotToKV` in the cron loop.
+- **New Task 17a: `scripts/compact.ts`** — Node script that lists buffer keys via Cloudflare's KV REST API, compacts each finished-hour buffer into parquet, uploads to R2 via the S3 SDK, deletes the KV buffer.
+- **New Task 17b: `.github/workflows/compact.yml`** — hourly cron workflow that runs `scripts/compact.ts`.
+- **Task 23 (Cloudflare provisioning):** add steps for the new GitHub secrets (`CF_ACCOUNT_ID`, `CF_KV_API_TOKEN`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
+
+Tasks 10-12, 15-22 are unchanged.
 
 ---
 
