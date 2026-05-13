@@ -32,7 +32,13 @@
     "wrangler": "^4.86.0"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.3.2",
+    "@deck.gl/core": "^9.3.2",
+    "@deck.gl/layers": "^9.3.2",
+    "@deck.gl/react": "^9.3.2",
+    "@duckdb/duckdb-wasm": "^1.32.0",
     "apache-arrow": "^21.1.0",
+    "deck.gl": "^9.3.2",
     "maplibre-gl": "^4.7.1",
     "parquet-wasm": "^0.6.1",
     "react": "^18.3.1",
