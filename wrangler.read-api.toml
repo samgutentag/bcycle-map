@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [[kv_namespaces]]
 binding = "GBFS_KV"
-id = "PLACEHOLDER_REPLACE_AT_DEPLOY"
-preview_id = "PLACEHOLDER_REPLACE_AT_DEPLOY"
+id = "bffc291f9c02471681718c9e47ad3cff"
+preview_id = "d5c3fdb806d7436c9b48019973c420ac"
 
 [[r2_buckets]]
 binding = "GBFS_R2"
