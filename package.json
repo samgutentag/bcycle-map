@@ -18,5 +18,9 @@
     "typescript": "^5.4.0",
     "vitest": "^1.6.0",
     "wrangler": "^3.114.17"
+  },
+  "dependencies": {
+    "apache-arrow": "^21.1.0",
+    "parquet-wasm": "^0.6.1"
   }
 }
