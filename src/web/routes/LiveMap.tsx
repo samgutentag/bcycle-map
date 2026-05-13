@@ -2,13 +2,14 @@ import { useEffect, useRef } from 'react'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
-import { markerColor, markerSize, pctAvailable } from '../lib/marker-style'
+import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import StalenessBadge from '../components/StalenessBadge'
+import SystemTotals from '../components/SystemTotals'
 import type { StationSnapshot } from '@shared/types'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
-const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 
 function escapeHtml(s: string): string {
   return s
@@ -77,9 +78,9 @@ export default function LiveMap() {
 
     for (const s of data.stations) {
       seen.add(s.station_id)
-      const pct = pctAvailable({ bikes: s.num_bikes_available, docks: s.num_docks_available })
-      const color = markerColor(pct)
-      const size = markerSize(s.num_bikes_available + s.num_docks_available)
+      const total = s.num_bikes_available + s.num_docks_available
+      const { width, height } = pinSize(total)
+      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available)
 
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
@@ -87,13 +88,16 @@ export default function LiveMap() {
         el = marker.getElement()
       } else {
         el = document.createElement('div')
-        el.className = 'rounded-full border border-neutral-900 cursor-pointer'
-        marker = new maplibregl.Marker(el).setLngLat([s.lon, s.lat]).addTo(map)
+        el.style.cursor = 'pointer'
+        marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat([s.lon, s.lat])
+          .addTo(map)
         markersRef.current.set(s.station_id, marker)
       }
 
-      el.style.backgroundColor = color
-      el.style.width = el.style.height = `${size}px`
+      el.style.width = `${width}px`
+      el.style.height = `${height}px`
+      el.innerHTML = svg
       el.title = `${s.name}: ${s.num_bikes_available} bikes / ${s.num_docks_available} docks`
 
       // rebind click each render so the closure captures the latest station snapshot
@@ -116,6 +120,7 @@ export default function LiveMap() {
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
+      {data && <SystemTotals stations={data.stations} variant="overlay" />}
     </div>
   )
 }
