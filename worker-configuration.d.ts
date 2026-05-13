@@ -1,4 +1,4 @@
-/// <reference types="@cloudflare/workers-types" />
+import type { KVNamespace, R2Bucket } from '@cloudflare/workers-types'
 
 export type Env = {
   GBFS_KV: KVNamespace

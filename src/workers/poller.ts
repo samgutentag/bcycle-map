@@ -5,9 +5,11 @@ import {
   normalizeSystemInformation,
   mergeSnapshot,
 } from '../shared/normalize'
+import { getSystems } from '../shared/systems'
 import type { KVValue, BufferEntry } from '../shared/types'
 import type { SystemConfig } from '../shared/systems'
-import type { KVNamespace } from '@cloudflare/workers-types'
+import type { KVNamespace, ScheduledEvent, ExecutionContext } from '@cloudflare/workers-types'
+import type { Env } from '../../worker-configuration'
 
 type PollDeps = {
   fetchImpl?: typeof fetch
@@ -88,4 +90,18 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
     })),
   })
   await kv.put(bufKey, JSON.stringify(buffer))
+}
+
+export default {
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const systems = getSystems()
+    for (const sys of systems) {
+      try {
+        const snap = await pollOnce(sys)
+        await writeSnapshotToKV(env.GBFS_KV, snap)
+      } catch (err) {
+        console.error(`poll failed for ${sys.system_id}:`, err)
+      }
+    }
+  },
 }
