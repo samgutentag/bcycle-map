@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { normalizeStationInformation, normalizeStationStatus } from './normalize'
+import {
+  normalizeStationInformation,
+  normalizeStationStatus,
+  normalizeSystemInformation,
+  mergeSnapshot,
+} from './normalize'
 
 const fixture = JSON.parse(
   readFileSync(join(__dirname, 'fixtures/station-information-v1.1.json'), 'utf8')
@@ -9,6 +14,10 @@ const fixture = JSON.parse(
 
 const statusFixture = JSON.parse(
   readFileSync(join(__dirname, 'fixtures/station-status-v1.1.json'), 'utf8')
+)
+
+const sysFixture = JSON.parse(
+  readFileSync(join(__dirname, 'fixtures/system-information-v1.1.json'), 'utf8')
 )
 
 describe('normalizeStationInformation', () => {
@@ -68,5 +77,34 @@ describe('normalizeStationStatus', () => {
 
   it('throws NormalizeError when stations array is missing', () => {
     expect(() => normalizeStationStatus({ data: {} } as any)).toThrow(/stations/)
+  })
+})
+
+describe('normalizeSystemInformation', () => {
+  it('extracts system_id, name, timezone, language', () => {
+    const out = normalizeSystemInformation(sysFixture)
+    expect(out.system_id).toBe(sysFixture.data.system_id)
+    expect(out.name).toBe(sysFixture.data.name)
+    expect(out.timezone).toBe(sysFixture.data.timezone)
+    expect(out.language).toBe(sysFixture.data.language)
+  })
+})
+
+describe('mergeSnapshot', () => {
+  it('joins static and dynamic by station_id', () => {
+    const statics = normalizeStationInformation(fixture)
+    const dyns = normalizeStationStatus(statusFixture)
+    const merged = mergeSnapshot(statics, dyns)
+    expect(merged.length).toBeGreaterThan(0)
+    const first = merged[0]
+    expect(first).toHaveProperty('lat')
+    expect(first).toHaveProperty('num_bikes_available')
+  })
+
+  it('drops dynamic entries with no matching static record', () => {
+    const statics = normalizeStationInformation(fixture).slice(0, 1)
+    const dyns = normalizeStationStatus(statusFixture)
+    const merged = mergeSnapshot(statics, dyns)
+    expect(merged.length).toBe(1)
   })
 })

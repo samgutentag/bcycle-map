@@ -1,4 +1,10 @@
-import { NormalizeError, StationDynamic, StationStatic } from './types'
+import {
+  NormalizeError,
+  StationDynamic,
+  StationSnapshot,
+  StationStatic,
+  SystemInfo,
+} from './types'
 
 type StationInfoFeed = {
   data?: { stations?: Array<{
@@ -54,4 +60,37 @@ export function normalizeStationStatus(feed: StationStatusFeed): StationDynamic[
     is_returning: Boolean(s.is_returning),
     last_reported: s.last_reported,
   }))
+}
+
+type SystemInfoFeed = {
+  data?: {
+    system_id: string
+    name: string
+    timezone: string
+    language: string
+  }
+}
+
+export function normalizeSystemInformation(feed: SystemInfoFeed): SystemInfo {
+  const d = feed?.data
+  if (!d) throw new NormalizeError('system_information.data missing', 'data')
+  return {
+    system_id: d.system_id,
+    name: d.name,
+    timezone: d.timezone,
+    language: d.language,
+  }
+}
+
+export function mergeSnapshot(
+  statics: StationStatic[],
+  dyns: StationDynamic[]
+): StationSnapshot[] {
+  const byId = new Map(statics.map(s => [s.station_id, s]))
+  return dyns
+    .map(d => {
+      const s = byId.get(d.station_id)
+      return s ? { ...s, ...d } : null
+    })
+    .filter((x): x is StationSnapshot => x !== null)
 }
