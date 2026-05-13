@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useDuckDB } from './useDuckDB'
+import { usePartitionKeys } from './usePartitionKeys'
 import { buildStationSnapshotsQuery } from '../lib/queries'
 
 export type StationSnapshotRow = {
@@ -12,19 +13,32 @@ export type StationSnapshotRow = {
   snapshot_ts: number
 }
 
-type Args = { baseUrl: string; system: string; atTs: number }
+type Args = {
+  apiBase: string
+  r2Base: string
+  system: string
+  atTs: number
+}
 
 export function useStationSnapshots(args: Args) {
   const { conn, loading: dbLoading, error: dbError } = useDuckDB()
+  // Look back a few hours so we always have at least one sealed partition.
+  const range = { fromTs: args.atTs - 6 * 3600, toTs: args.atTs }
+  const { keys, loading: partsLoading, error: partsError } = usePartitionKeys({
+    apiBase: args.apiBase,
+    system: args.system,
+    range,
+  })
   const [data, setData] = useState<StationSnapshotRow[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
-    if (!conn) return
+    if (!conn || !keys) return
     let cancelled = false
     setLoading(true)
-    const sql = buildStationSnapshotsQuery(args)
+    const urls = keys.map(k => `${args.r2Base}/${k}`)
+    const sql = buildStationSnapshotsQuery({ urls, atTs: args.atTs })
     conn.query(sql).then(
       result => {
         if (cancelled) return
@@ -49,7 +63,11 @@ export function useStationSnapshots(args: Args) {
     return () => {
       cancelled = true
     }
-  }, [conn, args.baseUrl, args.system, args.atTs])
+  }, [conn, keys, args.r2Base, args.atTs])
 
-  return { data, loading: dbLoading || loading, error: dbError || error }
+  return {
+    data,
+    loading: dbLoading || partsLoading || loading,
+    error: dbError || partsError || error,
+  }
 }

@@ -8,14 +8,14 @@ import { useStationSnapshots } from '../hooks/useStationSnapshots'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 
-type Props = { baseUrl: string; system: string; atTs: number }
+type Props = { apiBase: string; r2Base: string; system: string; atTs: number }
 
-export default function SpatialDensityMap({ baseUrl, system, atTs }: Props) {
+export default function SpatialDensityMap({ apiBase, r2Base, system, atTs }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const boundsSetRef = useRef(false)
-  const { data, loading } = useStationSnapshots({ baseUrl, system, atTs })
+  const { data, loading } = useStationSnapshots({ apiBase, r2Base, system, atTs })
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return

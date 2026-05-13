@@ -10,6 +10,7 @@ import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { resolveRange, type Preset } from '../lib/date-range'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 export default function Explore() {
@@ -17,8 +18,8 @@ export default function Explore() {
   const [preset, setPreset] = useState<Preset>('24h')
   const range = resolveRange(preset, Math.floor(Date.now() / 1000))
 
-  const totals = useTotalBikesOverTime({ baseUrl: R2_BASE, system: SYSTEM_ID, range })
-  const hourly = useHourOfWeek({ baseUrl: R2_BASE, system: SYSTEM_ID, range })
+  const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
+  const hourly = useHourOfWeek({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -52,7 +53,7 @@ export default function Explore() {
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-2">Spatial density (latest snapshot)</h3>
-        <SpatialDensityMap baseUrl={R2_BASE} system={SYSTEM_ID} atTs={range.toTs} />
+        <SpatialDensityMap apiBase={API_BASE} r2Base={R2_BASE} system={SYSTEM_ID} atTs={range.toTs} />
       </section>
     </div>
   )
