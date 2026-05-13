@@ -3,7 +3,11 @@ import { useDuckDB } from './useDuckDB'
 import { buildTotalBikesQuery } from '../lib/queries'
 import type { Range } from '../lib/date-range'
 
-export type TotalBikesRow = { snapshot_ts: number; total_bikes: number }
+export type TotalBikesRow = {
+  snapshot_ts: number
+  total_bikes: number
+  total_docks: number
+}
 
 type Args = { baseUrl: string; system: string; range: Range }
 
@@ -24,6 +28,7 @@ export function useTotalBikesOverTime(args: Args) {
         const rows = result.toArray().map((r: any) => ({
           snapshot_ts: Number(r.snapshot_ts),
           total_bikes: Number(r.total_bikes),
+          total_docks: Number(r.total_docks),
         }))
         setData(rows)
         setLoading(false)

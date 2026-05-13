@@ -56,10 +56,15 @@ const READ_OPTS = 'union_by_name=true'
 
 export function buildTotalBikesQuery(args: QueryArgs): string {
   const urls = partitionUrls(args.baseUrl, args.system, args.range)
-  if (urls.length === 0) return `SELECT NULL::BIGINT as snapshot_ts, NULL::BIGINT as total_bikes WHERE FALSE`
+  if (urls.length === 0) {
+    return `SELECT NULL::BIGINT as snapshot_ts, NULL::BIGINT as total_bikes, NULL::BIGINT as total_docks WHERE FALSE`
+  }
   const src = partitionList(urls)
   return `
-    SELECT snapshot_ts, SUM(num_bikes_available) as total_bikes
+    SELECT
+      snapshot_ts,
+      SUM(num_bikes_available) as total_bikes,
+      SUM(num_docks_available) as total_docks
     FROM read_parquet(${src}, ${READ_OPTS})
     WHERE snapshot_ts BETWEEN ${args.range.fromTs} AND ${args.range.toTs}
     GROUP BY snapshot_ts
