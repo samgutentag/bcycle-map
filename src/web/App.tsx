@@ -1,6 +1,8 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import LiveMap from './routes/LiveMap'
-import Explore from './routes/Explore'
+
+const Explore = lazy(() => import('./routes/Explore'))
 
 export default function App() {
   return (
@@ -16,7 +18,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LiveMap />} />
           <Route path="/station/:stationId" element={<LiveMap />} />
-          <Route path="/explore" element={<Explore />} />
+          <Route
+            path="/explore"
+            element={
+              <Suspense fallback={<div className="p-8 text-center text-neutral-500">Loading explore view…</div>}>
+                <Explore />
+              </Suspense>
+            }
+          />
         </Routes>
       </main>
     </div>
