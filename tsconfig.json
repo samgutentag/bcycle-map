@@ -16,5 +16,5 @@
       "@shared/*": ["./src/shared/*"]
     }
   },
-  "include": ["src/**/*", "vite.config.ts", "wrangler.toml"]
+  "include": ["src/**/*", "vite.config.ts", "wrangler.toml", "worker-configuration.d.ts"]
 }
