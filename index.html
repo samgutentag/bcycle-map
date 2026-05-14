@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>bcycle-map</title>
+    <!--
+      Cloudflare Web Analytics. Auto-tracks SPA route changes via History API,
+      so /route/:from/:to, /station/:id/details, /explore, /activity etc. each
+      register as separate page views. No cookies, no PII.
+      Get the site token at: dash.cloudflare.com → Web Analytics → Add site.
+      Replace YOUR_CF_ANALYTICS_TOKEN below, then redeploy via Cloudflare Pages.
+    -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "YOUR_CF_ANALYTICS_TOKEN"}'></script>
   </head>
   <body class="bg-neutral-50 text-neutral-900">
     <div id="root"></div>
