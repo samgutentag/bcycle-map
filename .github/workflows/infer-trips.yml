@@ -1,0 +1,35 @@
+name: infer-trips
+
+# Apply greedy trip inference against the current activity log using
+# the travel-time matrix as an oracle for plausible durations.
+# Idempotent; safe to re-run.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: infer-trips
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx tsx scripts/infer-trips.ts
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_KV_API_TOKEN: ${{ secrets.CF_KV_API_TOKEN }}
+          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+          SYSTEM_ID: bcycle_santabarbara
