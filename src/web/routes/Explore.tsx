@@ -9,6 +9,7 @@ import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
 import TravelTimeBadge from '../components/TravelTimeBadge'
 import StationPicker from '../components/StationPicker'
 import ActivityLog from '../components/ActivityLog'
+import { Link } from 'react-router-dom'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
@@ -80,7 +81,10 @@ export default function Explore() {
       )}
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Activity log</h3>
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <h3 className="text-sm font-semibold text-neutral-700">Activity log</h3>
+          <Link to="/activity" className="text-xs text-sky-700 hover:underline">View all →</Link>
+        </div>
         <p className="text-xs text-neutral-500 mt-0.5 mb-3">
           Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair a departure with the next arrival, but only during "quiet periods" where the system has exactly one active rider — so the assumption holds.
         </p>
@@ -91,6 +95,8 @@ export default function Explore() {
             stations={live?.stations ?? []}
             matrix={matrix.data}
             timezone={live?.system.timezone}
+            maxEvents={20}
+            maxTrips={20}
           />
         )}
       </section>

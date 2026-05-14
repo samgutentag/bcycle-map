@@ -8,8 +8,10 @@ type Props = {
   stations: StationSnapshot[]
   matrix: TravelMatrix | null
   timezone?: string
-  /** Max number of events to render in the scroll. */
-  maxRows?: number
+  /** Max number of events to render. Defaults to 20. */
+  maxEvents?: number
+  /** Max number of trips to render. Defaults to 20. */
+  maxTrips?: number
 }
 
 const DEPARTURE_COLOR = 'text-orange-700 bg-orange-50 border-orange-200'
@@ -41,7 +43,7 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
   return edge ? { minutes: Math.round(edge.minutes) } : null
 }
 
-export default function ActivityLog({ log, stations, matrix, timezone, maxRows = 30 }: Props) {
+export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20 }: Props) {
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
   const nowSec = Math.floor(Date.now() / 1000)
 
@@ -49,8 +51,8 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxRows =
     return <div className="text-sm text-neutral-500">Loading activity…</div>
   }
 
-  const events = [...log.events].slice(-maxRows).reverse()
-  const trips = [...log.trips].slice(-10).reverse()
+  const events = [...log.events].slice(-maxEvents).reverse()
+  const trips = [...log.trips].slice(-maxTrips).reverse()
 
   if (events.length === 0 && trips.length === 0) {
     return (
