@@ -1,12 +1,46 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { latLngToCell, cellToBoundary } from 'h3-js'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
+import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import type { StationSnapshot } from '@shared/types'
+
+const HEX_RES = 9  // ~0.18 km hexes — neighborhood-block scale for ~95 stations across SB
+const HEX_SOURCE_ID = 'station-hex'
+const HEX_FILL_LAYER = 'station-hex-fill'
+const HEX_LINE_LAYER = 'station-hex-line'
+
+function stationsToHexGeoJSON(stations: StationSnapshot[]) {
+  type Agg = { bikes: number; docks: number; stations: number; names: string[] }
+  const byHex = new Map<string, Agg>()
+  for (const s of stations) {
+    if (!Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue
+    const h3 = latLngToCell(s.lat, s.lon, HEX_RES)
+    const cur = byHex.get(h3) ?? { bikes: 0, docks: 0, stations: 0, names: [] }
+    cur.bikes += s.num_bikes_available
+    cur.docks += s.num_docks_available
+    cur.stations += 1
+    cur.names.push(s.name)
+    byHex.set(h3, cur)
+  }
+  return {
+    type: 'FeatureCollection' as const,
+    features: [...byHex.entries()].map(([h3, agg]) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        // h3-js v4: cellToBoundary(h3, true) returns [lng, lat] pairs
+        coordinates: [cellToBoundary(h3, true) as [number, number][]],
+      },
+      properties: { ...agg, hex: h3 },
+    })),
+  }
+}
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
@@ -65,6 +99,7 @@ export default function LiveMap() {
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
+  const [view, setView] = useState<MapView>('pins')
 
   function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
     // Clear ref BEFORE removing the old popup so its close event doesn't
@@ -116,9 +151,65 @@ export default function LiveMap() {
     openStationPopup(station, mapRef.current, true)
   }, [urlStationId, data])
 
+  // Manage the H3 hex heatmap layer. When view === 'heatmap', add (or update)
+  // the source + fill layer. When view === 'pins', remove them.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !data) return
+    if (view === 'heatmap') {
+      const geojson = stationsToHexGeoJSON(data.stations)
+      const apply = () => {
+        if (map.getSource(HEX_SOURCE_ID)) {
+          ;(map.getSource(HEX_SOURCE_ID) as maplibregl.GeoJSONSource).setData(geojson as any)
+        } else {
+          map.addSource(HEX_SOURCE_ID, { type: 'geojson', data: geojson as any })
+          map.addLayer({
+            id: HEX_FILL_LAYER,
+            type: 'fill',
+            source: HEX_SOURCE_ID,
+            paint: {
+              'fill-color': [
+                'interpolate', ['linear'], ['get', 'bikes'],
+                0, 'rgba(13, 108, 176, 0.10)',
+                5, 'rgba(13, 108, 176, 0.35)',
+                15, 'rgba(13, 108, 176, 0.55)',
+                30, 'rgba(13, 108, 176, 0.75)',
+                60, 'rgba(13, 108, 176, 0.9)',
+              ],
+              'fill-opacity': 1,
+            },
+          })
+          map.addLayer({
+            id: HEX_LINE_LAYER,
+            type: 'line',
+            source: HEX_SOURCE_ID,
+            paint: {
+              'line-color': 'rgba(13, 108, 176, 0.6)',
+              'line-width': 0.8,
+            },
+          })
+        }
+      }
+      if (map.isStyleLoaded()) apply()
+      else map.once('load', apply)
+    } else {
+      if (map.getLayer(HEX_FILL_LAYER)) map.removeLayer(HEX_FILL_LAYER)
+      if (map.getLayer(HEX_LINE_LAYER)) map.removeLayer(HEX_LINE_LAYER)
+      if (map.getSource(HEX_SOURCE_ID)) map.removeSource(HEX_SOURCE_ID)
+    }
+  }, [data, view])
+
   // sync markers when data updates
   useEffect(() => {
     if (!mapRef.current || !data) return
+    if (view === 'heatmap') {
+      // Hide all pins while heatmap is active
+      for (const [id, m] of markersRef.current) {
+        m.remove()
+        markersRef.current.delete(id)
+      }
+      return
+    }
     const map = mapRef.current
 
     // First data load: clamp pan + zoom to 1.5x the stations' bbox.
@@ -187,11 +278,12 @@ export default function LiveMap() {
     for (const [id, marker] of markersRef.current) {
       if (!seen.has(id)) { marker.remove(); markersRef.current.delete(id) }
     }
-  }, [data])
+  }, [data, view])
 
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
+      <MapViewToggle value={view} onChange={setView} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
     </div>
