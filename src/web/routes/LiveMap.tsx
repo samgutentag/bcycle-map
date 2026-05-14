@@ -10,7 +10,7 @@ import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import type { StationSnapshot } from '@shared/types'
 
-const HEX_RES = 9  // ~0.18 km hexes — neighborhood-block scale for ~95 stations across SB
+const HEX_RES = 10  // ~0.065 km hexes — block-level granularity; most stations get their own hex
 const HEX_SOURCE_ID = 'station-hex'
 const HEX_FILL_LAYER = 'station-hex-fill'
 const HEX_LINE_LAYER = 'station-hex-line'
