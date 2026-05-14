@@ -66,9 +66,9 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
       <div className="font-semibold text-[10px] uppercase tracking-wide text-neutral-500 mb-1">System totals</div>
       <div className="flex gap-6">
         {activeRiders !== null && (
-          <div title="Bikes not parked at any station — riders out using them right now.">
+          <div className="min-w-[160px]" title="Bikes not parked at any station — riders out using them right now.">
             <div className="text-xl font-bold leading-tight text-orange-600">{activeRiders}</div>
-            <div className="text-xs text-neutral-600 h-4">
+            <div className="text-xs text-neutral-600 h-4 whitespace-nowrap overflow-hidden">
               {hoveredActiveVal != null
                 ? <span className="text-orange-700">peak {hoveredActiveVal} · {hoveredLabel}</span>
                 : 'active riders'}
@@ -83,7 +83,7 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
             </div>
           </div>
         )}
-        <div>
+        <div className="min-w-[160px]">
           <div className="text-xl font-bold leading-tight">
             {totals.bikes}
             {showBikeMax && (
@@ -95,7 +95,7 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
               </span>
             )}
           </div>
-          <div className="text-xs text-neutral-600 h-4">
+          <div className="text-xs text-neutral-600 h-4 whitespace-nowrap overflow-hidden">
             {hoveredBikesVal != null
               ? <span className="text-sky-800">peak {hoveredBikesVal} · {hoveredLabel}</span>
               : 'bikes available'}
