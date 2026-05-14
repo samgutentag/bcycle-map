@@ -184,9 +184,18 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
     )
   }
   if (profile.daysCovered < 3) {
+    const daysSoFar = profile.daysCovered
     return (
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600">
-        Not enough history yet — typical comparison will appear after a few days of polling.
+      <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
+        <div className="text-sm font-medium text-neutral-700">Once there's enough history</div>
+        <div className="text-xs text-neutral-600 mt-1">
+          This card will compare the current bike count against the typical count for this hour and day of week — so you can tell at a glance whether the station is fuller, emptier, or about the same as usual.
+        </div>
+        <div className="text-xs text-neutral-500 mt-2">
+          {daysSoFar === 0
+            ? 'No days of data yet. Need at least 3 days of polling to establish a baseline.'
+            : `${daysSoFar} day${daysSoFar === 1 ? '' : 's'} of data so far. Need 3 days of polling to establish a baseline; once we have 21 days the comparison filters by day-of-week too.`}
+        </div>
       </div>
     )
   }
