@@ -7,6 +7,12 @@ type Props = {
   totalDocks?: number
   /** Which series to render. Defaults to 'both' (stacked). */
   show?: 'bikes' | 'docks' | 'both'
+  /** When set, draws a "linked" vertical guide at this unix timestamp (seconds). */
+  externalGuideTimeSec?: number | null
+  /** Optional label shown above the external guide (e.g. "leave 8:00"). */
+  externalGuideLabel?: string
+  /** Called with the hovered bucket's start timestamp (seconds), or null when not hovered. */
+  onHoverTimeChange?: (ts: number | null) => void
 }
 
 const WIDTH = 600
@@ -24,6 +30,8 @@ const TICK_COLOR = '#9ca3af'
 const MAJOR_LABEL_COLOR = '#6b7280'
 const TOOLTIP_BG = '#1f2937'
 const TOOLTIP_FG = '#ffffff'
+const EXTERNAL_GUIDE_COLOR = '#d97706'  // amber-600 — distinguishes from in-chart hover guide
+const EXTERNAL_GUIDE_FG = '#ffffff'
 
 type Bucket = { bucketTs: number; bikes: number; docks: number; count: number }
 
@@ -99,7 +107,14 @@ function formatTooltipTime(ts: number): string {
   })
 }
 
-export default function StationOverTimeChart({ data, totalDocks, show = 'both' }: Props) {
+export default function StationOverTimeChart({
+  data,
+  totalDocks,
+  show = 'both',
+  externalGuideTimeSec,
+  externalGuideLabel,
+  onHoverTimeChange,
+}: Props) {
   const showBikes = show === 'bikes' || show === 'both'
   const showDocks = show === 'docks' || show === 'both'
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
@@ -239,8 +254,8 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
           return (
             <g
               key={b.bucketTs}
-              onMouseEnter={() => setHoverIdx(i)}
-              onMouseLeave={() => setHoverIdx(null)}
+              onMouseEnter={() => { setHoverIdx(i); onHoverTimeChange?.(b.bucketTs) }}
+              onMouseLeave={() => { setHoverIdx(null); onHoverTimeChange?.(null) }}
             >
               {/* Invisible hit area covering the full slot for reliable hover even on thin bars */}
               <rect
@@ -283,6 +298,50 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
             </g>
           )
         })}
+
+        {/* External guide — drawn from a sibling chart (e.g. linked route view) */}
+        {externalGuideTimeSec != null && externalGuideTimeSec >= xMin && externalGuideTimeSec <= xMax && (() => {
+          const gx = scaleX(externalGuideTimeSec)
+          const labelWidth = externalGuideLabel ? Math.min(120, externalGuideLabel.length * 6 + 14) : 0
+          const labelX = Math.min(WIDTH - PAD_R - labelWidth / 2 - 2, Math.max(PAD_L + labelWidth / 2 + 2, gx))
+          return (
+            <g pointerEvents="none">
+              <line
+                x1={gx}
+                y1={PAD_T}
+                x2={gx}
+                y2={HEIGHT - PAD_B}
+                stroke={EXTERNAL_GUIDE_COLOR}
+                strokeWidth={1.4}
+                strokeDasharray="4 2"
+                opacity={0.95}
+              />
+              {externalGuideLabel && (
+                <>
+                  <rect
+                    x={labelX - labelWidth / 2}
+                    y={2}
+                    width={labelWidth}
+                    height={16}
+                    rx={3}
+                    fill={EXTERNAL_GUIDE_COLOR}
+                    opacity={0.95}
+                  />
+                  <text
+                    x={labelX}
+                    y={13}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill={EXTERNAL_GUIDE_FG}
+                  >
+                    {externalGuideLabel}
+                  </text>
+                </>
+              )}
+            </g>
+          )
+        })()}
 
         {/* Hover tooltip — text at top of chart, anchored to the hovered bucket */}
         {hoverBucket && (() => {
