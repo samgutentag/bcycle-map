@@ -3,9 +3,12 @@ main = "src/workers/poller.ts"
 compatibility_date = "2024-09-25"
 compatibility_flags = ["nodejs_compat"]
 
-# scheduled (cron) trigger — every 2 minutes
+# scheduled (cron) trigger — every 4 minutes (was 2). Wider interval keeps
+# the per-day KV put count under the Workers free-tier cap of 1000/day.
+# 4 min × 24h = 360 ticks/day × 2 mandatory puts (latest + buffer) = 720,
+# leaving ~280 puts/day for activity-log writes and manual workflows.
 [triggers]
-crons = ["*/2 * * * *"]
+crons = ["*/4 * * * *"]
 
 [[kv_namespaces]]
 binding = "GBFS_KV"

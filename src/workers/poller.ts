@@ -141,7 +141,15 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
   }
 
   await kv.put(lKey, JSON.stringify(enriched))
-  if (nextActivity) await kv.put(aKey, JSON.stringify(nextActivity))
+  // Skip the activity put when this tick produced nothing new — saves
+  // ~30-70% of activity writes during quiet periods. Byte-compare the
+  // serialized form against what we already read from KV.
+  if (nextActivity) {
+    const nextActivityJson = JSON.stringify(nextActivity)
+    if (nextActivityJson !== activityRaw) {
+      await kv.put(aKey, nextActivityJson)
+    }
+  }
 
   const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
   const existing = await kv.get(bufKey)
