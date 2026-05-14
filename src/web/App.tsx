@@ -1,15 +1,23 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import LiveMap from './routes/LiveMap'
+import { useBeaconReporter } from './hooks/useBeaconReporter'
+
+function BeaconReporter() {
+  useBeaconReporter()
+  return null
+}
 
 const Explore = lazy(() => import('./routes/Explore'))
 const RouteCheck = lazy(() => import('./routes/RouteCheck'))
 const StationDetails = lazy(() => import('./routes/StationDetails'))
 const Activity = lazy(() => import('./routes/Activity'))
+const Insights = lazy(() => import('./routes/Insights'))
 
 export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
+      <BeaconReporter />
       <header className="px-4 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
         <h1 className="font-semibold">bcycle-map</h1>
         <nav className="flex gap-3 text-sm text-neutral-700">
@@ -67,6 +75,14 @@ export default function App() {
             element={
               <Suspense fallback={<div className="p-8 text-center text-neutral-500">Loading activity log…</div>}>
                 <Activity />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/insights"
+            element={
+              <Suspense fallback={<div className="p-8 text-center text-neutral-500">Loading insights…</div>}>
+                <Insights />
               </Suspense>
             }
           />
