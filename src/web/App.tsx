@@ -20,7 +20,7 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 text-neutral-900">
       <BeaconReporter />
-      <header className="px-4 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
+      <header className="sticky top-0 z-30 px-4 py-3 border-b border-neutral-200 bg-white/90 backdrop-blur flex items-center gap-4">
         <h1 className="font-semibold flex items-center gap-1.5">
           <span aria-hidden>🚲</span>
           bcycle-map
