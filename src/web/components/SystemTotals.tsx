@@ -28,6 +28,9 @@ export default function SystemTotals({ stations, maxBikesEver, variant = 'overla
     ? Math.round((totals.bikes / totals.totalDockSlots) * 100)
     : 0
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
+  // Active riders = (fleet size proxy) - (bikes parked right now). Only meaningful
+  // once we've observed a peak to compare against.
+  const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
 
   const wrapperClass = variant === 'overlay'
     ? 'absolute bottom-4 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-neutral-200 px-4 py-3'
@@ -51,6 +54,12 @@ export default function SystemTotals({ stations, maxBikesEver, variant = 'overla
           </div>
           <div className="text-xs text-neutral-600">bikes available</div>
         </div>
+        {activeRiders !== null && (
+          <div title="Bikes not parked at any station — riders out using them right now.">
+            <div className="text-xl font-bold leading-tight text-orange-600">{activeRiders}</div>
+            <div className="text-xs text-neutral-600">active riders</div>
+          </div>
+        )}
         <div>
           <div className="text-xl font-bold leading-tight">
             {totals.docks}
