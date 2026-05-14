@@ -52,6 +52,8 @@ export default function RouteCheck() {
   const stations = live?.stations ?? []
   const startStation = stations.find(s => s.station_id === startId)
   const destStation = stations.find(s => s.station_id === endId)
+  const startTotal = startStation ? startStation.num_bikes_available + startStation.num_docks_available : undefined
+  const destTotal = destStation ? destStation.num_bikes_available + destStation.num_docks_available : undefined
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -84,7 +86,7 @@ export default function RouteCheck() {
         {startId && !start.error && (start.loading || !start.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={start.phase} />
         )}
-        {startId && start.data && !start.loading && <StationOverTimeChart data={start.data} />}
+        {startId && start.data && !start.loading && <StationOverTimeChart data={start.data} totalDocks={startTotal} />}
       </section>
 
       <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
@@ -101,7 +103,7 @@ export default function RouteCheck() {
         {endId && !dest.error && (dest.loading || !dest.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={dest.phase} />
         )}
-        {endId && dest.data && !dest.loading && <StationOverTimeChart data={dest.data} />}
+        {endId && dest.data && !dest.loading && <StationOverTimeChart data={dest.data} totalDocks={destTotal} />}
       </section>
 
       <p className="text-xs text-neutral-500 mt-2">
