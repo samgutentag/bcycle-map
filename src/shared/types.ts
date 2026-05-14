@@ -59,6 +59,47 @@ export type BufferEntry = {
   stations: StationDynamic[]
 }
 
+/**
+ * Per-tick movement event: a station's `num_bikes_available` decreased
+ * (departure) or increased (arrival) relative to the previous snapshot.
+ * `delta` is the magnitude (always positive); `type` carries the sign.
+ */
+export type ActivityEvent = {
+  ts: number             // unix seconds (snapshot_ts of the detecting tick)
+  station_id: string
+  type: 'departure' | 'arrival'
+  delta: number          // absolute change, always >= 1
+}
+
+/**
+ * Inferred end-to-end trip when the system transitions cleanly through a
+ * single active rider: at time `departure_ts` the system goes from 0 active
+ * to 1 (and one station had a single -1 delta), then at `arrival_ts` the
+ * system goes from 1 active to 0 (one station with +1 delta). Both stations
+ * are captured so we can compare actual ride time against the matrix's
+ * expected minutes.
+ */
+export type Trip = {
+  departure_ts: number
+  arrival_ts: number
+  from_station_id: string
+  to_station_id: string
+  duration_sec: number   // arrival_ts - departure_ts
+}
+
+/**
+ * Stored under `system:<id>:activity`. Capped to the most recent N events
+ * and most recent N trips (oldest dropped first).
+ */
+export type ActivityLog = {
+  events: ActivityEvent[]
+  trips: Trip[]
+  /** Station id of the most recent unpaired departure when active-riders
+   * just transitioned 0 → 1. Cleared once the corresponding arrival lands. */
+  inFlightFromStationId?: string | null
+  inFlightDepartureTs?: number | null
+}
+
 export class NormalizeError extends Error {
   constructor(message: string, public field?: string) {
     super(message)

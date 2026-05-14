@@ -1,5 +1,6 @@
 import type { Env } from '../../worker-configuration'
 import { latestKey } from './poller'
+import { activityKey } from '../shared/activity'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -9,6 +10,7 @@ const CORS_HEADERS = {
 const CURRENT_RE = /^\/api\/systems\/([^/]+)\/current$/
 const PARTITIONS_RE = /^\/api\/systems\/([^/]+)\/partitions$/
 const STATION_RECENT_RE = /^\/api\/systems\/([^/]+)\/stations\/([^/]+)\/recent$/
+const ACTIVITY_RE = /^\/api\/systems\/([^/]+)\/activity$/
 
 function partitionKeyToTs(key: string): number | null {
   const m = key.match(/dt=(\d{4})-(\d{2})-(\d{2})\/(\d{2})\.parquet$/)
@@ -176,6 +178,21 @@ export default {
       const fromTs = Number(url.searchParams.get('from') ?? '0')
       const toTs = Number(url.searchParams.get('to') ?? Math.floor(Date.now() / 1000).toString())
       return handlePartitions(env, systemId, fromTs, toTs)
+    }
+
+    const activity = url.pathname.match(ACTIVITY_RE)
+    if (activity) {
+      const systemId = activity[1]!
+      const raw = await env.GBFS_KV.get(activityKey(systemId))
+      const body = raw ?? JSON.stringify({ events: [], trips: [], inFlightFromStationId: null, inFlightDepartureTs: null })
+      return new Response(body, {
+        status: 200,
+        headers: {
+          ...CORS_HEADERS,
+          'content-type': 'application/json',
+          'cache-control': 'max-age=20',
+        },
+      })
     }
 
     const recent = url.pathname.match(STATION_RECENT_RE)

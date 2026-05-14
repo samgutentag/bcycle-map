@@ -6,10 +6,17 @@ import {
   mergeSnapshot,
 } from '../shared/normalize'
 import { getSystems } from '../shared/systems'
-import type { KVValue, BufferEntry } from '../shared/types'
+import type { KVValue, BufferEntry, ActivityLog } from '../shared/types'
 import type { SystemConfig } from '../shared/systems'
 import type { KVNamespace, ScheduledEvent, ExecutionContext } from '@cloudflare/workers-types'
 import type { Env } from '../../worker-configuration'
+import {
+  activityKey as activityKeyFor,
+  appendTick,
+  applyTripTransition,
+  detectEvents,
+  emptyActivityLog,
+} from '../shared/activity'
 
 type PollDeps = {
   fetchImpl?: typeof fetch
@@ -70,13 +77,15 @@ export function latestKey(systemId: string): string {
 
 export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise<void> {
   const lKey = latestKey(snap.system.system_id)
+  const aKey = activityKeyFor(snap.system.system_id)
 
   // Read previous snapshot to carry forward the running max of bikes-parked.
   // The "ever observed" max approximates total fleet size: at peak idle
   // (typically 3am) most bikes are parked at stations.
-  const prevRaw = await kv.get(lKey)
+  const [prevRaw, activityRaw] = await Promise.all([kv.get(lKey), kv.get(aKey)])
   const prev: KVValue | null = prevRaw ? JSON.parse(prevRaw) : null
   const totalBikesNow = snap.stations.reduce((sum, s) => sum + s.num_bikes_available, 0)
+  const totalBikesPrev = prev ? prev.stations.reduce((sum, s) => sum + s.num_bikes_available, 0) : totalBikesNow
   const maxBikesEver = Math.max(prev?.max_bikes_ever ?? 0, totalBikesNow)
 
   // Maintain a 24-hour rolling window of per-hour bikes-available min/max
@@ -99,7 +108,28 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
 
   const enriched: KVValue = { ...snap, max_bikes_ever: maxBikesEver, recent24h: recent }
 
+  // Activity log: diff per-station bike counts vs previous snapshot to emit
+  // departure/arrival events, plus a naive trip pairing when the system
+  // transitions cleanly through a single active rider (0→1 then 1→0).
+  let nextActivity: ActivityLog | null = null
+  if (prev) {
+    let activity: ActivityLog = emptyActivityLog()
+    if (activityRaw) {
+      try {
+        activity = JSON.parse(activityRaw)
+      } catch (e) {
+        console.error(`activity parse failed for ${snap.system.system_id}, starting fresh:`, e)
+      }
+    }
+    const events = detectEvents(prev.stations, snap.stations, snap.snapshot_ts)
+    const prevActive = Math.max(0, maxBikesEver - totalBikesPrev)
+    const currActive = Math.max(0, maxBikesEver - totalBikesNow)
+    const transition = applyTripTransition(activity, events, snap.snapshot_ts, prevActive, currActive)
+    nextActivity = appendTick(activity, events, transition)
+  }
+
   await kv.put(lKey, JSON.stringify(enriched))
+  if (nextActivity) await kv.put(aKey, JSON.stringify(nextActivity))
 
   const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
   const existing = await kv.get(bufKey)

@@ -8,11 +8,13 @@ import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
 import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
 import TravelTimeBadge from '../components/TravelTimeBadge'
 import StationPicker from '../components/StationPicker'
+import ActivityLog from '../components/ActivityLog'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { useHourOfWeekActiveRiders } from '../hooks/useHourOfWeekActiveRiders'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
+import { useActivity } from '../hooks/useActivity'
 import { resolveRange, type Preset } from '../lib/date-range'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
@@ -23,6 +25,7 @@ export default function Explore() {
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const activity = useActivity(SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
@@ -75,6 +78,22 @@ export default function Explore() {
           <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} recent24h={live.recent24h} timezone={live.system.timezone} variant="inline" />
         </div>
       )}
+
+      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Activity log</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair a departure with the next arrival, but only during "quiet periods" where the system has exactly one active rider — so the assumption holds.
+        </p>
+        {activity.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{activity.error.message}</pre>}
+        {!activity.error && (
+          <ActivityLog
+            log={activity.data}
+            stations={live?.stations ?? []}
+            matrix={matrix.data}
+            timezone={live?.system.timezone}
+          />
+        )}
+      </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700">Active riders — hour of week</h3>
