@@ -1,0 +1,98 @@
+name: travel-times
+
+on:
+  schedule:
+    # Daily — `check` mode only, no Google API calls
+    - cron: '15 14 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode: check (free, diff only), compute (incremental Google calls), compute-full (full Google rebuild)'
+        type: choice
+        options:
+          - check
+          - compute
+          - compute-full
+        default: check
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: travel-times
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run travel-times script
+        id: run
+        run: |
+          set -o pipefail
+          npx tsx scripts/compute-travel-times.ts 2>&1 | tee run.log
+          # Pull the CHECK_SUMMARY line out for the next step to consume
+          grep -oE 'CHECK_SUMMARY=\{.*\}' run.log | sed 's/^CHECK_SUMMARY=//' > check-summary.json || echo '{}' > check-summary.json
+          echo "summary=$(cat check-summary.json | jq -c .)" >> $GITHUB_OUTPUT
+        env:
+          MODE: ${{ github.event.inputs.mode || 'check' }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          SYSTEM_ID: bcycle_santabarbara
+          API_BASE: https://bcycle-map-read-api.developer-95b.workers.dev
+
+      - name: File / update issue if changes detected (check mode only)
+        if: github.event.inputs.mode == 'check' || github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY: ${{ steps.run.outputs.summary }}
+        run: |
+          HAS_CHANGES=$(echo "$SUMMARY" | jq -r '.hasChanges // false')
+          if [ "$HAS_CHANGES" != "true" ]; then
+            echo "No station changes detected."
+            exit 0
+          fi
+          ADDED=$(echo "$SUMMARY" | jq -r '.added | join(", ")')
+          MOVED=$(echo "$SUMMARY" | jq -r '.moved | join(", ")')
+          REMOVED=$(echo "$SUMMARY" | jq -r '.removed | join(", ")')
+
+          TITLE="Travel-time matrix: station changes need a recompute"
+          BODY=$(cat <<EOF
+          The daily \`travel-times\` check detected station changes that affect the routing matrix.
+
+          - **Added**: $ADDED
+          - **Moved**: $MOVED
+          - **Removed**: $REMOVED
+
+          To update the matrix, manually run the \`travel-times\` workflow with \`mode: compute\` (incremental, only changed pairs) or \`mode: compute-full\` (full rebuild).
+
+          Last detected: $(date -u +"%Y-%m-%d %H:%M UTC")
+          EOF
+          )
+
+          # Find or create the issue (one rolling issue, label \`travel-times\`)
+          EXISTING=$(gh issue list --label travel-times --state open --json number --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --label travel-times --body "$BODY"
+          fi
