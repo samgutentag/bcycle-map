@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
@@ -16,7 +16,11 @@ const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64
 export default function Explore() {
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
-  const range = resolveRange(preset, Math.floor(Date.now() / 1000))
+  // Capture `now` once on mount so the range doesn't drift every second
+  // (useLiveSnapshot ticks its clock for the staleness counter, which would
+  // otherwise re-fetch the charts on every render). Reload to refresh.
+  const [now] = useState(() => Math.floor(Date.now() / 1000))
+  const range = useMemo(() => resolveRange(preset, now), [preset, now])
 
   const timezone = live?.system.timezone
   const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })

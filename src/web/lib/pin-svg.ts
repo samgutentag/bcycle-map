@@ -1,47 +1,46 @@
-const PIE_FULL_BIKES = '#15803d'  // green-700
-const PIE_EMPTY = '#9ca3af'       // neutral-400
-const PIN_BG = '#ffffff'
-const PIN_STROKE = '#1f2937'      // neutral-800
+// BCycle-style solid teardrop pin with two stacked numbers:
+//   top    = focus value (bikes-available or docks-available, depending on mode)
+//   bottom = total dock slots at the station
 
-const VIEW_WIDTH = 28
-const VIEW_HEIGHT = 36
+const PIN_FILL = '#0d6cb0'        // BCycle-ish brand blue
+const PIN_STROKE = '#0a5896'
+const PIN_FILL_OFFLINE = '#9ca3af' // neutral-400 for offline stations
+const PIN_STROKE_OFFLINE = '#6b7280'
+
+const VIEW_WIDTH = 36
+const VIEW_HEIGHT = 48
 const ASPECT = VIEW_HEIGHT / VIEW_WIDTH
 
-// Body center at (14, 14), radius 11. Tail tip at (14, 34).
-// Tangent points where the body meets the tail are computed once: (4.81, 20.05) and (23.19, 20.05).
-const PIN_OUTLINE = 'M 14 34 L 4.81 20.05 A 11 11 0 1 1 23.19 20.05 Z'
+// Teardrop outline: round body radius 13 centered at (18,15), tail tip at (18,47).
+// Tangent points computed once (precision good to 2 decimals) so the path is
+// deterministic and inspectable.
+const PIN_OUTLINE = 'M 18 47 L 6.13 23.0 A 13 13 0 1 1 29.87 23.0 Z'
 
-// Pie chart geometry inside the round body
-const CX = 14
-const CY = 14
-const R = 8
+const CX = 18
+const TOP_Y = 17   // top number baseline
+const SEP_Y = 21   // horizontal rule between numbers
+const BOT_Y = 31   // bottom number baseline
 
-export function buildPinSVG(bikes: number, docks: number): string {
-  const total = bikes + docks
-  const ratio = total > 0 ? bikes / total : 0
+export type PinOptions = {
+  offline?: boolean
+}
 
-  let pie: string
-  if (ratio === 0) {
-    pie = `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${PIE_EMPTY}"/>`
-  } else if (ratio === 1) {
-    pie = `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${PIE_FULL_BIKES}"/>`
-  } else {
-    const angle = ratio * 2 * Math.PI
-    const x = (CX + R * Math.sin(angle)).toFixed(2)
-    const y = (CY - R * Math.cos(angle)).toFixed(2)
-    const largeArc = ratio > 0.5 ? 1 : 0
-    pie =
-      `<circle cx="${CX}" cy="${CY}" r="${R}" fill="${PIE_EMPTY}"/>` +
-      `<path d="M ${CX} ${CY} L ${CX} ${CY - R} A ${R} ${R} 0 ${largeArc} 1 ${x} ${y} Z" fill="${PIE_FULL_BIKES}"/>`
-  }
+export function buildPinSVG(topValue: number, bottomValue: number, opts: PinOptions = {}): string {
+  const fill = opts.offline ? PIN_FILL_OFFLINE : PIN_FILL
+  const stroke = opts.offline ? PIN_STROKE_OFFLINE : PIN_STROKE
+  // Big number font size shrinks slightly for 3-digit values so they don't overflow
+  const topFontSize = topValue >= 100 ? 11 : 14
 
   return `<svg viewBox="0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
-    `<path d="${PIN_OUTLINE}" fill="${PIN_BG}" stroke="${PIN_STROKE}" stroke-width="1.5"/>` +
-    pie +
+    `<path d="${PIN_OUTLINE}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>` +
+    `<text x="${CX}" y="${TOP_Y}" text-anchor="middle" font-size="${topFontSize}" font-weight="700" font-family="system-ui,-apple-system,sans-serif" fill="white">${topValue}</text>` +
+    `<line x1="9" y1="${SEP_Y}" x2="27" y2="${SEP_Y}" stroke="white" stroke-opacity="0.35" stroke-width="0.6"/>` +
+    `<text x="${CX}" y="${BOT_Y}" text-anchor="middle" font-size="9" font-family="system-ui,-apple-system,sans-serif" fill="white" fill-opacity="0.85">${bottomValue}</text>` +
     `</svg>`
 }
 
 export function pinSize(totalCapacity: number): { width: number; height: number } {
-  const w = Math.max(24, Math.min(40, 24 + totalCapacity * 0.8))
+  // Subtle size scale: 30–42 px wide. Most stations land at ~33-36.
+  const w = Math.max(30, Math.min(42, 30 + totalCapacity * 0.4))
   return { width: w, height: w * ASPECT }
 }
