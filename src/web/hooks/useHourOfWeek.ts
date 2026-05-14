@@ -3,6 +3,7 @@ import { useDuckDB } from './useDuckDB'
 import { usePartitionKeys } from './usePartitionKeys'
 import { buildHourOfWeekQuery } from '../lib/queries'
 import type { Range } from '../lib/date-range'
+import type { LoadPhase } from './useTotalBikesOverTime'
 
 export type HourOfWeekRow = {
   dow: number
@@ -16,8 +17,13 @@ type Args = {
   r2Base: string
   system: string
   range: Range
-  /** IANA timezone (e.g. 'America/Los_Angeles'). Falls back to UTC if absent. */
   timezone?: string
+}
+
+const cache = new Map<string, HourOfWeekRow[]>()
+
+function cacheKey(args: Args, keys: string[]): string {
+  return `${args.r2Base}|${args.system}|${args.range.fromTs}|${args.range.toTs}|${args.timezone ?? 'UTC'}|${keys.join(',')}`
 }
 
 export function useHourOfWeek(args: Args) {
@@ -28,13 +34,20 @@ export function useHourOfWeek(args: Args) {
     range: args.range,
   })
   const [data, setData] = useState<HourOfWeekRow[] | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [queryLoading, setQueryLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
     if (!conn || !keys) return
     let cancelled = false
-    setLoading(true)
+    const key = cacheKey(args, keys)
+    const cached = cache.get(key)
+    if (cached) {
+      setData(cached)
+      setQueryLoading(false)
+      return
+    }
+    setQueryLoading(true)
     const urls = keys.map(k => `${args.r2Base}/${k}`)
     const sql = buildHourOfWeekQuery({ range: args.range, urls, timezone: args.timezone })
     conn.query(sql).then(
@@ -46,23 +59,33 @@ export function useHourOfWeek(args: Args) {
           avg_bikes: Number(r.avg_bikes),
           samples: Number(r.samples),
         }))
+        cache.set(key, rows)
         setData(rows)
-        setLoading(false)
+        setQueryLoading(false)
       },
       e => {
         if (cancelled) return
         setError(e as Error)
-        setLoading(false)
+        setQueryLoading(false)
       },
     )
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [conn, keys, args.r2Base, args.range.fromTs, args.range.toTs, args.timezone])
+
+  const phase: LoadPhase = dbError || partsError || error
+    ? 'idle'
+    : dbLoading
+      ? 'init'
+      : partsLoading
+        ? 'partitions'
+        : queryLoading
+          ? 'query'
+          : 'ready'
 
   return {
     data,
-    loading: dbLoading || partsLoading || loading,
+    loading: dbLoading || partsLoading || queryLoading,
+    phase,
     error: dbError || partsError || error,
   }
 }
