@@ -151,44 +151,54 @@ export default function LiveMap() {
     openStationPopup(station, mapRef.current, true)
   }, [urlStationId, data])
 
-  // Manage the H3 hex heatmap layer. When view === 'heatmap', add (or update)
-  // the source + fill layer. When view === 'pins', remove them.
+  // Manage the H3 hex heatmap layer. View 'bikes' or 'docks' adds (or updates)
+  // the source + fill layer using the matching property. 'pins' removes it.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !data) return
-    if (view === 'heatmap') {
+    const isHeatmap = view === 'bikes' || view === 'docks'
+    if (isHeatmap) {
       const geojson = stationsToHexGeoJSON(data.stations)
+      // Bikes = blue, docks = green. Lighter steps fade to near-transparent so
+      // empty areas don't visually clutter the map.
+      const colorStops: Array<[number, string]> = view === 'bikes'
+        ? [
+          [0, 'rgba(13, 108, 176, 0.10)'],
+          [5, 'rgba(13, 108, 176, 0.35)'],
+          [15, 'rgba(13, 108, 176, 0.55)'],
+          [30, 'rgba(13, 108, 176, 0.75)'],
+          [60, 'rgba(13, 108, 176, 0.9)'],
+        ]
+        : [
+          [0, 'rgba(21, 128, 61, 0.10)'],
+          [5, 'rgba(21, 128, 61, 0.35)'],
+          [15, 'rgba(21, 128, 61, 0.55)'],
+          [30, 'rgba(21, 128, 61, 0.75)'],
+          [60, 'rgba(21, 128, 61, 0.9)'],
+        ]
+      const fillColor: any = ['interpolate', ['linear'], ['get', view]]
+      for (const [v, c] of colorStops) {
+        fillColor.push(v, c)
+      }
+      const lineColor = view === 'bikes' ? 'rgba(13, 108, 176, 0.6)' : 'rgba(21, 128, 61, 0.6)'
+
       const apply = () => {
-        if (map.getSource(HEX_SOURCE_ID)) {
-          ;(map.getSource(HEX_SOURCE_ID) as maplibregl.GeoJSONSource).setData(geojson as any)
-        } else {
-          map.addSource(HEX_SOURCE_ID, { type: 'geojson', data: geojson as any })
-          map.addLayer({
-            id: HEX_FILL_LAYER,
-            type: 'fill',
-            source: HEX_SOURCE_ID,
-            paint: {
-              'fill-color': [
-                'interpolate', ['linear'], ['get', 'bikes'],
-                0, 'rgba(13, 108, 176, 0.10)',
-                5, 'rgba(13, 108, 176, 0.35)',
-                15, 'rgba(13, 108, 176, 0.55)',
-                30, 'rgba(13, 108, 176, 0.75)',
-                60, 'rgba(13, 108, 176, 0.9)',
-              ],
-              'fill-opacity': 1,
-            },
-          })
-          map.addLayer({
-            id: HEX_LINE_LAYER,
-            type: 'line',
-            source: HEX_SOURCE_ID,
-            paint: {
-              'line-color': 'rgba(13, 108, 176, 0.6)',
-              'line-width': 0.8,
-            },
-          })
-        }
+        if (map.getLayer(HEX_FILL_LAYER)) map.removeLayer(HEX_FILL_LAYER)
+        if (map.getLayer(HEX_LINE_LAYER)) map.removeLayer(HEX_LINE_LAYER)
+        if (map.getSource(HEX_SOURCE_ID)) map.removeSource(HEX_SOURCE_ID)
+        map.addSource(HEX_SOURCE_ID, { type: 'geojson', data: geojson as any })
+        map.addLayer({
+          id: HEX_FILL_LAYER,
+          type: 'fill',
+          source: HEX_SOURCE_ID,
+          paint: { 'fill-color': fillColor, 'fill-opacity': 1 },
+        })
+        map.addLayer({
+          id: HEX_LINE_LAYER,
+          type: 'line',
+          source: HEX_SOURCE_ID,
+          paint: { 'line-color': lineColor, 'line-width': 0.8 },
+        })
       }
       if (map.isStyleLoaded()) apply()
       else map.once('load', apply)
@@ -202,8 +212,8 @@ export default function LiveMap() {
   // sync markers when data updates
   useEffect(() => {
     if (!mapRef.current || !data) return
-    if (view === 'heatmap') {
-      // Hide all pins while heatmap is active
+    if (view !== 'pins') {
+      // Hide all pins while a heatmap is active
       for (const [id, m] of markersRef.current) {
         m.remove()
         markersRef.current.delete(id)
