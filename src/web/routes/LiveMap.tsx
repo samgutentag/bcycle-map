@@ -160,7 +160,13 @@ export default function LiveMap() {
       renderSparkline(sparklineEl, API_BASE, SYSTEM_ID, s.station_id, s.num_bikes_available)
     }
     popup.on('close', () => {
-      if (popupRef.current === popup) navigate('/')
+      if (popupRef.current !== popup) return
+      // Only navigate home if the URL still represents *this* popup being
+      // the focus. If the user has navigated to /details or elsewhere, the
+      // popup is being destroyed as part of route change, not user dismissal.
+      const expected = `/station/${s.station_id}`
+      const pathname = window.location.pathname
+      if (pathname === expected || pathname === `${expected}/`) navigate('/')
     })
     popupRef.current = popup
   }
