@@ -4,6 +4,7 @@ import LiveMap from './routes/LiveMap'
 
 const Explore = lazy(() => import('./routes/Explore'))
 const RouteCheck = lazy(() => import('./routes/RouteCheck'))
+const StationDetails = lazy(() => import('./routes/StationDetails'))
 
 export default function App() {
   return (
@@ -20,6 +21,14 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LiveMap />} />
           <Route path="/station/:stationId" element={<LiveMap />} />
+          <Route
+            path="/station/:stationId/details"
+            element={
+              <Suspense fallback={<div className="p-8 text-center text-neutral-500">Loading station details…</div>}>
+                <StationDetails />
+              </Suspense>
+            }
+          />
           <Route
             path="/route"
             element={

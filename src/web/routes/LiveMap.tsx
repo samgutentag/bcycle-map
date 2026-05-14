@@ -8,7 +8,26 @@ import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
+import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import type { StationSnapshot } from '@shared/types'
+
+const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+const CYCLOSM_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    cyclosm: {
+      type: 'raster',
+      tiles: [
+        'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+        'https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+        'https://c.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors · CyclOSM',
+    },
+  },
+  layers: [{ id: 'cyclosm', type: 'raster', source: 'cyclosm' }],
+}
 
 const HEX_RES = 10  // ~0.065 km hexes — block-level granularity; most stations get their own hex
 const HEX_SOURCE_ID = 'station-hex'
@@ -44,7 +63,6 @@ function stationsToHexGeoJSON(stations: StationSnapshot[]) {
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
-const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 
 function escapeHtml(s: string): string {
   return s
@@ -65,8 +83,9 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
   const ageSec = Math.max(0, nowTs - s.last_reported)
   const ageText = formatAge(ageSec)
   const offline = !s.is_renting || !s.is_returning || !s.is_installed
+  // BCycle SB is currently all-electric, so the "Electric: N" line is redundant.
+  // If non-electric types ever appear, show them so the user knows.
   const types = [
-    s.bikes_electric > 0 ? `Electric: ${s.bikes_electric}` : null,
     s.bikes_classic > 0 ? `Classic: ${s.bikes_classic}` : null,
     s.bikes_smart > 0 ? `Smart: ${s.bikes_smart}` : null,
   ].filter(Boolean)
@@ -82,7 +101,8 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       ${types.length > 0 ? `<div class="mt-2 text-xs text-neutral-600 space-y-0.5">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
       ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}
       <div class="mt-2 text-xs text-neutral-500">Reported ${ageText}</div>
-      <div class="mt-3 flex gap-2 text-xs">
+      <div class="mt-3 flex flex-wrap gap-2 text-xs">
+        <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa class="px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 no-underline">Details</a>
         <a href="/route/${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-sky-700 text-white hover:bg-sky-800 no-underline">Use as start</a>
         <a href="/route//${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 no-underline">Use as destination</a>
       </div>
@@ -100,6 +120,7 @@ export default function LiveMap() {
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
   const [view, setView] = useState<MapView>('pins')
+  const [basemap, setBasemap] = useState<Basemap>('clean')
 
   function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
     // Clear ref BEFORE removing the old popup so its close event doesn't
@@ -136,12 +157,21 @@ export default function LiveMap() {
     if (!ref.current || mapRef.current) return
     mapRef.current = new maplibregl.Map({
       container: ref.current,
-      style: BASEMAP_STYLE,
+      style: basemap === 'cycling' ? CYCLOSM_STYLE : POSITRON_STYLE,
       center: SB_CENTER,
       zoom: 13,
     })
     return () => { mapRef.current?.remove(); mapRef.current = null }
+    // boot only; we swap style imperatively below when basemap changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // swap basemap style when toggle changes
+  useEffect(() => {
+    if (!mapRef.current) return
+    boundsSetRef.current = false  // re-fit bounds on next data render since style reset clears layers
+    mapRef.current.setStyle(basemap === 'cycling' ? CYCLOSM_STYLE : POSITRON_STYLE)
+  }, [basemap])
 
   // open the popup whenever URL or data resolves a station
   useEffect(() => {
@@ -294,6 +324,7 @@ export default function LiveMap() {
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
       <MapViewToggle value={view} onChange={setView} />
+      <BasemapToggle value={basemap} onChange={setBasemap} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
     </div>
