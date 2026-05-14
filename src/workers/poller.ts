@@ -125,8 +125,19 @@ export async function writeSnapshotToKV(kv: KVNamespace, r2: R2Bucket, snap: KVV
   // Activity log: diff per-station bike counts vs previous snapshot to emit
   // departure/arrival events, plus a naive trip pairing when the system
   // transitions cleanly through a single active rider (0→1 then 1→0).
+  //
+  // Freshness guard: if prev.snapshot_ts is older than a couple ticks (e.g.
+  // KV writes have been failing under the daily put cap, leaving `:latest`
+  // frozen), skip activity detection. Otherwise we'd diff a multi-hour gap
+  // and stamp the resulting events at this tick's time — data rot.
+  const STALE_PREV_THRESHOLD_SEC = 10 * 60
+  const prevAgeSec = prev ? snap.snapshot_ts - prev.snapshot_ts : 0
+  const prevIsFresh = prev && prevAgeSec <= STALE_PREV_THRESHOLD_SEC
   let nextActivity: ActivityLog | null = null
-  if (prev) {
+  if (prev && !prevIsFresh) {
+    console.warn(`prev snapshot is ${prevAgeSec}s old (>${STALE_PREV_THRESHOLD_SEC}s); skipping activity diff this tick`)
+  }
+  if (prevIsFresh) {
     let activity: ActivityLog = emptyActivityLog()
     if (activityRaw) {
       try {
