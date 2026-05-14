@@ -13,21 +13,43 @@ const PAD_L = 36
 const PAD_R = 12
 const PAD_T = 12
 const PAD_B = 28
+const BUCKET_SEC = 30 * 60  // half-hour buckets
 
-const BIKES_COLOR = '#0d6cb0'   // BCycle blue
-const DOCKS_COLOR = '#15803d'   // green-700
+const BIKES_COLOR = '#0d6cb0'
+const DOCKS_COLOR = '#15803d'
 const GRID_COLOR = '#e5e7eb'
 const TICK_COLOR = '#9ca3af'
 const MAJOR_LABEL_COLOR = '#6b7280'
 
-/** Major-tick labels at 0/6/12/18 local hours, minor ticks at every other hour. */
+type Bucket = { bucketTs: number; bikes: number; docks: number; count: number }
+
+function aggregateBuckets(data: Row[], bucketSec: number): Bucket[] {
+  const map = new Map<number, { bikes: number; docks: number; count: number }>()
+  for (const d of data) {
+    const bucketTs = Math.floor(d.snapshot_ts / bucketSec) * bucketSec
+    const cur = map.get(bucketTs) ?? { bikes: 0, docks: 0, count: 0 }
+    cur.bikes += d.bikes
+    cur.docks += d.docks
+    cur.count += 1
+    map.set(bucketTs, cur)
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([bucketTs, { bikes, docks, count }]) => ({
+      bucketTs,
+      bikes: bikes / count,
+      docks: docks / count,
+      count,
+    }))
+}
+
 function hourTicks(xMin: number, xMax: number): Array<{ ts: number; major: boolean; label: string }> {
   if (xMin >= xMax) return []
   const firstHour = Math.ceil(xMin / 3600) * 3600
   const ticks: Array<{ ts: number; major: boolean; label: string }> = []
   for (let ts = firstHour; ts <= xMax; ts += 3600) {
     const d = new Date(ts * 1000)
-    const h = d.getHours()  // local time
+    const h = d.getHours()
     const major = h === 0 || h === 6 || h === 12 || h === 18
     let label = ''
     if (major) {
@@ -38,7 +60,6 @@ function hourTicks(xMin: number, xMax: number): Array<{ ts: number; major: boole
   return ticks
 }
 
-/** Y-axis ticks chosen to give 4-6 intervals of round numbers. */
 function yAxisTicks(max: number): number[] {
   if (max <= 0) return [0]
   if (max <= 6) return Array.from({ length: max + 1 }, (_, i) => i)
@@ -57,6 +78,7 @@ function yAxisTicks(max: number): number[] {
 export default function StationOverTimeChart({ data, totalDocks, show = 'both' }: Props) {
   const showBikes = show === 'bikes' || show === 'both'
   const showDocks = show === 'docks' || show === 'both'
+
   if (data.length === 0) {
     return (
       <div className="relative w-full h-40 rounded-md border border-dashed border-neutral-300 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 flex items-center justify-center">
@@ -68,52 +90,54 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
     )
   }
 
-  const xs = data.map(d => d.snapshot_ts)
-  const xMin = Math.min(...xs)
-  const xMax = Math.max(...xs)
-  // Y max: prefer the known station capacity; else fall back to observed max
+  const buckets = aggregateBuckets(data, BUCKET_SEC)
+  if (buckets.length === 0) return null
+
+  const xMin = buckets[0]!.bucketTs
+  const xMax = buckets[buckets.length - 1]!.bucketTs + BUCKET_SEC
   const observedMax = Math.max(
-    ...data.map(d => {
-      const candidates = [d.bikes + d.docks]
-      if (showBikes) candidates.push(d.bikes)
-      if (showDocks) candidates.push(d.docks)
-      return Math.max(...candidates)
+    ...buckets.map(b => {
+      const candidates: number[] = []
+      if (showBikes) candidates.push(b.bikes)
+      if (showDocks) candidates.push(b.docks)
+      return candidates.length ? Math.max(...candidates) : 0
     }),
   )
-  const yMax = totalDocks && totalDocks > 0 ? totalDocks : observedMax
-  const xSpan = Math.max(1, xMax - xMin)
+  const yMax = totalDocks && totalDocks > 0 ? totalDocks : Math.ceil(observedMax)
+  const xSpan = Math.max(BUCKET_SEC, xMax - xMin)
   const ySpan = Math.max(1, yMax)
 
   const scaleX = (t: number) => PAD_L + ((t - xMin) / xSpan) * (WIDTH - PAD_L - PAD_R)
   const scaleY = (v: number) => HEIGHT - PAD_B - (v / ySpan) * (HEIGHT - PAD_T - PAD_B)
-
-  const bikesPoints = data.map(d => `${scaleX(d.snapshot_ts).toFixed(1)},${scaleY(d.bikes).toFixed(1)}`).join(' ')
-  const docksPoints = data.map(d => `${scaleX(d.snapshot_ts).toFixed(1)},${scaleY(d.docks).toFixed(1)}`).join(' ')
+  const xBucketWidth = (WIDTH - PAD_L - PAD_R) * (BUCKET_SEC / xSpan)
+  const seriesShown = [showBikes, showDocks].filter(Boolean).length
+  const innerGap = 1  // px between bars in a group
+  const groupGap = 0.15  // fraction of bucket reserved as gap between buckets
+  const barWidth = ((xBucketWidth * (1 - groupGap)) - innerGap * (seriesShown - 1)) / Math.max(1, seriesShown)
 
   const xTicks = hourTicks(xMin, xMax)
   const yTicks = yAxisTicks(yMax)
-
-  const last = data[data.length - 1]!
+  const last = buckets[buckets.length - 1]!
 
   return (
     <div className="w-full">
       <div className="flex gap-4 text-xs text-neutral-700 mb-1 px-1">
         {showBikes && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5" style={{ backgroundColor: BIKES_COLOR }} />
-            Bikes available <span className="text-neutral-500">(now {last.bikes})</span>
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: BIKES_COLOR }} />
+            Bikes available <span className="text-neutral-500">(last 30m avg {last.bikes.toFixed(1)})</span>
           </span>
         )}
         {showDocks && (
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5" style={{ backgroundColor: DOCKS_COLOR }} />
-            Open docks <span className="text-neutral-500">(now {last.docks})</span>
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: DOCKS_COLOR }} />
+            Open docks <span className="text-neutral-500">(last 30m avg {last.docks.toFixed(1)})</span>
           </span>
         )}
         {totalDocks ? <span className="ml-auto text-neutral-500">Total docks: {totalDocks}</span> : null}
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto">
-        {/* Y-axis grid + ticks + labels */}
+        {/* Y grid + ticks */}
         {yTicks.map(v => (
           <g key={`y-${v}`}>
             <line
@@ -131,7 +155,7 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
           </g>
         ))}
 
-        {/* X-axis hour ticks */}
+        {/* X hour ticks */}
         {xTicks.map(t => (
           <g key={`x-${t.ts}`}>
             <line
@@ -156,13 +180,49 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
           </g>
         ))}
 
-        {/* X axis line on top of ticks */}
         <line x1={PAD_L} y1={HEIGHT - PAD_B} x2={WIDTH - PAD_R} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
         <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
 
-        {/* Data lines */}
-        {showDocks && <polyline fill="none" stroke={DOCKS_COLOR} strokeWidth="2" points={docksPoints} />}
-        {showBikes && <polyline fill="none" stroke={BIKES_COLOR} strokeWidth="2" points={bikesPoints} />}
+        {/* Half-hour average bars */}
+        {buckets.map(b => {
+          const bucketLeft = scaleX(b.bucketTs) + (xBucketWidth * groupGap) / 2
+          let xCursor = bucketLeft
+          const elements: JSX.Element[] = []
+          if (showBikes) {
+            const h = (HEIGHT - PAD_B) - scaleY(b.bikes)
+            elements.push(
+              <rect
+                key={`bikes-${b.bucketTs}`}
+                x={xCursor}
+                y={scaleY(b.bikes)}
+                width={Math.max(0.5, barWidth)}
+                height={Math.max(0, h)}
+                fill={BIKES_COLOR}
+                opacity={0.85}
+              >
+                <title>{`${new Date(b.bucketTs * 1000).toLocaleString()} — avg ${b.bikes.toFixed(1)} bikes (${b.count} samples)`}</title>
+              </rect>,
+            )
+            xCursor += barWidth + innerGap
+          }
+          if (showDocks) {
+            const h = (HEIGHT - PAD_B) - scaleY(b.docks)
+            elements.push(
+              <rect
+                key={`docks-${b.bucketTs}`}
+                x={xCursor}
+                y={scaleY(b.docks)}
+                width={Math.max(0.5, barWidth)}
+                height={Math.max(0, h)}
+                fill={DOCKS_COLOR}
+                opacity={0.85}
+              >
+                <title>{`${new Date(b.bucketTs * 1000).toLocaleString()} — avg ${b.docks.toFixed(1)} docks (${b.count} samples)`}</title>
+              </rect>,
+            )
+          }
+          return <g key={b.bucketTs}>{elements}</g>
+        })}
       </svg>
     </div>
   )
