@@ -75,6 +75,22 @@ export function buildHourOfWeekQuery(args: QueryArgs & { timezone?: string }): s
   `.trim()
 }
 
+export function buildStationOverTimeQuery(args: QueryArgs & { stationId: string }): string {
+  if (args.urls.length === 0) {
+    return `SELECT NULL::BIGINT as snapshot_ts, NULL::BIGINT as bikes, NULL::BIGINT as docks WHERE FALSE`
+  }
+  const src = partitionList(args.urls)
+  // Escape single quotes in station_id (defensive — IDs are publisher-controlled)
+  const safeStationId = args.stationId.replace(/'/g, "''")
+  return `
+    SELECT snapshot_ts, num_bikes_available as bikes, num_docks_available as docks
+    FROM read_parquet(${src}, ${READ_OPTS})
+    WHERE station_id = '${safeStationId}'
+      AND snapshot_ts BETWEEN ${args.range.fromTs} AND ${args.range.toTs}
+    ORDER BY snapshot_ts
+  `.trim()
+}
+
 export function buildStationSnapshotsQuery(args: {
   urls: string[]
   atTs: number
