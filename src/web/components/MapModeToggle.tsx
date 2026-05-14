@@ -30,7 +30,7 @@ export default function MapModeToggle({ value, onChange }: Props) {
         }
         title="Show open docks on each pin"
       >
-        Docks
+        Open docks
       </button>
     </div>
   )
