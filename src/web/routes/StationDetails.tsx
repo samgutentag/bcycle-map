@@ -8,6 +8,9 @@ import DateRangePicker from '../components/DateRangePicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
 import MiniLine from '../components/MiniLine'
 import ChartSkeleton from '../components/ChartSkeleton'
+import ActivityLog from '../components/ActivityLog'
+import { useActivity } from '../hooks/useActivity'
+import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import { resolveRange, type Preset } from '../lib/date-range'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import type { StationSnapshot } from '@shared/types'
@@ -231,6 +234,8 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
 export default function StationDetails() {
   const { stationId } = useParams<{ stationId: string }>()
   const { data: live, ageSec } = useLiveSnapshot(SYSTEM_ID)
+  const activity = useActivity(SYSTEM_ID)
+  const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
@@ -405,6 +410,28 @@ export default function StationDetails() {
       {station && (
         <section className="mb-6">
           <TypicalCallout stationId={station.station_id} currentBikes={station.num_bikes_available} />
+        </section>
+      )}
+
+      {/* Activity log filtered to this station */}
+      {station && (
+        <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+          <h3 className="text-sm font-semibold text-neutral-700">Activity at this station</h3>
+          <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+            Recent departures and arrivals captured at this specific station, plus any inferred trips that started or ended here. Filtered live from the rolling 200-event window.
+          </p>
+          {activity.error && (
+            <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{activity.error.message}</pre>
+          )}
+          {!activity.error && (
+            <ActivityLog
+              log={activity.data}
+              stations={live?.stations ?? []}
+              matrix={matrix.data}
+              timezone={live?.system.timezone}
+              stationFilter={station.station_id}
+            />
+          )}
         </section>
       )}
 

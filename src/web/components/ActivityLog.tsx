@@ -12,6 +12,8 @@ type Props = {
   maxEvents?: number
   /** Max number of trips to render. Defaults to 20. */
   maxTrips?: number
+  /** When set, filter events to this station and trips touching it. */
+  stationFilter?: string
 }
 
 const DEPARTURE_COLOR = 'text-orange-700 bg-orange-50 border-orange-200'
@@ -43,7 +45,7 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
   return edge ? { minutes: Math.round(edge.minutes) } : null
 }
 
-export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20 }: Props) {
+export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter }: Props) {
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
   const nowSec = Math.floor(Date.now() / 1000)
 
@@ -51,13 +53,22 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
     return <div className="text-sm text-neutral-500">Loading activity…</div>
   }
 
-  const events = [...log.events].slice(-maxEvents).reverse()
-  const trips = [...log.trips].slice(-maxTrips).reverse()
+  const filteredEventsAll = stationFilter
+    ? log.events.filter(e => e.station_id === stationFilter)
+    : log.events
+  const filteredTripsAll = stationFilter
+    ? log.trips.filter(t => t.from_station_id === stationFilter || t.to_station_id === stationFilter)
+    : log.trips
+
+  const events = [...filteredEventsAll].slice(-maxEvents).reverse()
+  const trips = [...filteredTripsAll].slice(-maxTrips).reverse()
 
   if (events.length === 0 && trips.length === 0) {
     return (
       <div className="text-sm text-neutral-500 py-4 text-center bg-neutral-50 rounded border border-dashed border-neutral-300">
-        No movement observed yet. The poller emits departures and arrivals as bike counts change at any station — watch this space.
+        {stationFilter
+          ? 'No departures or arrivals captured at this station yet.'
+          : 'No movement observed yet. The poller emits departures and arrivals as bike counts change at any station — watch this space.'}
       </div>
     )
   }
@@ -67,7 +78,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
       {/* Recent events column */}
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-          Recent departures &amp; arrivals
+          {stationFilter ? 'Recent activity at this station' : 'Recent departures & arrivals'}
         </div>
         <ul className="space-y-1 max-h-72 overflow-y-auto pr-1" aria-live="polite">
           {events.map((e, i) => {
@@ -101,7 +112,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
       {/* Inferred trips column */}
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-          Inferred trips
+          {stationFilter ? 'Inferred trips touching this station' : 'Inferred trips'}
           <span className="ml-1 normal-case text-neutral-400 font-normal">(quiet-period only)</span>
         </div>
         {trips.length === 0 ? (
