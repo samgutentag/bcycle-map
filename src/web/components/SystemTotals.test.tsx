@@ -41,18 +41,30 @@ describe('computeTotals', () => {
 
   it('returns zeros for empty input', () => {
     const t = computeTotals([])
-    expect(t).toEqual({ bikes: 0, docks: 0, stationsOnline: 0 })
+    expect(t).toEqual({ bikes: 0, docks: 0, stationsOnline: 0, totalDockSlots: 0 })
+  })
+
+  it('derives totalDockSlots as bikes + docks', () => {
+    const t = computeTotals([
+      make({ num_bikes_available: 3, num_docks_available: 7 }),
+      make({ num_bikes_available: 5, num_docks_available: 4 }),
+    ])
+    expect(t.totalDockSlots).toBe(19)
   })
 })
 
 describe('SystemTotals', () => {
-  it('renders the totals as visible numbers', () => {
-    render(<SystemTotals stations={[
+  it('renders bikes and docks with a shared total-capacity denominator', () => {
+    const { container } = render(<SystemTotals stations={[
       make({ num_bikes_available: 4, num_docks_available: 6 }),
       make({ num_bikes_available: 1, num_docks_available: 9 }),
     ]} />)
-    expect(screen.getByText('5')).toBeInTheDocument()
-    expect(screen.getByText('15')).toBeInTheDocument()
+    // Totals: bikes=5, docks=15, total dock slots = 20
+    expect(container.textContent).toContain('5')
+    expect(container.textContent).toContain('15')
+    // The "/ 20" denominator should appear on both rows
+    const denominators = container.textContent?.match(/\/ 20/g) ?? []
+    expect(denominators.length).toBe(2)
   })
 
   it('renders utilization percentage', () => {
