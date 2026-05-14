@@ -4,10 +4,14 @@ import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
 import SystemBikesOverTime from '../components/SystemBikesOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
+import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
+import TravelTimeBadge from '../components/TravelTimeBadge'
+import StationPicker from '../components/StationPicker'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { useHourOfWeekActiveRiders } from '../hooks/useHourOfWeekActiveRiders'
+import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { resolveRange, type Preset } from '../lib/date-range'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
@@ -16,9 +20,17 @@ const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64
 
 export default function Explore() {
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
+  const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
+  const [routeStart, setRouteStart] = useState<string | null>(null)
+  const [routeEnd, setRouteEnd] = useState<string | null>(null)
+  const routeEdge = lookupTravelTime(matrix.data, routeStart, routeEnd)
+  const swapRoute = () => {
+    setRouteStart(routeEnd)
+    setRouteEnd(routeStart)
+  }
 
   const timezone = live?.system.timezone
   const maxBikesEver = live?.max_bikes_ever
@@ -81,6 +93,42 @@ export default function Explore() {
         {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />}
         {!hourly.loading && !hourly.error && hourly.data && (
           <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
+        )}
+      </section>
+
+      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Travel-time matrix</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Bike-route minutes between every pair of stations, via Google Distance Matrix. Pick an origin and a destination to outline the row and column — they cross at the travel time for that pair. Darker cells = longer rides.
+        </p>
+        {matrix.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{matrix.error.message}</pre>}
+        {!matrix.error && matrix.loading && <ChartSkeleton aspectRatio={1} />}
+        {!matrix.error && !matrix.loading && matrix.data && live && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-end gap-3 mb-3">
+              <StationPicker label="Origin" value={routeStart} stations={live.stations} onChange={setRouteStart} />
+              <button
+                type="button"
+                onClick={swapRoute}
+                disabled={!routeStart && !routeEnd}
+                aria-label="Reverse route (swap origin and destination)"
+                title="Reverse route"
+                className="self-end mb-1 px-3 py-2 rounded-md border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span aria-hidden>⇅</span>
+              </button>
+              <StationPicker label="Destination" value={routeEnd} stations={live.stations} onChange={setRouteEnd} />
+            </div>
+            {(routeStart || routeEnd) && (
+              <TravelTimeBadge minutes={routeEdge?.minutes ?? null} meters={routeEdge?.meters ?? null} />
+            )}
+            <TravelTimeHeatmap
+              matrix={matrix.data}
+              stations={live.stations}
+              selectedStartId={routeStart}
+              selectedEndId={routeEnd}
+            />
+          </>
         )}
       </section>
 
