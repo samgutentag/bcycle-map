@@ -42,8 +42,8 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       <div class="font-semibold">${escapeHtml(s.name)}</div>
       ${s.address ? `<div class="text-xs text-neutral-500 mt-0.5">${escapeHtml(s.address)}</div>` : ''}
       <div class="mt-2 flex gap-4">
-        <div><span class="font-medium">${s.num_bikes_available}</span> bikes</div>
-        <div><span class="font-medium">${s.num_docks_available}</span> docks</div>
+        <div><span class="font-medium">${s.num_bikes_available}</span> bikes available</div>
+        <div><span class="font-medium">${s.num_docks_available}</span> docks available</div>
       </div>
       ${types.length > 0 ? `<div class="mt-2 text-xs text-neutral-600 space-y-0.5">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
       ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}

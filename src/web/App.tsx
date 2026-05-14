@@ -12,7 +12,7 @@ export default function App() {
         <h1 className="font-semibold">bcycle-map</h1>
         <nav className="flex gap-3 text-sm text-neutral-700">
           <Link to="/" className="hover:underline">Live</Link>
-          <Link to="/route" className="hover:underline">Route check</Link>
+          <Link to="/route" className="hover:underline">Route planner</Link>
           <Link to="/explore" className="hover:underline">Explore</Link>
         </nav>
       </header>
