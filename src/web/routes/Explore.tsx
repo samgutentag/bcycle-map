@@ -38,14 +38,20 @@ export default function Explore() {
       )}
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700 mb-2">Bikes and open docks over time</h3>
+        <h3 className="text-sm font-semibold text-neutral-700">Bikes and open docks over time</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Totals summed across every station, sampled every two minutes. Bikes + open docks at any moment ≈ total docks in service.
+        </p>
         {totals.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{totals.error.message}</pre>}
         {!totals.error && (totals.loading || !totals.data) && <ChartSkeleton aspectRatio={600 / 220} />}
         {!totals.loading && !totals.error && totals.data && <SystemBikesOverTime data={totals.data} />}
       </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700 mb-2">Hour-of-week heatmap</h3>
+        <h3 className="text-sm font-semibold text-neutral-700">Hour-of-week heatmap</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns, UTC). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden. Hover a cell for the exact value.
+        </p>
         {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
         {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} />}
         {!hourly.loading && !hourly.error && hourly.data && <HourOfWeekHeatmap data={hourly.data} />}
