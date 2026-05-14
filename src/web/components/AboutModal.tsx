@@ -40,6 +40,12 @@ const LINKS: LinkCard[] = [
     label: 'BCycle',
     desc: 'Rent a real bike',
   },
+  {
+    href: 'mailto:bcycle-map@samgutentag.com',
+    icon: '✉️',
+    label: 'Contact',
+    desc: 'Feedback & corrections',
+  },
 ]
 
 export default function AboutModal({ open, onClose }: Props) {
@@ -120,8 +126,8 @@ export default function AboutModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="px-6 pb-4 text-[11px] text-neutral-400 border-t border-neutral-100 pt-3">
-          Built with React, Cloudflare Workers, R2, KV, MapLibre, DuckDB-WASM, and a healthy amount of "what if I tried this."
+        <div className="px-6 pb-4 text-xs text-neutral-500 border-t border-neutral-100 pt-3 text-center">
+          Made by <a href="https://www.gutentag.world" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">Sam Gutentag</a> in Santa Barbara, CA
         </div>
       </div>
     </div>
