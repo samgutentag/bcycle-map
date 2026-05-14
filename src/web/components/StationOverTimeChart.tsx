@@ -1,9 +1,11 @@
+import { useState } from 'react'
+
 type Row = { snapshot_ts: number; bikes: number; docks: number }
 type Props = {
   data: Row[]
   /** Total dock capacity for this station — used as y-axis max so the chart shape is meaningful. */
   totalDocks?: number
-  /** Which series to render. Defaults to 'both'. */
+  /** Which series to render. Defaults to 'both' (stacked). */
   show?: 'bikes' | 'docks' | 'both'
 }
 
@@ -11,8 +13,8 @@ const WIDTH = 600
 const HEIGHT = 230
 const PAD_L = 36
 const PAD_R = 12
-const PAD_T = 12
-const PAD_B = 38   // extra room for hour + date labels
+const PAD_T = 28   // room for hover tooltip text at top
+const PAD_B = 38   // room for hour + date labels at bottom
 const BUCKET_SEC = 30 * 60  // half-hour buckets
 
 const BIKES_COLOR = '#0d6cb0'
@@ -20,6 +22,8 @@ const DOCKS_COLOR = '#15803d'
 const GRID_COLOR = '#e5e7eb'
 const TICK_COLOR = '#9ca3af'
 const MAJOR_LABEL_COLOR = '#6b7280'
+const TOOLTIP_BG = '#1f2937'
+const TOOLTIP_FG = '#ffffff'
 
 type Bucket = { bucketTs: number; bikes: number; docks: number; count: number }
 
@@ -51,13 +55,6 @@ function hourLabel(h: number): string {
   return h < 12 ? `${h}a` : `${h - 12}p`
 }
 
-/**
- * Adaptive x-axis ticks:
- *   span <= 36h:  major at every hour, half-hour minor ticks (unlabeled)
- *   span <= 7d:   major every 3 hours, minor every hour
- *   span >  7d:   major every 12 hours, minor every 6 hours
- * Date label appears below the hour at midnight crossings.
- */
 function hourTicks(xMin: number, xMax: number): Tick[] {
   if (xMin >= xMax) return []
   const span = xMax - xMin
@@ -96,9 +93,16 @@ function yAxisTicks(max: number): number[] {
   return ticks
 }
 
+function formatTooltipTime(ts: number): string {
+  return new Date(ts * 1000).toLocaleString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}
+
 export default function StationOverTimeChart({ data, totalDocks, show = 'both' }: Props) {
   const showBikes = show === 'bikes' || show === 'both'
   const showDocks = show === 'docks' || show === 'both'
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
   if (data.length === 0) {
     return (
@@ -116,14 +120,13 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
 
   const xMin = buckets[0]!.bucketTs
   const xMax = buckets[buckets.length - 1]!.bucketTs + BUCKET_SEC
-  const observedMax = Math.max(
-    ...buckets.map(b => {
-      const candidates: number[] = []
-      if (showBikes) candidates.push(b.bikes)
-      if (showDocks) candidates.push(b.docks)
-      return candidates.length ? Math.max(...candidates) : 0
-    }),
-  )
+
+  // Y max: when stacking both series, the visual ceiling is total dock slots
+  // (bikes + docks at any moment ≈ capacity). For single-series modes, the
+  // ceiling is the observed max of that one series.
+  const observedMax = show === 'both'
+    ? Math.max(...buckets.map(b => b.bikes + b.docks))
+    : Math.max(...buckets.map(b => (showBikes ? b.bikes : b.docks)))
   const yMax = totalDocks && totalDocks > 0 ? totalDocks : Math.ceil(observedMax)
   const xSpan = Math.max(BUCKET_SEC, xMax - xMin)
   const ySpan = Math.max(1, yMax)
@@ -131,14 +134,13 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
   const scaleX = (t: number) => PAD_L + ((t - xMin) / xSpan) * (WIDTH - PAD_L - PAD_R)
   const scaleY = (v: number) => HEIGHT - PAD_B - (v / ySpan) * (HEIGHT - PAD_T - PAD_B)
   const xBucketWidth = (WIDTH - PAD_L - PAD_R) * (BUCKET_SEC / xSpan)
-  const seriesShown = [showBikes, showDocks].filter(Boolean).length
-  const innerGap = 1  // px between bars in a group
-  const groupGap = 0.15  // fraction of bucket reserved as gap between buckets
-  const barWidth = ((xBucketWidth * (1 - groupGap)) - innerGap * (seriesShown - 1)) / Math.max(1, seriesShown)
+  const groupGap = 0.15
+  const barWidth = Math.max(0.6, xBucketWidth * (1 - groupGap))
 
   const xTicks = hourTicks(xMin, xMax)
   const yTicks = yAxisTicks(yMax)
   const last = buckets[buckets.length - 1]!
+  const hoverBucket = hoverIdx !== null ? buckets[hoverIdx] : null
 
   return (
     <div className="w-full">
@@ -210,7 +212,6 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
                 {t.dateLabel}
               </text>
             )}
-            {/* Subtle vertical line at midnight crossings */}
             {t.dateLabel && (
               <line
                 x1={scaleX(t.ts)}
@@ -228,46 +229,98 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
         <line x1={PAD_L} y1={HEIGHT - PAD_B} x2={WIDTH - PAD_R} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
         <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
 
-        {/* Half-hour average bars */}
-        {buckets.map(b => {
-          const bucketLeft = scaleX(b.bucketTs) + (xBucketWidth * groupGap) / 2
-          let xCursor = bucketLeft
-          const elements: JSX.Element[] = []
-          if (showBikes) {
-            const h = (HEIGHT - PAD_B) - scaleY(b.bikes)
-            elements.push(
+        {/* Stacked bars (or single bars when filtered to one series) */}
+        {buckets.map((b, i) => {
+          const xLeft = scaleX(b.bucketTs) + (xBucketWidth - barWidth) / 2
+          const isHovered = hoverIdx === i
+          const bikesH = (HEIGHT - PAD_B) - scaleY(b.bikes)
+          const stackBaseY = scaleY(b.bikes)
+          const docksH = stackBaseY - scaleY(b.bikes + b.docks)
+          return (
+            <g
+              key={b.bucketTs}
+              onMouseEnter={() => setHoverIdx(i)}
+              onMouseLeave={() => setHoverIdx(null)}
+            >
+              {/* Invisible hit area covering the full slot for reliable hover even on thin bars */}
               <rect
-                key={`bikes-${b.bucketTs}`}
-                x={xCursor}
-                y={scaleY(b.bikes)}
-                width={Math.max(0.5, barWidth)}
-                height={Math.max(0, h)}
-                fill={BIKES_COLOR}
-                opacity={0.85}
-              >
-                <title>{`${new Date(b.bucketTs * 1000).toLocaleString()} — avg ${b.bikes.toFixed(1)} bikes (${b.count} samples)`}</title>
-              </rect>,
-            )
-            xCursor += barWidth + innerGap
-          }
-          if (showDocks) {
-            const h = (HEIGHT - PAD_B) - scaleY(b.docks)
-            elements.push(
-              <rect
-                key={`docks-${b.bucketTs}`}
-                x={xCursor}
-                y={scaleY(b.docks)}
-                width={Math.max(0.5, barWidth)}
-                height={Math.max(0, h)}
-                fill={DOCKS_COLOR}
-                opacity={0.85}
-              >
-                <title>{`${new Date(b.bucketTs * 1000).toLocaleString()} — avg ${b.docks.toFixed(1)} docks (${b.count} samples)`}</title>
-              </rect>,
-            )
-          }
-          return <g key={b.bucketTs}>{elements}</g>
+                x={scaleX(b.bucketTs)}
+                y={PAD_T}
+                width={Math.max(2, xBucketWidth)}
+                height={HEIGHT - PAD_T - PAD_B}
+                fill="transparent"
+              />
+              {showBikes && (
+                <rect
+                  x={xLeft}
+                  y={stackBaseY}
+                  width={barWidth}
+                  height={Math.max(0, bikesH)}
+                  fill={BIKES_COLOR}
+                  opacity={isHovered ? 1 : 0.9}
+                />
+              )}
+              {show === 'both' && showDocks && (
+                <rect
+                  x={xLeft}
+                  y={scaleY(b.bikes + b.docks)}
+                  width={barWidth}
+                  height={Math.max(0, docksH)}
+                  fill={DOCKS_COLOR}
+                  opacity={isHovered ? 1 : 0.9}
+                />
+              )}
+              {show === 'docks' && (
+                <rect
+                  x={xLeft}
+                  y={scaleY(b.docks)}
+                  width={barWidth}
+                  height={Math.max(0, (HEIGHT - PAD_B) - scaleY(b.docks))}
+                  fill={DOCKS_COLOR}
+                  opacity={isHovered ? 1 : 0.9}
+                />
+              )}
+            </g>
+          )
         })}
+
+        {/* Hover tooltip — text at top of chart, anchored to the hovered bucket */}
+        {hoverBucket && (() => {
+          const tx = Math.min(
+            WIDTH - PAD_R - 4,
+            Math.max(PAD_L + 4, scaleX(hoverBucket.bucketTs) + xBucketWidth / 2),
+          )
+          const timeLabel = formatTooltipTime(hoverBucket.bucketTs)
+          const valueParts: string[] = []
+          if (showBikes) valueParts.push(`${hoverBucket.bikes.toFixed(1)} bikes`)
+          if (showDocks) valueParts.push(`${hoverBucket.docks.toFixed(1)} docks`)
+          const valueLabel = valueParts.join(' · ')
+          return (
+            <g pointerEvents="none">
+              <line
+                x1={scaleX(hoverBucket.bucketTs) + xBucketWidth / 2}
+                y1={PAD_T}
+                x2={scaleX(hoverBucket.bucketTs) + xBucketWidth / 2}
+                y2={HEIGHT - PAD_B}
+                stroke={TOOLTIP_BG}
+                strokeWidth={0.5}
+                strokeDasharray="2 2"
+                opacity={0.5}
+              />
+              <rect
+                x={tx - 70}
+                y={2}
+                width={140}
+                height={22}
+                rx={3}
+                fill={TOOLTIP_BG}
+                opacity={0.92}
+              />
+              <text x={tx} y={11} textAnchor="middle" fontSize="9" fill={TOOLTIP_FG}>{timeLabel}</text>
+              <text x={tx} y={21} textAnchor="middle" fontSize="9" fontWeight="600" fill={TOOLTIP_FG}>{valueLabel}</text>
+            </g>
+          )
+        })()}
       </svg>
     </div>
   )
