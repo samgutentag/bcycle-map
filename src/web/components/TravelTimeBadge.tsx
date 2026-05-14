@@ -4,6 +4,8 @@ type Props = {
   meters?: number | null
   /** When set, the badge prefixes "Leave HH:MM → arrive HH:MM · ..." using this departure time. */
   departureTimeSec?: number | null
+  /** IANA timezone for the displayed clock times. Falls back to browser local. */
+  timezone?: string
 }
 
 const METERS_PER_MILE = 1609.344
@@ -15,11 +17,15 @@ function formatMiles(meters: number): string {
   return `${Math.round(mi)} mi`
 }
 
-function formatClockTime(tsSec: number): string {
-  return new Date(tsSec * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+function formatClockTime(tsSec: number, tz?: string): string {
+  return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: tz,
+  })
 }
 
-export default function TravelTimeBadge({ loading, minutes, meters, departureTimeSec }: Props) {
+export default function TravelTimeBadge({ loading, minutes, meters, departureTimeSec, timezone }: Props) {
   let content: React.ReactNode
   if (loading) {
     content = <span className="text-neutral-500">Estimating bike time…</span>
@@ -31,7 +37,7 @@ export default function TravelTimeBadge({ loading, minutes, meters, departureTim
       content = (
         <>
           <span className="font-medium text-amber-900">
-            Leave {formatClockTime(departureTimeSec)} → arrive {formatClockTime(arriveTs)}
+            Leave {formatClockTime(departureTimeSec, timezone)} → arrive {formatClockTime(arriveTs, timezone)}
           </span>
           <span className="text-amber-700"> · {minLabel} min · {distance}</span>
         </>

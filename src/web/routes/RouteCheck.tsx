@@ -16,8 +16,12 @@ const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64
 
 type HoverState = { source: 'start' | 'dest'; timeSec: number }
 
-function formatClockTime(tsSec: number): string {
-  return new Date(tsSec * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+function formatClockTime(tsSec: number, tz?: string): string {
+  return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: tz,
+  })
 }
 
 export default function RouteCheck() {
@@ -76,6 +80,7 @@ export default function RouteCheck() {
   }
 
   const stations = live?.stations ?? []
+  const timezone = live?.system.timezone
   const startStation = stations.find(s => s.station_id === startId)
   const destStation = stations.find(s => s.station_id === endId)
   const startTotal = startStation ? startStation.num_bikes_available + startStation.num_docks_available : undefined
@@ -90,8 +95,8 @@ export default function RouteCheck() {
   const destExternalGuide = hover?.source === 'start' && travelTimeSec
     ? hover.timeSec + travelTimeSec
     : null
-  const startGuideLabel = startExternalGuide != null ? `leave ${formatClockTime(startExternalGuide)}` : undefined
-  const destGuideLabel = destExternalGuide != null ? `arrive ${formatClockTime(destExternalGuide)}` : undefined
+  const startGuideLabel = startExternalGuide != null ? `leave ${formatClockTime(startExternalGuide, timezone)}` : undefined
+  const destGuideLabel = destExternalGuide != null ? `arrive ${formatClockTime(destExternalGuide, timezone)}` : undefined
 
   // Always-visible "now" anchor. Start chart: literal current time.
   // Dest chart: projected arrival = now + travelTime (so the label answers
@@ -100,7 +105,7 @@ export default function RouteCheck() {
   const startPinnedTime = nowTick
   const startPinnedLabel = 'now'
   const destPinnedTime = travelTimeSec ? nowTick + travelTimeSec : nowTick
-  const destPinnedLabel = travelTimeSec ? `arrive ${formatClockTime(nowTick + travelTimeSec)}` : 'now'
+  const destPinnedLabel = travelTimeSec ? `arrive ${formatClockTime(nowTick + travelTimeSec, timezone)}` : 'now'
 
   const handleHover = (source: 'start' | 'dest') => (ts: number | null) => {
     if (ts === null) {
@@ -161,6 +166,7 @@ export default function RouteCheck() {
             pinnedGuideTimeSec={startPinnedTime}
             pinnedGuideLabel={startPinnedLabel}
             onHoverTimeChange={handleHover('start')}
+            timezone={timezone}
           />
         )}
       </section>
@@ -170,6 +176,7 @@ export default function RouteCheck() {
         minutes={edge?.minutes ?? null}
         meters={edge?.meters ?? null}
         departureTimeSec={edge ? nowTick : null}
+        timezone={timezone}
       />
 
       <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
@@ -196,6 +203,7 @@ export default function RouteCheck() {
             pinnedGuideTimeSec={destPinnedTime}
             pinnedGuideLabel={destPinnedLabel}
             onHoverTimeChange={handleHover('dest')}
+            timezone={timezone}
           />
         )}
       </section>

@@ -17,6 +17,8 @@ type Props = {
   pinnedGuideLabel?: string
   /** Called with the hovered bucket's start timestamp (seconds), or null when not hovered. */
   onHoverTimeChange?: (ts: number | null) => void
+  /** IANA timezone for all displayed times (hour ticks, date labels, hover tooltip). */
+  timezone?: string
 }
 
 const WIDTH = 600
@@ -69,7 +71,14 @@ function hourLabel(h: number): string {
   return h < 12 ? `${h}a` : `${h - 12}p`
 }
 
-function hourTicks(xMin: number, xMax: number): Tick[] {
+function hourInTz(ts: number, tz?: string): number {
+  if (!tz) return new Date(ts * 1000).getHours()
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', hour12: false })
+  const h = parseInt(fmt.format(new Date(ts * 1000)), 10)
+  return isNaN(h) ? 0 : h % 24
+}
+
+function hourTicks(xMin: number, xMax: number, tz?: string): Tick[] {
   if (xMin >= xMax) return []
   const span = xMax - xMin
   const majorEveryHours = span <= 36 * 3600 ? 1 : span <= 7 * 86400 ? 3 : 12
@@ -79,13 +88,12 @@ function hourTicks(xMin: number, xMax: number): Tick[] {
   const minorStepSec = minorEveryHours * 3600
   const firstMinor = Math.ceil(xMin / minorStepSec) * minorStepSec
   for (let ts = firstMinor; ts <= xMax; ts += minorStepSec) {
-    const d = new Date(ts * 1000)
-    const h = d.getHours()
+    const h = hourInTz(ts, tz)
     const isHourly = ts % 3600 === 0
     const isMajor = isHourly && h % majorEveryHours === 0
     const label = isMajor ? hourLabel(h) : ''
     const dateLabel = isMajor && h === 0
-      ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      ? new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: tz })
       : undefined
     ticks.push({ ts, major: isMajor, label, dateLabel })
   }
@@ -107,9 +115,10 @@ function yAxisTicks(max: number): number[] {
   return ticks
 }
 
-function formatTooltipTime(ts: number): string {
+function formatTooltipTime(ts: number, tz?: string): string {
   return new Date(ts * 1000).toLocaleString(undefined, {
     weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+    timeZone: tz,
   })
 }
 
@@ -122,6 +131,7 @@ export default function StationOverTimeChart({
   pinnedGuideTimeSec,
   pinnedGuideLabel,
   onHoverTimeChange,
+  timezone,
 }: Props) {
   const showBikes = show === 'bikes' || show === 'both'
   const showDocks = show === 'docks' || show === 'both'
@@ -160,7 +170,7 @@ export default function StationOverTimeChart({
   const groupGap = 0.15
   const barWidth = Math.max(0.6, xBucketWidth * (1 - groupGap))
 
-  const xTicks = hourTicks(xMin, xMax)
+  const xTicks = hourTicks(xMin, xMax, timezone)
   const yTicks = yAxisTicks(yMax)
   const last = buckets[buckets.length - 1]!
   const hoverBucket = hoverIdx !== null ? buckets[hoverIdx] : null
@@ -400,7 +410,7 @@ export default function StationOverTimeChart({
             WIDTH - PAD_R - 4,
             Math.max(PAD_L + 4, scaleX(hoverBucket.bucketTs) + xBucketWidth / 2),
           )
-          const timeLabel = formatTooltipTime(hoverBucket.bucketTs)
+          const timeLabel = formatTooltipTime(hoverBucket.bucketTs, timezone)
           const valueParts: string[] = []
           if (showBikes) valueParts.push(`${hoverBucket.bikes.toFixed(1)} bikes`)
           if (showDocks) valueParts.push(`${hoverBucket.docks.toFixed(1)} docks`)

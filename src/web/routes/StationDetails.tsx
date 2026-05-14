@@ -365,7 +365,7 @@ export default function StationDetails() {
             <ChartSkeleton aspectRatio={600 / 230} phase={series.phase} />
           )}
           {stationId && series.data && !series.loading && (
-            <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="both" />
+            <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="both" timezone={live?.system.timezone} />
           )}
         </div>
       </section>
