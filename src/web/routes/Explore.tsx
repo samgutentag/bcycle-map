@@ -39,15 +39,13 @@ export default function Explore() {
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-2">Bikes and open docks over time</h3>
-        {totals.loading && <div className="p-8 text-center text-neutral-500">Loading…</div>}
-        {totals.error && <div className="p-8 text-center text-red-600">{totals.error.message}</div>}
+        {totals.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{totals.error.message}</pre>}
         {totals.data && <SystemBikesOverTime data={totals.data} />}
       </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-2">Hour-of-week heatmap</h3>
-        {hourly.loading && <div className="p-8 text-center text-neutral-500">Loading…</div>}
-        {hourly.error && <div className="p-8 text-center text-red-600">{hourly.error.message}</div>}
+        {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
         {hourly.data && <HourOfWeekHeatmap data={hourly.data} />}
       </section>
 
