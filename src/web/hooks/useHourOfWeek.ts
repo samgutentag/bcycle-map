@@ -16,6 +16,8 @@ type Args = {
   r2Base: string
   system: string
   range: Range
+  /** IANA timezone (e.g. 'America/Los_Angeles'). Falls back to UTC if absent. */
+  timezone?: string
 }
 
 export function useHourOfWeek(args: Args) {
@@ -34,7 +36,7 @@ export function useHourOfWeek(args: Args) {
     let cancelled = false
     setLoading(true)
     const urls = keys.map(k => `${args.r2Base}/${k}`)
-    const sql = buildHourOfWeekQuery({ range: args.range, urls })
+    const sql = buildHourOfWeekQuery({ range: args.range, urls, timezone: args.timezone })
     conn.query(sql).then(
       result => {
         if (cancelled) return
@@ -56,7 +58,7 @@ export function useHourOfWeek(args: Args) {
     return () => {
       cancelled = true
     }
-  }, [conn, keys, args.r2Base, args.range.fromTs, args.range.toTs])
+  }, [conn, keys, args.r2Base, args.range.fromTs, args.range.toTs, args.timezone])
 
   return {
     data,

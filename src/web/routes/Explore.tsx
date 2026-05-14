@@ -18,8 +18,9 @@ export default function Explore() {
   const [preset, setPreset] = useState<Preset>('24h')
   const range = resolveRange(preset, Math.floor(Date.now() / 1000))
 
+  const timezone = live?.system.timezone
   const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
-  const hourly = useHourOfWeek({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
+  const hourly = useHourOfWeek({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range, timezone })
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -50,7 +51,7 @@ export default function Explore() {
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700">Hour-of-week heatmap</h3>
         <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns, UTC). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden. Hover a cell for the exact value.
+          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns{timezone ? `, ${timezone}` : ''}). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden. Hover a cell for the exact value.
         </p>
         {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
         {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} />}

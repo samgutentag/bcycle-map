@@ -29,6 +29,14 @@ function partitionList(urls: string[]): string {
 
 const READ_OPTS = 'union_by_name=true'
 
+// Defensive validation — timezones come from the GBFS feed and are
+// interpolated into SQL strings. Only allow IANA-ish names to prevent
+// any chance of injection if a feed publishes a malicious value.
+function safeTimezone(tz: string | undefined): string {
+  if (!tz) return 'UTC'
+  return /^[A-Za-z][A-Za-z0-9_+/-]*$/.test(tz) ? tz : 'UTC'
+}
+
 export function buildTotalBikesQuery(args: QueryArgs): string {
   if (args.urls.length === 0) {
     return `SELECT NULL::BIGINT as snapshot_ts, NULL::BIGINT as total_bikes, NULL::BIGINT as total_docks WHERE FALSE`
@@ -46,15 +54,18 @@ export function buildTotalBikesQuery(args: QueryArgs): string {
   `.trim()
 }
 
-export function buildHourOfWeekQuery(args: QueryArgs): string {
+export function buildHourOfWeekQuery(args: QueryArgs & { timezone?: string }): string {
   if (args.urls.length === 0) {
     return `SELECT NULL::INTEGER as dow, NULL::INTEGER as hod, NULL::DOUBLE as avg_bikes, NULL::BIGINT as samples WHERE FALSE`
   }
   const src = partitionList(args.urls)
+  const tz = safeTimezone(args.timezone)
+  // Convert UTC snapshots into the system's local time so dow/hod buckets
+  // reflect what "Tuesday 9am" means to a rider in that city.
   return `
     SELECT
-      date_part('dow', to_timestamp(snapshot_ts)) as dow,
-      date_part('hour', to_timestamp(snapshot_ts)) as hod,
+      date_part('dow', to_timestamp(snapshot_ts) AT TIME ZONE '${tz}') as dow,
+      date_part('hour', to_timestamp(snapshot_ts) AT TIME ZONE '${tz}') as hod,
       AVG(num_bikes_available) as avg_bikes,
       COUNT(*) as samples
     FROM read_parquet(${src}, ${READ_OPTS})
