@@ -4,7 +4,6 @@ import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
 import SystemBikesOverTime from '../components/SystemBikesOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
-import SpatialDensityMap from '../components/SpatialDensityMap'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { resolveRange, type Preset } from '../lib/date-range'
@@ -49,10 +48,6 @@ export default function Explore() {
         {hourly.data && <HourOfWeekHeatmap data={hourly.data} />}
       </section>
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700 mb-2">Spatial density (latest snapshot)</h3>
-        <SpatialDensityMap apiBase={API_BASE} r2Base={R2_BASE} system={SYSTEM_ID} atTs={range.toTs} />
-      </section>
     </div>
   )
 }
