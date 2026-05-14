@@ -110,8 +110,6 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       </div>
       <div class="mt-3 flex flex-wrap gap-2 text-xs">
         <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa class="px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 no-underline">Details</a>
-        <a href="/route/${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-sky-700 text-white hover:bg-sky-800 no-underline">Use as start</a>
-        <a href="/route//${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 no-underline">Use as destination</a>
       </div>
     </div>
   `
