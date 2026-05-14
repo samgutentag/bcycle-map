@@ -78,7 +78,26 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
   const prev: KVValue | null = prevRaw ? JSON.parse(prevRaw) : null
   const totalBikesNow = snap.stations.reduce((sum, s) => sum + s.num_bikes_available, 0)
   const maxBikesEver = Math.max(prev?.max_bikes_ever ?? 0, totalBikesNow)
-  const enriched: KVValue = { ...snap, max_bikes_ever: maxBikesEver }
+
+  // Maintain a 24-hour rolling window of per-hour bikes-available min/max
+  // so the live stats card can draw trend sparklines without a side fetch.
+  const hourTs = Math.floor(snap.snapshot_ts / 3600) * 3600
+  const cutoff = snap.snapshot_ts - 24 * 3600
+  const recent: KVValue['recent24h'] = (prev?.recent24h ?? []).filter(h => h.hour_ts >= cutoff)
+  const existingIdx = recent.findIndex(h => h.hour_ts === hourTs)
+  if (existingIdx >= 0) {
+    const cur = recent[existingIdx]!
+    recent[existingIdx] = {
+      hour_ts: cur.hour_ts,
+      bikes_max: Math.max(cur.bikes_max, totalBikesNow),
+      bikes_min: Math.min(cur.bikes_min, totalBikesNow),
+    }
+  } else {
+    recent.push({ hour_ts: hourTs, bikes_max: totalBikesNow, bikes_min: totalBikesNow })
+  }
+  recent.sort((a, b) => a.hour_ts - b.hour_ts)
+
+  const enriched: KVValue = { ...snap, max_bikes_ever: maxBikesEver, recent24h: recent }
 
   await kv.put(lKey, JSON.stringify(enriched))
 

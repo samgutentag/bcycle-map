@@ -347,7 +347,7 @@ export default function LiveMap() {
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
-      {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
+      {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} recent24h={data.recent24h} variant="overlay" />}
     </div>
   )
 }

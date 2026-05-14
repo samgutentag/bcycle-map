@@ -54,17 +54,14 @@ describe('computeTotals', () => {
 })
 
 describe('SystemTotals', () => {
-  it('renders bikes alone, docks with a "/total capacity" denominator', () => {
+  it('renders the total bikes available number', () => {
     const { container } = render(<SystemTotals stations={[
       make({ num_bikes_available: 4, num_docks_available: 6 }),
       make({ num_bikes_available: 1, num_docks_available: 9 }),
     ]} />)
-    // Totals: bikes=5, docks=15, total dock slots = 20
+    // Totals: bikes=5
     expect(container.textContent).toContain('5')
-    expect(container.textContent).toContain('15')
-    // The "/ 20" denominator should only appear once (on the docks row, not bikes)
-    const denominators = container.textContent?.match(/\/ 20/g) ?? []
-    expect(denominators.length).toBe(1)
+    expect(container.textContent).toMatch(/bikes available/i)
   })
 
   it('renders utilization percentage', () => {
@@ -82,7 +79,7 @@ describe('SystemTotals', () => {
     expect(screen.getByText(/1 \/ 2 stations online/)).toBeInTheDocument()
   })
 
-  it('renders bikes denominator when maxBikesEver is provided', () => {
+  it('renders the bikes / maxBikesEver denominator when maxBikesEver is provided', () => {
     const { container } = render(
       <SystemTotals
         stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]}
@@ -92,12 +89,18 @@ describe('SystemTotals', () => {
     expect(container.textContent).toContain('/ 250')
   })
 
-  it('omits the bikes denominator when maxBikesEver is missing or zero', () => {
-    const { container } = render(
+  it('renders active riders block only when maxBikesEver is known', () => {
+    const without = render(
       <SystemTotals stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]} />,
     )
-    // Only docks should have its "/ N" denominator, not bikes
-    const denominators = container.textContent?.match(/\/ 10/g) ?? []
-    expect(denominators.length).toBe(1)
+    expect(without.container.textContent).not.toMatch(/active riders/i)
+    without.unmount()
+    const withMax = render(
+      <SystemTotals
+        stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]}
+        maxBikesEver={20}
+      />,
+    )
+    expect(withMax.container.textContent).toMatch(/active riders/i)
   })
 })

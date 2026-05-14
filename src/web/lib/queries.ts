@@ -75,6 +75,34 @@ export function buildHourOfWeekQuery(args: QueryArgs & { timezone?: string }): s
   `.trim()
 }
 
+/**
+ * System-wide total bikes per snapshot, averaged into (dow, hour) cells.
+ * The frontend computes active riders by subtracting from max_bikes_ever.
+ */
+export function buildHourOfWeekSystemBikesQuery(args: QueryArgs & { timezone?: string }): string {
+  if (args.urls.length === 0) {
+    return `SELECT NULL::INTEGER as dow, NULL::INTEGER as hod, NULL::DOUBLE as avg_total_bikes, NULL::BIGINT as samples WHERE FALSE`
+  }
+  const src = partitionList(args.urls)
+  const tz = safeTimezone(args.timezone)
+  return `
+    WITH per_snapshot AS (
+      SELECT snapshot_ts, SUM(num_bikes_available) as total_bikes
+      FROM read_parquet(${src}, ${READ_OPTS})
+      WHERE snapshot_ts BETWEEN ${args.range.fromTs} AND ${args.range.toTs}
+      GROUP BY snapshot_ts
+    )
+    SELECT
+      date_part('dow', to_timestamp(snapshot_ts) AT TIME ZONE '${tz}') as dow,
+      date_part('hour', to_timestamp(snapshot_ts) AT TIME ZONE '${tz}') as hod,
+      AVG(total_bikes) as avg_total_bikes,
+      COUNT(*) as samples
+    FROM per_snapshot
+    GROUP BY dow, hod
+    ORDER BY dow, hod
+  `.trim()
+}
+
 export function buildStationOverTimeQuery(args: QueryArgs & { stationId: string }): string {
   if (args.urls.length === 0) {
     return `SELECT NULL::BIGINT as snapshot_ts, NULL::BIGINT as bikes, NULL::BIGINT as docks WHERE FALSE`

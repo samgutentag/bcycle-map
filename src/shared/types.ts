@@ -28,6 +28,17 @@ export type StationDynamic = {
 
 export type StationSnapshot = StationStatic & StationDynamic
 
+/**
+ * Per-hour min/max of the system-wide sum(num_bikes_available). Maintained
+ * as a 24-element rolling window by the poller. Used to render mini-sparklines
+ * on the live map's stats card without a separate API call.
+ */
+export type HourBikeStats = {
+  hour_ts: number       // unix seconds, top of the hour (UTC)
+  bikes_max: number     // highest sum(bikes_available) observed in that hour
+  bikes_min: number     // lowest (a proxy for peak active-riders in the hour)
+}
+
 export type KVValue = {
   system: SystemInfo
   snapshot_ts: number
@@ -39,6 +50,8 @@ export type KVValue = {
    * within a day or two of polling.
    */
   max_bikes_ever?: number
+  /** Rolling 24-hour window of per-hour bikes-available min/max. */
+  recent24h?: HourBikeStats[]
 }
 
 export type BufferEntry = {

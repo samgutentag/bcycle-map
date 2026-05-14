@@ -3,9 +3,9 @@ import { render } from '@testing-library/react'
 import HourOfWeekHeatmap from './HourOfWeekHeatmap'
 
 const data = [
-  { dow: 0, hod: 0, avg_bikes: 5, samples: 10 },
-  { dow: 0, hod: 1, avg_bikes: 7, samples: 10 },
-  { dow: 3, hod: 12, avg_bikes: 2, samples: 10 },
+  { dow: 0, hod: 0, value: 5, samples: 10 },
+  { dow: 0, hod: 1, value: 7, samples: 10 },
+  { dow: 3, hod: 12, value: 2, samples: 10 },
 ]
 
 describe('HourOfWeekHeatmap', () => {
