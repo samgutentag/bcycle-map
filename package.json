@@ -40,6 +40,7 @@
     "apache-arrow": "^21.1.0",
     "deck.gl": "^9.3.2",
     "h3-js": "^4.4.0",
+    "hyparquet": "^1.25.8",
     "maplibre-gl": "^4.7.1",
     "parquet-wasm": "^0.6.1",
     "react": "^18.3.1",

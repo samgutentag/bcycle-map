@@ -9,7 +9,10 @@ import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
+import { renderSparkline } from '../lib/sparkline'
 import type { StationSnapshot } from '@shared/types'
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const CYCLOSM_STYLE: maplibregl.StyleSpecification = {
@@ -101,6 +104,10 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       ${types.length > 0 ? `<div class="mt-2 text-xs text-neutral-600 space-y-0.5">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
       ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}
       <div class="mt-2 text-xs text-neutral-500">Reported ${ageText}</div>
+      <div class="mt-3">
+        <div class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Last 24 hours · bikes available</div>
+        <div data-sparkline="${escapeHtml(s.station_id)}" class="block"></div>
+      </div>
       <div class="mt-3 flex flex-wrap gap-2 text-xs">
         <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa class="px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 no-underline">Details</a>
         <a href="/route/${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-sky-700 text-white hover:bg-sky-800 no-underline">Use as start</a>
@@ -146,6 +153,11 @@ export default function LiveMap() {
       const href = anchor.getAttribute('href')
       if (href) navigate(href)
     })
+    // Fire off the sparkline render (async; no-ops if popup closes first)
+    const sparklineEl = popup.getElement()?.querySelector(`[data-sparkline="${s.station_id}"]`) as HTMLElement | null
+    if (sparklineEl) {
+      renderSparkline(sparklineEl, API_BASE, SYSTEM_ID, s.station_id)
+    }
     popup.on('close', () => {
       if (popupRef.current === popup) navigate('/')
     })
