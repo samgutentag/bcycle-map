@@ -336,7 +336,9 @@ export default function LiveMap() {
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
-      <MapViewToggle value={view} onChange={setView} />
+      {/* Heatmap view toggle is wired up below but the button is hidden for
+         now; bring back once we revisit the heatmap UI direction. */}
+      {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
