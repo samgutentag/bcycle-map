@@ -272,7 +272,7 @@ export default function StationDetails() {
   // point per UTC hour for the "right now" sparkline. Caps at the most recent
   // 24 hours to match the SystemTotals sparkline's window.
   const sparklineSeries = useMemo(() => {
-    if (!series.data || series.data.length === 0) return { bikes: [], docks: [] }
+    if (!series.data || series.data.length === 0) return { bikes: [], docks: [], timestamps: [] }
     const byHour = new Map<number, { bikes: number; docks: number; n: number }>()
     for (const row of series.data) {
       const hourTs = Math.floor(row.snapshot_ts / 3600) * 3600
@@ -282,15 +282,31 @@ export default function StationDetails() {
       cur.n += 1
       byHour.set(hourTs, cur)
     }
-    const points = Array.from(byHour.entries())
+    const sorted = Array.from(byHour.entries())
       .sort(([a], [b]) => a - b)
       .slice(-24)
-      .map(([, v]) => ({ bikes: v.bikes / v.n, docks: v.docks / v.n }))
     return {
-      bikes: points.map(p => p.bikes),
-      docks: points.map(p => p.docks),
+      bikes: sorted.map(([, v]) => v.bikes / v.n),
+      docks: sorted.map(([, v]) => v.docks / v.n),
+      timestamps: sorted.map(([ts]) => ts),
     }
   }, [series.data])
+
+  // Hover state for the two sparklines on the "Right now" card. Only one can
+  // be hovered at a time; the un-hovered series shows its plain subtitle.
+  const [sparkHover, setSparkHover] = useState<{ series: 'bikes' | 'docks'; index: number } | null>(null)
+  const hoveredHourTs = sparkHover ? sparklineSeries.timestamps[sparkHover.index] : null
+  const hoveredHourLabel = hoveredHourTs != null
+    ? new Date(hoveredHourTs * 1000).toLocaleString(undefined, {
+        weekday: 'short', hour: 'numeric', timeZone: live?.system.timezone,
+      })
+    : null
+  const hoveredBikesVal = sparkHover?.series === 'bikes' && sparkHover.index < sparklineSeries.bikes.length
+    ? sparklineSeries.bikes[sparkHover.index]
+    : null
+  const hoveredDocksVal = sparkHover?.series === 'docks' && sparkHover.index < sparklineSeries.docks.length
+    ? sparklineSeries.docks[sparkHover.index]
+    : null
 
   // Closest stations by Haversine distance — pulled from the live snapshot so
   // no extra fetch is needed. We take the 5 nearest after excluding self.
@@ -349,23 +365,45 @@ export default function StationDetails() {
           <div className="bg-white rounded-lg shadow-sm border border-neutral-200 px-5 py-4 md:min-w-[260px]">
             <div className="font-semibold text-[10px] uppercase tracking-wide text-neutral-500 mb-2">Right now</div>
             <div className="flex gap-6 text-neutral-900">
-              <div>
+              <div className="min-w-[120px]">
                 <div className="text-3xl font-bold leading-none">{station.num_bikes_available}</div>
-                <div className="text-xs text-neutral-600 mt-1">bikes available</div>
+                <div className="text-xs text-neutral-600 mt-1 h-4 whitespace-nowrap overflow-hidden">
+                  {hoveredBikesVal != null && hoveredHourLabel
+                    ? <span className="text-sky-800">avg {hoveredBikesVal.toFixed(1)} · {hoveredHourLabel}</span>
+                    : 'bikes available'}
+                </div>
                 {sparklineSeries.bikes.length > 1 && (
-                  <div className="mt-1.5"><MiniLine values={sparklineSeries.bikes} color="#0d6cb0" /></div>
+                  <div className="mt-1.5">
+                    <MiniLine
+                      values={sparklineSeries.bikes}
+                      color="#0d6cb0"
+                      hoverIndex={sparkHover?.series === 'bikes' ? sparkHover.index : null}
+                      onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'bikes', index: i })}
+                    />
+                  </div>
                 )}
               </div>
-              <div>
+              <div className="min-w-[120px]">
                 <div className="text-3xl font-bold leading-none">
                   {station.num_docks_available}
                   {totalDocks ? (
                     <span className="text-xl font-normal text-neutral-400"> / {totalDocks}</span>
                   ) : null}
                 </div>
-                <div className="text-xs text-neutral-600 mt-1">open docks</div>
+                <div className="text-xs text-neutral-600 mt-1 h-4 whitespace-nowrap overflow-hidden">
+                  {hoveredDocksVal != null && hoveredHourLabel
+                    ? <span className="text-emerald-800">avg {hoveredDocksVal.toFixed(1)} · {hoveredHourLabel}</span>
+                    : 'open docks'}
+                </div>
                 {sparklineSeries.docks.length > 1 && (
-                  <div className="mt-1.5"><MiniLine values={sparklineSeries.docks} color="#15803d" /></div>
+                  <div className="mt-1.5">
+                    <MiniLine
+                      values={sparklineSeries.docks}
+                      color="#15803d"
+                      hoverIndex={sparkHover?.series === 'docks' ? sparkHover.index : null}
+                      onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'docks', index: i })}
+                    />
+                  </div>
                 )}
               </div>
             </div>
