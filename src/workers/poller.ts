@@ -106,7 +106,19 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
   }
   recent.sort((a, b) => a.hour_ts - b.hour_ts)
 
-  const enriched: KVValue = { ...snap, max_bikes_ever: maxBikesEver, recent24h: recent }
+  // Track "last time the system-wide bike count changed" so the UI can show
+  // a "changed Xm ago" badge. Carry forward the prior value when this tick's
+  // total matches the previous tick's total.
+  const lastTotalChangedTs = prev
+    ? (totalBikesNow !== totalBikesPrev ? snap.snapshot_ts : (prev.last_total_changed_ts ?? snap.snapshot_ts))
+    : snap.snapshot_ts
+
+  const enriched: KVValue = {
+    ...snap,
+    max_bikes_ever: maxBikesEver,
+    recent24h: recent,
+    last_total_changed_ts: lastTotalChangedTs,
+  }
 
   // Activity log: diff per-station bike counts vs previous snapshot to emit
   // departure/arrival events, plus a naive trip pairing when the system

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { HourBikeStats, StationSnapshot } from '@shared/types'
 import MiniLine from './MiniLine'
+import { formatRelative } from '../lib/relative-time'
 
 type Props = {
   stations: StationSnapshot[]
@@ -10,6 +11,10 @@ type Props = {
   recent24h?: HourBikeStats[]
   /** IANA timezone for sparkline hover labels. Falls back to browser local. */
   timezone?: string
+  /** Unix seconds of the most recent poll. Drives the "checked Xm ago" badge. */
+  snapshotTs?: number
+  /** Unix seconds of the most recent system-wide bike count change. Drives "changed Xm ago". */
+  lastChangedTs?: number
   variant?: 'overlay' | 'inline'
 }
 
@@ -39,10 +44,19 @@ function formatHourLabel(hourTsSec: number, tz?: string): string {
   })
 }
 
-export default function SystemTotals({ stations, maxBikesEver, recent24h, timezone, variant = 'overlay' }: Props) {
+export default function SystemTotals({ stations, maxBikesEver, recent24h, timezone, snapshotTs, lastChangedTs, variant = 'overlay' }: Props) {
   const totals = computeTotals(stations)
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
   const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
+
+  // Tick every 10 seconds to keep the fuzzy "Xm ago" badges fresh without
+  // hammering the read API. The data source (snapshotTs / lastChangedTs)
+  // updates on its own poll cadence — this is purely for relative-time text.
+  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 10_000)
+    return () => clearInterval(id)
+  }, [])
 
   // Build the two sparkline series from the 24-hour rolling stats
   const sorted = (recent24h ?? []).slice().sort((a, b) => a.hour_ts - b.hour_ts)
@@ -110,8 +124,18 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
           </div>
         </div>
       </div>
-      <div className="mt-2 text-xs text-neutral-500">
-        {totals.stationsOnline} / {stations.length} stations online
+      <div className="mt-2 text-xs text-neutral-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {snapshotTs != null && (
+          <span title={`Last poll: ${new Date(snapshotTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}>
+            checked {formatRelative(snapshotTs, nowSec)}
+          </span>
+        )}
+        {lastChangedTs != null && (
+          <span title={`Bike count last changed: ${new Date(lastChangedTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}>
+            changed {formatRelative(lastChangedTs, nowSec)}
+          </span>
+        )}
+        <span className="ml-auto">{totals.stationsOnline} / {stations.length} stations online</span>
       </div>
     </div>
   )

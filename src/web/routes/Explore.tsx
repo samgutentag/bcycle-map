@@ -75,7 +75,7 @@ export default function Explore() {
 
       {live && (
         <div className="mb-8">
-          <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} recent24h={live.recent24h} timezone={live.system.timezone} variant="inline" />
+          <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} recent24h={live.recent24h} timezone={live.system.timezone} snapshotTs={live.snapshot_ts} lastChangedTs={live.last_total_changed_ts} variant="inline" />
         </div>
       )}
 

@@ -52,6 +52,12 @@ export type KVValue = {
   max_bikes_ever?: number
   /** Rolling 24-hour window of per-hour bikes-available min/max. */
   recent24h?: HourBikeStats[]
+  /**
+   * Unix seconds when sum(num_bikes_available) last differed from the prior
+   * snapshot. Stays put across ticks where the count is unchanged. Used to
+   * render a "changed Xm ago" badge on the live stats card.
+   */
+  last_total_changed_ts?: number
 }
 
 export type BufferEntry = {
