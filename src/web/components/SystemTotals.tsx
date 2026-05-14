@@ -59,7 +59,7 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
 
   const wrapperClass = variant === 'overlay'
     ? 'absolute bottom-12 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-neutral-200 px-4 py-3'
-    : 'inline-block bg-white rounded-lg shadow-sm border border-neutral-200 px-4 py-3'
+    : 'block bg-white rounded-lg shadow-sm border border-neutral-200 p-4'
 
   return (
     <div className={`${wrapperClass} text-sm text-neutral-900`}>

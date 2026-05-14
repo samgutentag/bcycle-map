@@ -71,10 +71,40 @@ export default function Explore() {
       </div>
 
       {live && (
-        <div className="mb-6">
+        <div className="mb-8">
           <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} recent24h={live.recent24h} timezone={live.system.timezone} variant="inline" />
         </div>
       )}
+
+      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Active riders — hour of week</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Estimated bikes in use system-wide (max bikes observed minus bikes parked) per day-of-week and hour-of-day. Darker cells = more riders out at that time.
+          {!riders.enabled && ' Available once the poller has captured a peak bikes-parked value to compare against.'}
+        </p>
+        {!riders.enabled && (
+          <div className="p-6 text-center text-sm text-neutral-500 bg-neutral-50 rounded border border-dashed border-neutral-300">
+            Waiting for a peak bikes-parked observation (usually a 3am idle moment).
+          </div>
+        )}
+        {riders.enabled && riders.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{riders.error.message}</pre>}
+        {riders.enabled && !riders.error && (riders.loading || !riders.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={riders.phase} />}
+        {riders.enabled && !riders.loading && !riders.error && riders.data && (
+          <HourOfWeekHeatmap data={ridersHeatmapData} scheme="riders" unit="riders" />
+        )}
+      </section>
+
+      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Available bikes — hour of week</h3>
+        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns{timezone ? `, ${timezone}` : ''}). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden.
+        </p>
+        {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
+        {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />}
+        {!hourly.loading && !hourly.error && hourly.data && (
+          <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
+        )}
+      </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700">Bikes and open docks over time</h3>
@@ -84,18 +114,6 @@ export default function Explore() {
         {totals.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{totals.error.message}</pre>}
         {!totals.error && (totals.loading || !totals.data) && <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />}
         {!totals.loading && !totals.error && totals.data && <SystemBikesOverTime data={totals.data} />}
-      </section>
-
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Available bikes — hour of week</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns{timezone ? `, ${timezone}` : ''}). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden. Hover a cell for the exact value.
-        </p>
-        {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
-        {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />}
-        {!hourly.loading && !hourly.error && hourly.data && (
-          <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
-        )}
       </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
@@ -133,24 +151,6 @@ export default function Explore() {
             />
             <p className="text-xs text-neutral-500 mt-2">Click any cell to open that pair in the route planner.</p>
           </>
-        )}
-      </section>
-
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Active riders — hour of week</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Estimated bikes in use system-wide (max bikes observed minus bikes parked) per day-of-week and hour-of-day. Darker cells = more riders out at that time.
-          {!riders.enabled && ' Available once the poller has captured a peak bikes-parked value to compare against.'}
-        </p>
-        {!riders.enabled && (
-          <div className="p-6 text-center text-sm text-neutral-500 bg-neutral-50 rounded border border-dashed border-neutral-300">
-            Waiting for a peak bikes-parked observation (usually a 3am idle moment).
-          </div>
-        )}
-        {riders.enabled && riders.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{riders.error.message}</pre>}
-        {riders.enabled && !riders.error && (riders.loading || !riders.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={riders.phase} />}
-        {riders.enabled && !riders.loading && !riders.error && riders.data && (
-          <HourOfWeekHeatmap data={ridersHeatmapData} scheme="riders" unit="riders" />
         )}
       </section>
 
