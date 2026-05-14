@@ -1,21 +1,30 @@
-type Bucket = { ts: number; bikes: number; docks: number; samples: number }
+type HourBucket = { hour: number; bikes: number; docks: number; samples: number }
+
+type TypicalResponse = {
+  stationId: string
+  hours: HourBucket[]
+  currentHour: number
+  currentDow: number
+  daysCovered: number
+  isDowFiltered: boolean
+  label: string
+  timezone: string
+}
 
 const SVG_W = 220
 const SVG_H = 44
 const PAD = 2
 
-const HIST_COLOR = '#0d6cb0'  // historical avg — BCycle blue
-const LIVE_COLOR = '#ea580c'  // live now — orange-600, contrasts blue
-const EMPTY_COLOR = '#e5e7eb' // no-data ghost
+const HIST_COLOR = '#0d6cb0'   // historical typical — BCycle blue
+const LIVE_COLOR = '#ea580c'   // live now — orange-600
+const EMPTY_COLOR = '#e5e7eb'  // no-data ghost
 const BASELINE_COLOR = '#d1d5db'
 
 /**
- * Fetches 24h of hourly buckets for a station from the read-api Worker
- * and renders a sparkline bar chart into the given container. The current
- * live value (last argument) is overlaid in a different color at the current
- * hour's slot — like Google Maps' "live vs typical" activity view.
- *
- * No-op if the container is detached (popup closed before fetch completed).
+ * Fetches the station's typical 24-hour profile (DOW-specific once 21+ days
+ * of data exist, else all-days fallback) and renders bars + a live overlay
+ * at the current hour. No-op if the container detaches before the fetch
+ * resolves.
  */
 export async function renderSparkline(
   container: HTMLElement,
@@ -24,57 +33,62 @@ export async function renderSparkline(
   stationId: string,
   currentBikes: number,
 ): Promise<void> {
-  container.innerHTML = '<div class="text-xs text-neutral-400 italic">Loading recent history…</div>'
+  container.innerHTML = `
+    <div class="text-xs text-neutral-400 italic mb-1">Loading…</div>
+    <div class="block" data-spark-svg></div>
+  `
   try {
     const res = await fetch(
-      `${apiBase}/api/systems/${encodeURIComponent(systemId)}/stations/${encodeURIComponent(stationId)}/recent?hours=24`,
+      `${apiBase}/api/systems/${encodeURIComponent(systemId)}/stations/${encodeURIComponent(stationId)}/recent`,
     )
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const body = await res.json() as { buckets: Bucket[] }
+    const body = await res.json() as TypicalResponse
     if (!container.isConnected) return
-    container.innerHTML = buildSparklineSVG(body.buckets ?? [], currentBikes)
+    container.innerHTML = `
+      <div class="flex items-center justify-between gap-2 text-[10px] text-neutral-500 mb-1">
+        <span class="font-medium">${body.label}</span>
+        <span>${body.daysCovered} day${body.daysCovered === 1 ? '' : 's'} of history</span>
+      </div>
+      ${buildSparklineSVG(body, currentBikes)}
+    `
   } catch {
     if (!container.isConnected) return
-    // Even on a failed fetch, render an all-ghost chart with the live overlay,
-    // so the user always sees the same shape rather than an error string.
-    container.innerHTML = buildSparklineSVG([], currentBikes)
+    container.innerHTML = `
+      <div class="text-[10px] text-neutral-500 mb-1">Typical (no history yet)</div>
+      ${buildSparklineSVG(
+        { stationId, hours: emptyHours(), currentHour: new Date().getHours(), currentDow: new Date().getDay(), daysCovered: 0, isDowFiltered: false, label: '', timezone: '' },
+        currentBikes,
+      )}
+    `
   }
 }
 
-function buildSparklineSVG(buckets: Bucket[], currentBikes: number): string {
-  const nowTs = Math.floor(Date.now() / 1000)
-  const slotCount = 24
-  const slotWidth = (SVG_W - 2 * PAD) / slotCount
-  const lastBucketTs = Math.floor(nowTs / 3600) * 3600
+function emptyHours(): HourBucket[] {
+  return Array.from({ length: 24 }, (_, h) => ({ hour: h, bikes: 0, docks: 0, samples: 0 }))
+}
 
-  const byTs = new Map<number, Bucket>()
-  for (const b of buckets) byTs.set(b.ts, b)
-
-  // Y scale: include live value so the overlay is never clipped
-  const histMax = Math.max(0, ...buckets.map(b => b.bikes))
+function buildSparklineSVG(body: TypicalResponse, currentBikes: number): string {
+  const slotWidth = (SVG_W - 2 * PAD) / 24
+  const histMax = Math.max(0, ...body.hours.map(h => h.bikes))
   const yMax = Math.max(1, histMax, currentBikes)
   const chartH = SVG_H - 2 * PAD - 2
   const scaleY = (v: number) => (v / yMax) * chartH
 
   let bars = ''
-  for (let i = 0; i < slotCount; i++) {
-    const slotTs = lastBucketTs - (slotCount - 1 - i) * 3600
-    const isCurrentHour = i === slotCount - 1
-    const b = byTs.get(slotTs)
-    const histValue = b?.bikes ?? 0
-    const hasData = !!b
+  for (let i = 0; i < 24; i++) {
+    const h = body.hours[i]!
+    const isCurrentHour = i === body.currentHour
+    const hasData = h.samples > 0
 
     const x = PAD + i * slotWidth + 0.5
     const w = Math.max(1, slotWidth - 1)
 
-    // Historical (or empty ghost) bar. Slightly faded under the live overlay on the current hour.
-    const histH = scaleY(histValue)
+    const histH = scaleY(h.bikes)
     const histY = SVG_H - PAD - histH
     const histFill = hasData ? HIST_COLOR : EMPTY_COLOR
-    const histOpacity = isCurrentHour && hasData ? 0.35 : hasData ? 0.9 : 0.5
-    bars += `<rect x="${x.toFixed(1)}" y="${histY.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0.5, histH).toFixed(1)}" fill="${histFill}" opacity="${histOpacity}"><title>${hasData ? `Typical: ${histValue.toFixed(1)} bikes` : 'No history yet'}</title></rect>`
+    const histOpacity = isCurrentHour && hasData ? 0.35 : hasData ? 0.85 : 0.55
+    bars += `<rect x="${x.toFixed(1)}" y="${histY.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0.5, histH).toFixed(1)}" fill="${histFill}" opacity="${histOpacity}"><title>${hasData ? `${h.bikes.toFixed(1)} bikes typical at ${labelHour(h.hour)} (${h.samples} samples)` : `${labelHour(h.hour)}: no history`}</title></rect>`
 
-    // Live overlay at the current hour. Narrower than the slot so the historical bar peeks at the edges.
     if (isCurrentHour) {
       const liveH = scaleY(currentBikes)
       const liveY = SVG_H - PAD - liveH
@@ -85,6 +99,11 @@ function buildSparklineSVG(buckets: Bucket[], currentBikes: number): string {
   }
 
   const baseline = `<line x1="${PAD}" y1="${SVG_H - PAD}" x2="${SVG_W - PAD}" y2="${SVG_H - PAD}" stroke="${BASELINE_COLOR}" stroke-width="0.5"/>`
+  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" width="100%" height="${SVG_H}" xmlns="http://www.w3.org/2000/svg" aria-label="Typical 24-hour profile with live overlay">${baseline}${bars}</svg>`
+}
 
-  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" width="100%" height="${SVG_H}" xmlns="http://www.w3.org/2000/svg" aria-label="Last 24 hours of bikes available with live overlay">${baseline}${bars}</svg>`
+function labelHour(h: number): string {
+  if (h === 0) return '12am'
+  if (h === 12) return 'noon'
+  return h < 12 ? `${h}am` : `${h - 12}pm`
 }

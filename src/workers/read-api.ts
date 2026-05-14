@@ -93,66 +93,131 @@ async function readStationFromKvBuffers(env: Env, systemId: string, stationId: s
   return samples
 }
 
-async function handleStationRecent(env: Env, systemId: string, stationId: string, hoursBack: number): Promise<Response> {
-  const nowTs = Math.floor(Date.now() / 1000)
-  const fromTs = nowTs - hoursBack * 3600
+const DOW_FILTER_THRESHOLD_DAYS = 21
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-  // Find parquet partitions covering the range
+function tsToLocalParts(ts: number, timezone: string): { dow: number; hour: number; dateKey: string } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: 'numeric',
+    hour12: false,
+  })
+  const parts = fmt.formatToParts(new Date(ts * 1000))
+  const weekday = parts.find(p => p.type === 'weekday')?.value ?? 'Sun'
+  const year = parts.find(p => p.type === 'year')?.value ?? '1970'
+  const month = parts.find(p => p.type === 'month')?.value ?? '01'
+  const day = parts.find(p => p.type === 'day')?.value ?? '01'
+  const hourStr = parts.find(p => p.type === 'hour')?.value ?? '0'
+  const hour = Number(hourStr === '24' ? '0' : hourStr)
+  const dow = WEEKDAYS.indexOf(weekday)
+  return { dow: dow < 0 ? 0 : dow, hour, dateKey: `${year}-${month}-${day}` }
+}
+
+async function getSystemTimezone(env: Env, systemId: string): Promise<string> {
+  const raw = await env.GBFS_KV.get(latestKey(systemId))
+  if (!raw) return 'UTC'
+  try {
+    const obj = JSON.parse(raw)
+    return obj?.system?.timezone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
+}
+
+async function handleStationTypical(env: Env, systemId: string, stationId: string): Promise<Response> {
+  const nowTs = Math.floor(Date.now() / 1000)
+  const timezone = await getSystemTimezone(env, systemId)
+
+  // List all parquet partitions for this system
   const prefix = `gbfs/${systemId}/station_status/`
   const parquetKeys: string[] = []
   let cursor: string | undefined
   do {
     const result: any = await env.GBFS_R2.list({ prefix, cursor })
     for (const obj of result.objects) {
-      const ts = partitionKeyToTs(obj.key)
-      if (ts === null) continue
-      if (ts >= fromTs - 3600 && ts <= nowTs + 3600) {
-        parquetKeys.push(obj.key)
-      }
+      if (partitionKeyToTs(obj.key) === null) continue
+      parquetKeys.push(obj.key)
     }
     cursor = result.truncated ? result.cursor : undefined
   } while (cursor)
   parquetKeys.sort()
 
-  // Read parquet rows for the station + KV buffer rows for any uncompacted hours
+  // Read every partition for this station, plus uncompacted buffers
+  const fromTs = 0
   const parquetSamples = (await Promise.all(
     parquetKeys.map(k => readStationFromParquet(env, k, stationId, fromTs)),
   )).flat()
-  const bufferSamples = await readStationFromKvBuffers(env, systemId, stationId, fromTs, nowTs)
+  const bufferSamples = await readStationFromKvBuffers(env, systemId, stationId, fromTs, nowTs + 3600)
 
-  // Dedupe by snapshot_ts (parquet + buffer may overlap if compaction just ran)
   const byTs = new Map<number, Sample>()
   for (const s of [...parquetSamples, ...bufferSamples]) byTs.set(s.snapshot_ts, s)
-  const samples = [...byTs.values()].sort((a, b) => a.snapshot_ts - b.snapshot_ts)
+  const samples = [...byTs.values()]
 
-  // Aggregate to 1h buckets (avg of samples falling in each hour)
-  const bucketSec = 3600
-  const accum = new Map<number, { bikes: number; docks: number; n: number }>()
-  for (const s of samples) {
-    const bucket = Math.floor(s.snapshot_ts / bucketSec) * bucketSec
-    const cur = accum.get(bucket) ?? { bikes: 0, docks: 0, n: 0 }
-    cur.bikes += s.num_bikes_available
-    cur.docks += s.num_docks_available
-    cur.n += 1
-    accum.set(bucket, cur)
-  }
-  const buckets = [...accum.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([ts, { bikes, docks, n }]) => ({
-      ts,
-      bikes: Math.round((bikes / n) * 10) / 10,
-      docks: Math.round((docks / n) * 10) / 10,
-      samples: n,
-    }))
-
-  return new Response(JSON.stringify({ stationId, hoursBack, buckets }), {
-    status: 200,
-    headers: {
-      ...CORS_HEADERS,
-      'content-type': 'application/json',
-      'cache-control': 'max-age=60',
-    },
+  // Annotate every sample with local DOW + hour-of-day + date-key for coverage counting
+  const annotated = samples.map(s => {
+    const parts = tsToLocalParts(s.snapshot_ts, timezone)
+    return { ...s, ...parts }
   })
+
+  // Count distinct local dates of coverage to decide DOW-filter vs all-days fallback
+  const distinctDates = new Set(annotated.map(a => a.dateKey))
+  const daysCovered = distinctDates.size
+
+  const todayParts = tsToLocalParts(nowTs, timezone)
+  const isDowFiltered = daysCovered >= DOW_FILTER_THRESHOLD_DAYS
+  const filtered = isDowFiltered
+    ? annotated.filter(a => a.dow === todayParts.dow)
+    : annotated
+
+  // Aggregate to 24 hour-of-day buckets (avg across all matching samples)
+  const accum = new Map<number, { bikes: number; docks: number; n: number }>()
+  for (const a of filtered) {
+    const cur = accum.get(a.hour) ?? { bikes: 0, docks: 0, n: 0 }
+    cur.bikes += a.num_bikes_available
+    cur.docks += a.num_docks_available
+    cur.n += 1
+    accum.set(a.hour, cur)
+  }
+  const hours = Array.from({ length: 24 }, (_, h) => {
+    const cur = accum.get(h)
+    if (!cur) return { hour: h, bikes: 0, docks: 0, samples: 0 }
+    return {
+      hour: h,
+      bikes: Math.round((cur.bikes / cur.n) * 10) / 10,
+      docks: Math.round((cur.docks / cur.n) * 10) / 10,
+      samples: cur.n,
+    }
+  })
+
+  const label = isDowFiltered
+    ? `Typical ${WEEKDAY_FULL[todayParts.dow]}`
+    : 'Typical (all days)'
+
+  return new Response(
+    JSON.stringify({
+      stationId,
+      hours,
+      currentHour: todayParts.hour,
+      currentDow: todayParts.dow,
+      daysCovered,
+      isDowFiltered,
+      label,
+      timezone,
+    }),
+    {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        'content-type': 'application/json',
+        'cache-control': 'max-age=300',
+      },
+    },
+  )
 }
 
 export default {
@@ -186,9 +251,8 @@ export default {
     if (recent) {
       const systemId = recent[1]!
       const stationId = recent[2]!
-      const hours = Math.min(168, Math.max(1, Number(url.searchParams.get('hours') ?? '24')))
       try {
-        return await handleStationRecent(env, systemId, stationId, hours)
+        return await handleStationTypical(env, systemId, stationId)
       } catch (err) {
         return new Response(`error: ${err instanceof Error ? err.message : String(err)}`, {
           status: 500,

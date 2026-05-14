@@ -105,10 +105,9 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}
       <div class="mt-2 text-xs text-neutral-500">Reported ${ageText}</div>
       <div class="mt-3">
-        <div class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Last 24 hours · bikes available</div>
         <div data-sparkline="${escapeHtml(s.station_id)}" class="block"></div>
         <div class="flex gap-3 text-[10px] text-neutral-500 mt-1">
-          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #0d6cb0; opacity: 0.5"></span>Typical</span>
+          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #0d6cb0; opacity: 0.85"></span>Typical</span>
           <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #ea580c"></span>Now</span>
         </div>
       </div>
