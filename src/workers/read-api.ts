@@ -1,6 +1,6 @@
 import type { Env } from '../../worker-configuration'
 import { latestKey } from './poller'
-import { activityKey } from '../shared/activity'
+import { activityKey, activityR2Key } from '../shared/activity'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -183,7 +183,8 @@ export default {
     const activity = url.pathname.match(ACTIVITY_RE)
     if (activity) {
       const systemId = activity[1]!
-      const raw = await env.GBFS_KV.get(activityKey(systemId))
+      const obj = await env.GBFS_R2.get(activityR2Key(systemId))
+      const raw = obj ? await obj.text() : null
       const body = raw ?? JSON.stringify({ events: [], trips: [], inFlightFromStationId: null, inFlightDepartureTs: null })
       return new Response(body, {
         status: 200,

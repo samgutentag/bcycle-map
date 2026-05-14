@@ -8,10 +8,10 @@ import {
 import { getSystems } from '../shared/systems'
 import type { KVValue, BufferEntry, ActivityLog } from '../shared/types'
 import type { SystemConfig } from '../shared/systems'
-import type { KVNamespace, ScheduledEvent, ExecutionContext } from '@cloudflare/workers-types'
+import type { KVNamespace, R2Bucket, ScheduledEvent, ExecutionContext } from '@cloudflare/workers-types'
 import type { Env } from '../../worker-configuration'
 import {
-  activityKey as activityKeyFor,
+  activityR2Key,
   appendTick,
   applyTripTransition,
   detectEvents,
@@ -75,14 +75,16 @@ export function latestKey(systemId: string): string {
   return `system:${systemId}:latest`
 }
 
-export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise<void> {
+export async function writeSnapshotToKV(kv: KVNamespace, r2: R2Bucket, snap: KVValue): Promise<void> {
   const lKey = latestKey(snap.system.system_id)
-  const aKey = activityKeyFor(snap.system.system_id)
+  const aKey = activityR2Key(snap.system.system_id)
 
-  // Read previous snapshot to carry forward the running max of bikes-parked.
-  // The "ever observed" max approximates total fleet size: at peak idle
-  // (typically 3am) most bikes are parked at stations.
-  const [prevRaw, activityRaw] = await Promise.all([kv.get(lKey), kv.get(aKey)])
+  // Read previous snapshot from KV and the activity log from R2 (moved off
+  // KV to avoid the 1000/day free-tier put cap). Run in parallel; the R2
+  // GET returns an object whose body we read as text for the JSON parse +
+  // byte-comparison below.
+  const [prevRaw, activityObj] = await Promise.all([kv.get(lKey), r2.get(aKey)])
+  const activityRaw: string | null = activityObj ? await activityObj.text() : null
   const prev: KVValue | null = prevRaw ? JSON.parse(prevRaw) : null
   const totalBikesNow = snap.stations.reduce((sum, s) => sum + s.num_bikes_available, 0)
   const totalBikesPrev = prev ? prev.stations.reduce((sum, s) => sum + s.num_bikes_available, 0) : totalBikesNow
@@ -140,17 +142,6 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
     nextActivity = appendTick(activity, events, transition)
   }
 
-  await kv.put(lKey, JSON.stringify(enriched))
-  // Skip the activity put when this tick produced nothing new — saves
-  // ~30-70% of activity writes during quiet periods. Byte-compare the
-  // serialized form against what we already read from KV.
-  if (nextActivity) {
-    const nextActivityJson = JSON.stringify(nextActivity)
-    if (nextActivityJson !== activityRaw) {
-      await kv.put(aKey, nextActivityJson)
-    }
-  }
-
   const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
   const existing = await kv.get(bufKey)
   const buffer: BufferEntry[] = existing ? JSON.parse(existing) : []
@@ -169,7 +160,35 @@ export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise
       last_reported: s.last_reported,
     })),
   })
-  await kv.put(bufKey, JSON.stringify(buffer))
+
+  // Each of the three writes is wrapped in its own try/catch so a failure
+  // in one (e.g. KV daily-put cap exhausted) doesn't kill the others. The
+  // R2 activity put goes first because it's the highest-value artifact and
+  // R2 doesn't share KV's daily write quota.
+  if (nextActivity) {
+    const nextActivityJson = JSON.stringify(nextActivity)
+    // Skip the activity put when this tick produced nothing new — byte-
+    // compare the serialized form against what we already read from R2.
+    if (nextActivityJson !== activityRaw) {
+      try {
+        await r2.put(aKey, nextActivityJson, { httpMetadata: { contentType: 'application/json' } })
+      } catch (err) {
+        console.error(`R2 activity put failed for ${snap.system.system_id}:`, err)
+      }
+    }
+  }
+
+  try {
+    await kv.put(lKey, JSON.stringify(enriched))
+  } catch (err) {
+    console.error(`KV latest put failed for ${snap.system.system_id}:`, err)
+  }
+
+  try {
+    await kv.put(bufKey, JSON.stringify(buffer))
+  } catch (err) {
+    console.error(`KV buffer put failed for ${snap.system.system_id} (${bufKey}):`, err)
+  }
 }
 
 export default {
@@ -178,7 +197,7 @@ export default {
     for (const sys of systems) {
       try {
         const snap = await pollOnce(sys)
-        await writeSnapshotToKV(env.GBFS_KV, snap)
+        await writeSnapshotToKV(env.GBFS_KV, env.GBFS_R2, snap)
       } catch (err) {
         console.error(`poll failed for ${sys.system_id}:`, err)
       }

@@ -137,3 +137,9 @@ export function emptyActivityLog(): ActivityLog {
 export function activityKey(systemId: string): string {
   return `system:${systemId}:activity`
 }
+
+/** R2 object key for the activity log JSON. Lives in the public archive
+ * bucket so the read-api can serve it via the R2 binding without auth. */
+export function activityR2Key(systemId: string): string {
+  return `gbfs/${systemId}/activity.json`
+}

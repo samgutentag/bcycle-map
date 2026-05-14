@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pollOnce, writeSnapshotToKV, currentBufferKey } from './poller'
 import type { SystemConfig } from '../shared/systems'
-import type { KVNamespace } from '@cloudflare/workers-types'
+import type { KVNamespace, R2Bucket } from '@cloudflare/workers-types'
 
 function makeKV(): KVNamespace {
   const store = new Map<string, string>()
@@ -13,6 +13,16 @@ function makeKV(): KVNamespace {
     delete: vi.fn(async (key: string) => { store.delete(key) }),
     list: vi.fn(async () => ({ keys: [...store.keys()].map(name => ({ name })), list_complete: true, cursor: '' })),
   } as unknown as KVNamespace
+}
+
+// Minimal R2 mock: activity-log GET returns null (no prior log) and put is
+// a no-op spy. Sufficient for the poller tests, which only care about KV
+// state assertions.
+function makeR2(): R2Bucket {
+  return {
+    get: vi.fn(async () => null),
+    put: vi.fn(async () => undefined),
+  } as unknown as R2Bucket
 }
 
 const discovery = JSON.parse(
@@ -64,8 +74,9 @@ describe('pollOnce', () => {
 describe('writeSnapshotToKV', () => {
   it('writes latest and appends to the current-hour buffer', async () => {
     const kv = makeKV()
+    const r2 = makeR2()
     const snap = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692030 })
-    await writeSnapshotToKV(kv, snap)
+    await writeSnapshotToKV(kv, r2, snap)
     const latest = await kv.get(`system:${snap.system.system_id}:latest`)
     expect(latest).not.toBeNull()
     expect(JSON.parse(latest!).snapshot_ts).toBe(1778692030)
@@ -80,10 +91,11 @@ describe('writeSnapshotToKV', () => {
 
   it('appends a second snapshot to the existing buffer for the same hour', async () => {
     const kv = makeKV()
+    const r2 = makeR2()
     const snap1 = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692030 })
     const snap2 = await pollOnce(sys, { fetchImpl: makeFetch(), now: () => 1778692150 })
-    await writeSnapshotToKV(kv, snap1)
-    await writeSnapshotToKV(kv, snap2)
+    await writeSnapshotToKV(kv, r2, snap1)
+    await writeSnapshotToKV(kv, r2, snap2)
     const bufKey = currentBufferKey(snap1.system.system_id, snap1.snapshot_ts)
     const buf = JSON.parse((await kv.get(bufKey))!)
     expect(buf.length).toBe(2)

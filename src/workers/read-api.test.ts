@@ -5,7 +5,12 @@ import type { Env } from '../../worker-configuration'
 function makeEnv({
   latestValue = null,
   r2Objects = [] as Array<{ key: string }>,
-}: { latestValue?: string | null; r2Objects?: Array<{ key: string }> } = {}): Env {
+  r2Get = null as Record<string, string> | null,
+}: {
+  latestValue?: string | null
+  r2Objects?: Array<{ key: string }>
+  r2Get?: Record<string, string> | null
+} = {}): Env {
   return {
     GBFS_KV: { get: vi.fn(async (_: string) => latestValue) } as any,
     GBFS_R2: {
@@ -14,6 +19,11 @@ function makeEnv({
         truncated: false,
         cursor: undefined,
       })),
+      get: vi.fn(async (key: string) => {
+        const val = r2Get?.[key]
+        if (val == null) return null
+        return { text: async () => val } as any
+      }),
     } as any,
   }
 }
@@ -77,5 +87,45 @@ describe('read-api', () => {
     expect(body.keys.every(k => /\d{2}\.parquet$/.test(k))).toBe(true)
     // The hour20 absence isn't a hard error since the regex variable is unused, satisfy TS:
     expect(hour20).toBe(hour20)
+  })
+
+  it('returns activity log from R2 with CORS + cache headers', async () => {
+    const payload = JSON.stringify({
+      events: [{ stationId: 'a', ts: 1, delta: -1 }],
+      trips: [],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    })
+    const env = makeEnv({
+      r2Get: { 'gbfs/bcycle_santabarbara/activity.json': payload },
+    })
+    const res = await worker.fetch(
+      new Request('https://example/api/systems/bcycle_santabarbara/activity'),
+      env,
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toMatch(/json/)
+    expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
+    expect(res.headers.get('cache-control')).toMatch(/max-age=20/)
+    expect(await res.text()).toBe(payload)
+  })
+
+  it('falls back to empty activity log when R2 object is missing', async () => {
+    const env = makeEnv()
+    const res = await worker.fetch(
+      new Request('https://example/api/systems/bcycle_santabarbara/activity'),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json() as {
+      events: unknown[]
+      trips: unknown[]
+      inFlightFromStationId: unknown
+      inFlightDepartureTs: unknown
+    }
+    expect(body.events).toEqual([])
+    expect(body.trips).toEqual([])
+    expect(body.inFlightFromStationId).toBeNull()
+    expect(body.inFlightDepartureTs).toBeNull()
   })
 })
