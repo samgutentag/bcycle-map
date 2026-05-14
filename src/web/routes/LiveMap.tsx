@@ -48,6 +48,10 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       ${types.length > 0 ? `<div class="mt-2 text-xs text-neutral-600 space-y-0.5">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
       ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}
       <div class="mt-2 text-xs text-neutral-500">Reported ${ageText}</div>
+      <div class="mt-3 flex gap-2 text-xs">
+        <a href="/route/${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-sky-700 text-white hover:bg-sky-800 no-underline">Use as start</a>
+        <a href="/route//${encodeURIComponent(s.station_id)}" data-spa class="px-2 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-800 no-underline">Use as destination</a>
+      </div>
     </div>
   `
 }
@@ -76,6 +80,16 @@ export default function LiveMap() {
       .setLngLat([s.lon, s.lat])
       .setHTML(buildPopupHTML(s, Math.floor(Date.now() / 1000)))
       .addTo(map)
+    // Intercept clicks on `data-spa` anchors so they use SPA navigation instead
+    // of a full page reload (preserves the MapLibre instance and is much faster).
+    popup.getElement()?.addEventListener('click', ev => {
+      const target = ev.target as HTMLElement | null
+      const anchor = target?.closest('a[data-spa]') as HTMLAnchorElement | null
+      if (!anchor) return
+      ev.preventDefault()
+      const href = anchor.getAttribute('href')
+      if (href) navigate(href)
+    })
     popup.on('close', () => {
       if (popupRef.current === popup) navigate('/')
     })
