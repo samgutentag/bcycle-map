@@ -64,13 +64,6 @@ describe('SystemTotals', () => {
     expect(container.textContent).toMatch(/bikes available/i)
   })
 
-  it('renders utilization percentage', () => {
-    render(<SystemTotals stations={[
-      make({ num_bikes_available: 5, num_docks_available: 5 }),
-    ]} />)
-    expect(screen.getByText(/50% full/)).toBeInTheDocument()
-  })
-
   it('shows stations-online ratio', () => {
     render(<SystemTotals stations={[
       make(),

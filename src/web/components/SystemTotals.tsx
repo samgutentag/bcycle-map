@@ -30,9 +30,6 @@ export function computeTotals(stations: StationSnapshot[]) {
 
 export default function SystemTotals({ stations, maxBikesEver, recent24h, variant = 'overlay' }: Props) {
   const totals = computeTotals(stations)
-  const utilization = totals.totalDockSlots > 0
-    ? Math.round((totals.bikes / totals.totalDockSlots) * 100)
-    : 0
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
   const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
 
@@ -75,7 +72,7 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, varian
         </div>
       </div>
       <div className="mt-2 text-xs text-neutral-500">
-        {utilization}% full · {totals.stationsOnline} / {stations.length} stations online
+        {totals.stationsOnline} / {stations.length} stations online
       </div>
     </div>
   )
