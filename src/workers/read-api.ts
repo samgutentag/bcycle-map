@@ -1,7 +1,5 @@
 import type { Env } from '../../worker-configuration'
-import { latestKey, currentBufferKey } from './poller'
-import { parquetReadObjects } from 'hyparquet'
-import type { BufferEntry } from '../shared/types'
+import { latestKey } from './poller'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -45,54 +43,6 @@ async function handlePartitions(env: Env, systemId: string, fromTs: number, toTs
   })
 }
 
-type Sample = { snapshot_ts: number; num_bikes_available: number; num_docks_available: number }
-
-async function readStationFromParquet(env: Env, key: string, stationId: string, fromTs: number): Promise<Sample[]> {
-  const obj = await env.GBFS_R2.get(key)
-  if (!obj) return []
-  const buf = await obj.arrayBuffer()
-  // hyparquet wants an AsyncBuffer-like; ArrayBuffer works directly in recent versions.
-  const rows = await parquetReadObjects({
-    file: buf,
-    columns: ['snapshot_ts', 'station_id', 'num_bikes_available', 'num_docks_available'],
-  }) as Array<{ snapshot_ts: bigint | number; station_id: string; num_bikes_available: number; num_docks_available: number }>
-  const out: Sample[] = []
-  for (const r of rows) {
-    if (r.station_id !== stationId) continue
-    const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
-    if (ts < fromTs) continue
-    out.push({
-      snapshot_ts: ts,
-      num_bikes_available: Number(r.num_bikes_available),
-      num_docks_available: Number(r.num_docks_available),
-    })
-  }
-  return out
-}
-
-async function readStationFromKvBuffers(env: Env, systemId: string, stationId: string, fromTs: number, toTs: number): Promise<Sample[]> {
-  // The intra-hour buffer holds samples that haven't been compacted to parquet yet.
-  // Walk back hour-by-hour from now until we cover the requested range.
-  const samples: Sample[] = []
-  for (let ts = toTs; ts >= fromTs - 3600; ts -= 3600) {
-    const key = currentBufferKey(systemId, ts)
-    const raw = await env.GBFS_KV.get(key)
-    if (!raw) continue
-    const buffer: BufferEntry[] = JSON.parse(raw)
-    for (const entry of buffer) {
-      if (entry.snapshot_ts < fromTs || entry.snapshot_ts > toTs) continue
-      const s = entry.stations.find(st => st.station_id === stationId)
-      if (!s) continue
-      samples.push({
-        snapshot_ts: entry.snapshot_ts,
-        num_bikes_available: s.num_bikes_available,
-        num_docks_available: s.num_docks_available,
-      })
-    }
-  }
-  return samples
-}
-
 const DOW_FILTER_THRESHOLD_DAYS = 21
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -129,71 +79,52 @@ async function getSystemTimezone(env: Env, systemId: string): Promise<string> {
   }
 }
 
+// Worker reads pre-computed typical profiles written by the
+// compute-typicals GH Action. This keeps the request under the
+// 10ms CPU budget by avoiding parquet parsing entirely.
 async function handleStationTypical(env: Env, systemId: string, stationId: string): Promise<Response> {
   const nowTs = Math.floor(Date.now() / 1000)
   const timezone = await getSystemTimezone(env, systemId)
-
-  // List all parquet partitions for this system
-  const prefix = `gbfs/${systemId}/station_status/`
-  const parquetKeys: string[] = []
-  let cursor: string | undefined
-  do {
-    const result: any = await env.GBFS_R2.list({ prefix, cursor })
-    for (const obj of result.objects) {
-      if (partitionKeyToTs(obj.key) === null) continue
-      parquetKeys.push(obj.key)
-    }
-    cursor = result.truncated ? result.cursor : undefined
-  } while (cursor)
-  parquetKeys.sort()
-
-  // Read every partition for this station, plus uncompacted buffers
-  const fromTs = 0
-  const parquetSamples = (await Promise.all(
-    parquetKeys.map(k => readStationFromParquet(env, k, stationId, fromTs)),
-  )).flat()
-  const bufferSamples = await readStationFromKvBuffers(env, systemId, stationId, fromTs, nowTs + 3600)
-
-  const byTs = new Map<number, Sample>()
-  for (const s of [...parquetSamples, ...bufferSamples]) byTs.set(s.snapshot_ts, s)
-  const samples = [...byTs.values()]
-
-  // Annotate every sample with local DOW + hour-of-day + date-key for coverage counting
-  const annotated = samples.map(s => {
-    const parts = tsToLocalParts(s.snapshot_ts, timezone)
-    return { ...s, ...parts }
-  })
-
-  // Count distinct local dates of coverage to decide DOW-filter vs all-days fallback
-  const distinctDates = new Set(annotated.map(a => a.dateKey))
-  const daysCovered = distinctDates.size
-
   const todayParts = tsToLocalParts(nowTs, timezone)
-  const isDowFiltered = daysCovered >= DOW_FILTER_THRESHOLD_DAYS
-  const filtered = isDowFiltered
-    ? annotated.filter(a => a.dow === todayParts.dow)
-    : annotated
 
-  // Aggregate to 24 hour-of-day buckets (avg across all matching samples)
-  const accum = new Map<number, { bikes: number; docks: number; n: number }>()
-  for (const a of filtered) {
-    const cur = accum.get(a.hour) ?? { bikes: 0, docks: 0, n: 0 }
-    cur.bikes += a.num_bikes_available
-    cur.docks += a.num_docks_available
-    cur.n += 1
-    accum.set(a.hour, cur)
+  const obj = await env.GBFS_R2.get(`gbfs/${systemId}/typicals/${stationId}.json`)
+  // Build the empty 24-hour shape so the frontend can always render the chart
+  const emptyHours = Array.from({ length: 24 }, (_, h) => ({ hour: h, bikes: 0, docks: 0, samples: 0 }))
+
+  if (!obj) {
+    return new Response(
+      JSON.stringify({
+        stationId,
+        hours: emptyHours,
+        currentHour: todayParts.hour,
+        currentDow: todayParts.dow,
+        daysCovered: 0,
+        isDowFiltered: false,
+        label: 'Typical (no history yet)',
+        timezone,
+      }),
+      {
+        status: 200,
+        headers: {
+          ...CORS_HEADERS,
+          'content-type': 'application/json',
+          'cache-control': 'max-age=300',
+        },
+      },
+    )
   }
-  const hours = Array.from({ length: 24 }, (_, h) => {
-    const cur = accum.get(h)
-    if (!cur) return { hour: h, bikes: 0, docks: 0, samples: 0 }
-    return {
-      hour: h,
-      bikes: Math.round((cur.bikes / cur.n) * 10) / 10,
-      docks: Math.round((cur.docks / cur.n) * 10) / 10,
-      samples: cur.n,
-    }
-  })
 
+  const text = await obj.text()
+  const profile = JSON.parse(text) as {
+    stationId: string
+    computedAt: number
+    daysCovered: number
+    byDow: Array<Array<{ hour: number; bikes: number; docks: number; samples: number }>>
+    allDays: Array<{ hour: number; bikes: number; docks: number; samples: number }>
+  }
+
+  const isDowFiltered = profile.daysCovered >= DOW_FILTER_THRESHOLD_DAYS
+  const hours = isDowFiltered ? profile.byDow[todayParts.dow] ?? profile.allDays : profile.allDays
   const label = isDowFiltered
     ? `Typical ${WEEKDAY_FULL[todayParts.dow]}`
     : 'Typical (all days)'
@@ -204,7 +135,7 @@ async function handleStationTypical(env: Env, systemId: string, stationId: strin
       hours,
       currentHour: todayParts.hour,
       currentDow: todayParts.dow,
-      daysCovered,
+      daysCovered: profile.daysCovered,
       isDowFiltered,
       label,
       timezone,
