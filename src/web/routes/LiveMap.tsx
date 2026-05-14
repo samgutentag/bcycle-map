@@ -107,6 +107,10 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       <div class="mt-3">
         <div class="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-1">Last 24 hours · bikes available</div>
         <div data-sparkline="${escapeHtml(s.station_id)}" class="block"></div>
+        <div class="flex gap-3 text-[10px] text-neutral-500 mt-1">
+          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #0d6cb0; opacity: 0.5"></span>Typical</span>
+          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #ea580c"></span>Now</span>
+        </div>
       </div>
       <div class="mt-3 flex flex-wrap gap-2 text-xs">
         <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa class="px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 no-underline">Details</a>
@@ -154,7 +158,7 @@ export default function LiveMap() {
     // Fire off the sparkline render (async; no-ops if popup closes first)
     const sparklineEl = popup.getElement()?.querySelector(`[data-sparkline="${s.station_id}"]`) as HTMLElement | null
     if (sparklineEl) {
-      renderSparkline(sparklineEl, API_BASE, SYSTEM_ID, s.station_id)
+      renderSparkline(sparklineEl, API_BASE, SYSTEM_ID, s.station_id, s.num_bikes_available)
     }
     popup.on('close', () => {
       if (popupRef.current === popup) navigate('/')
