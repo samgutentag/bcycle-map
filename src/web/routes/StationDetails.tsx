@@ -6,6 +6,7 @@ import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
 import DateRangePicker from '../components/DateRangePicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
+import MiniLine from '../components/MiniLine'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { resolveRange, type Preset } from '../lib/date-range'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
@@ -262,6 +263,30 @@ export default function StationDetails() {
     range,
   })
 
+  // Aggregate the per-station 2-min samples into one average-bikes-per-hour
+  // point per UTC hour for the "right now" sparkline. Caps at the most recent
+  // 24 hours to match the SystemTotals sparkline's window.
+  const sparklineSeries = useMemo(() => {
+    if (!series.data || series.data.length === 0) return { bikes: [], docks: [] }
+    const byHour = new Map<number, { bikes: number; docks: number; n: number }>()
+    for (const row of series.data) {
+      const hourTs = Math.floor(row.snapshot_ts / 3600) * 3600
+      const cur = byHour.get(hourTs) ?? { bikes: 0, docks: 0, n: 0 }
+      cur.bikes += row.bikes
+      cur.docks += row.docks
+      cur.n += 1
+      byHour.set(hourTs, cur)
+    }
+    const points = Array.from(byHour.entries())
+      .sort(([a], [b]) => a - b)
+      .slice(-24)
+      .map(([, v]) => ({ bikes: v.bikes / v.n, docks: v.docks / v.n }))
+    return {
+      bikes: points.map(p => p.bikes),
+      docks: points.map(p => p.docks),
+    }
+  }, [series.data])
+
   // Closest stations by Haversine distance — pulled from the live snapshot so
   // no extra fetch is needed. We take the 5 nearest after excluding self.
   const nearby = useMemo(() => {
@@ -322,6 +347,9 @@ export default function StationDetails() {
               <div>
                 <div className="text-3xl font-bold leading-none">{station.num_bikes_available}</div>
                 <div className="text-xs text-neutral-600 mt-1">bikes available</div>
+                {sparklineSeries.bikes.length > 1 && (
+                  <div className="mt-1.5"><MiniLine values={sparklineSeries.bikes} color="#0d6cb0" /></div>
+                )}
               </div>
               <div>
                 <div className="text-3xl font-bold leading-none">
@@ -331,6 +359,9 @@ export default function StationDetails() {
                   ) : null}
                 </div>
                 <div className="text-xs text-neutral-600 mt-1">open docks</div>
+                {sparklineSeries.docks.length > 1 && (
+                  <div className="mt-1.5"><MiniLine values={sparklineSeries.docks} color="#15803d" /></div>
+                )}
               </div>
             </div>
             {pctFull !== null && (
