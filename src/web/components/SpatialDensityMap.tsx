@@ -39,22 +39,29 @@ export default function SpatialDensityMap({ apiBase, r2Base, system, atTs }: Pro
   useEffect(() => {
     if (!overlayRef.current || !data || !mapRef.current) return
 
-    // First data load: cap pan + zoom to 1.5x the stations' bbox.
+    // First data load: clamp pan + zoom to 1.5x the stations' bbox.
     if (!boundsSetRef.current && data.length > 0) {
-      const lats = data.map(d => d.lat)
-      const lons = data.map(d => d.lon)
-      const minLat = Math.min(...lats), maxLat = Math.max(...lats)
-      const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-      const latPad = (maxLat - minLat) * 0.25
-      const lonPad = (maxLon - minLon) * 0.25
-      const bounds: [[number, number], [number, number]] = [
-        [minLon - lonPad, minLat - latPad],
-        [maxLon + lonPad, maxLat + latPad],
-      ]
-      mapRef.current.setMaxBounds(bounds)
-      mapRef.current.fitBounds(bounds, { padding: 40, duration: 0 })
-      mapRef.current.setMinZoom(mapRef.current.getZoom() - 0.5)
-      boundsSetRef.current = true
+      const valid = data.filter(d =>
+        Number.isFinite(d.lat) && Number.isFinite(d.lon) && d.lat !== 0 && d.lon !== 0,
+      )
+      if (valid.length === 0) {
+        boundsSetRef.current = true
+      } else {
+        const lats = valid.map(d => d.lat)
+        const lons = valid.map(d => d.lon)
+        const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+        const minLon = Math.min(...lons), maxLon = Math.max(...lons)
+        const latPad = (maxLat - minLat) * 0.25
+        const lonPad = (maxLon - minLon) * 0.25
+        const bounds: [[number, number], [number, number]] = [
+          [minLon - lonPad, minLat - latPad],
+          [maxLon + lonPad, maxLat + latPad],
+        ]
+        mapRef.current.setMaxBounds(bounds)
+        mapRef.current.fitBounds(bounds, { padding: 0, duration: 0, animate: false })
+        mapRef.current.setMinZoom(mapRef.current.getZoom())
+        boundsSetRef.current = true
+      }
     }
 
     const layer = new HexagonLayer({

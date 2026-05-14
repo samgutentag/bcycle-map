@@ -107,21 +107,32 @@ export default function LiveMap() {
     if (!mapRef.current || !data) return
     const map = mapRef.current
 
-    // First data load: cap pan + zoom to 1.5x the stations' bbox.
+    // First data load: clamp pan + zoom to 1.5x the stations' bbox.
     if (!boundsSetRef.current && data.stations.length > 0) {
-      const lats = data.stations.map(s => s.lat)
-      const lons = data.stations.map(s => s.lon)
+      const valid = data.stations.filter(s =>
+        Number.isFinite(s.lat) && Number.isFinite(s.lon) && s.lat !== 0 && s.lon !== 0,
+      )
+      if (valid.length === 0) {
+        boundsSetRef.current = true
+        return
+      }
+      const lats = valid.map(s => s.lat)
+      const lons = valid.map(s => s.lon)
       const minLat = Math.min(...lats), maxLat = Math.max(...lats)
       const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-      const latPad = (maxLat - minLat) * 0.25  // 25% each side = 1.5x total span
+      // 1.5x scale-out: 25% padding on each side of the station bbox.
+      const latPad = (maxLat - minLat) * 0.25
       const lonPad = (maxLon - minLon) * 0.25
       const bounds: [[number, number], [number, number]] = [
         [minLon - lonPad, minLat - latPad],
         [maxLon + lonPad, maxLat + latPad],
       ]
       map.setMaxBounds(bounds)
-      map.fitBounds(bounds, { padding: 40, duration: 0 })
-      map.setMinZoom(map.getZoom() - 0.5)
+      // padding=0 → bounds fill the viewport exactly. The 1.5x scale is the visual margin.
+      map.fitBounds(bounds, { padding: 0, duration: 0, animate: false })
+      // Lock minZoom to the fit zoom — user can pan within bounds but can't zoom out
+      // past the 1.5x view (which would otherwise reveal empty world map).
+      map.setMinZoom(map.getZoom())
       boundsSetRef.current = true
     }
 
