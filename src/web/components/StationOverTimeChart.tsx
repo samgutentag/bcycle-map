@@ -8,11 +8,11 @@ type Props = {
 }
 
 const WIDTH = 600
-const HEIGHT = 220
+const HEIGHT = 230
 const PAD_L = 36
 const PAD_R = 12
 const PAD_T = 12
-const PAD_B = 28
+const PAD_B = 38   // extra room for hour + date labels
 const BUCKET_SEC = 30 * 60  // half-hour buckets
 
 const BIKES_COLOR = '#0d6cb0'
@@ -43,19 +43,40 @@ function aggregateBuckets(data: Row[], bucketSec: number): Bucket[] {
     }))
 }
 
-function hourTicks(xMin: number, xMax: number): Array<{ ts: number; major: boolean; label: string }> {
+type Tick = { ts: number; major: boolean; label: string; dateLabel?: string }
+
+function hourLabel(h: number): string {
+  if (h === 0) return '12a'
+  if (h === 12) return '12p'
+  return h < 12 ? `${h}a` : `${h - 12}p`
+}
+
+/**
+ * Adaptive x-axis ticks:
+ *   span <= 36h:  major at every hour, half-hour minor ticks (unlabeled)
+ *   span <= 7d:   major every 3 hours, minor every hour
+ *   span >  7d:   major every 12 hours, minor every 6 hours
+ * Date label appears below the hour at midnight crossings.
+ */
+function hourTicks(xMin: number, xMax: number): Tick[] {
   if (xMin >= xMax) return []
-  const firstHour = Math.ceil(xMin / 3600) * 3600
-  const ticks: Array<{ ts: number; major: boolean; label: string }> = []
-  for (let ts = firstHour; ts <= xMax; ts += 3600) {
+  const span = xMax - xMin
+  const majorEveryHours = span <= 36 * 3600 ? 1 : span <= 7 * 86400 ? 3 : 12
+  const minorEveryHours = span <= 36 * 3600 ? 0.5 : span <= 7 * 86400 ? 1 : 6
+
+  const ticks: Tick[] = []
+  const minorStepSec = minorEveryHours * 3600
+  const firstMinor = Math.ceil(xMin / minorStepSec) * minorStepSec
+  for (let ts = firstMinor; ts <= xMax; ts += minorStepSec) {
     const d = new Date(ts * 1000)
     const h = d.getHours()
-    const major = h === 0 || h === 6 || h === 12 || h === 18
-    let label = ''
-    if (major) {
-      label = h === 0 ? '12am' : h === 12 ? 'noon' : h < 12 ? `${h}am` : `${h - 12}pm`
-    }
-    ticks.push({ ts, major, label })
+    const isHourly = ts % 3600 === 0
+    const isMajor = isHourly && h % majorEveryHours === 0
+    const label = isMajor ? hourLabel(h) : ''
+    const dateLabel = isMajor && h === 0
+      ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      : undefined
+    ticks.push({ ts, major: isMajor, label, dateLabel })
   }
   return ticks
 }
@@ -155,27 +176,51 @@ export default function StationOverTimeChart({ data, totalDocks, show = 'both' }
           </g>
         ))}
 
-        {/* X hour ticks */}
+        {/* X hour ticks + adaptive labels */}
         {xTicks.map(t => (
           <g key={`x-${t.ts}`}>
             <line
               x1={scaleX(t.ts)}
               y1={HEIGHT - PAD_B}
               x2={scaleX(t.ts)}
-              y2={HEIGHT - PAD_B + (t.major ? 6 : 3)}
+              y2={HEIGHT - PAD_B + (t.major ? 5 : 2)}
               stroke={TICK_COLOR}
               strokeWidth={t.major ? 1 : 0.5}
             />
             {t.major && (
               <text
                 x={scaleX(t.ts)}
-                y={HEIGHT - PAD_B + 18}
+                y={HEIGHT - PAD_B + 14}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="9"
                 fill={MAJOR_LABEL_COLOR}
               >
                 {t.label}
               </text>
+            )}
+            {t.dateLabel && (
+              <text
+                x={scaleX(t.ts)}
+                y={HEIGHT - PAD_B + 25}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="600"
+                fill={MAJOR_LABEL_COLOR}
+              >
+                {t.dateLabel}
+              </text>
+            )}
+            {/* Subtle vertical line at midnight crossings */}
+            {t.dateLabel && (
+              <line
+                x1={scaleX(t.ts)}
+                y1={PAD_T}
+                x2={scaleX(t.ts)}
+                y2={HEIGHT - PAD_B}
+                stroke="#cbd5e1"
+                strokeWidth={0.7}
+                strokeDasharray="2 3"
+              />
             )}
           </g>
         ))}
