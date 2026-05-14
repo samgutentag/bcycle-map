@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { HourBikeStats, StationSnapshot } from '@shared/types'
 import MiniLine from './MiniLine'
 
@@ -7,6 +8,8 @@ type Props = {
   maxBikesEver?: number
   /** Rolling 24-hour per-hour bikes-available min/max from the poller. */
   recent24h?: HourBikeStats[]
+  /** IANA timezone for sparkline hover labels. Falls back to browser local. */
+  timezone?: string
   variant?: 'overlay' | 'inline'
 }
 
@@ -28,7 +31,15 @@ export function computeTotals(stations: StationSnapshot[]) {
   }
 }
 
-export default function SystemTotals({ stations, maxBikesEver, recent24h, variant = 'overlay' }: Props) {
+function formatHourLabel(hourTsSec: number, tz?: string): string {
+  return new Date(hourTsSec * 1000).toLocaleString(undefined, {
+    weekday: 'short',
+    hour: 'numeric',
+    timeZone: tz,
+  })
+}
+
+export default function SystemTotals({ stations, maxBikesEver, recent24h, timezone, variant = 'overlay' }: Props) {
   const totals = computeTotals(stations)
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
   const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
@@ -39,6 +50,12 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, varian
   const activeSeries = showBikeMax
     ? sorted.map(h => Math.max(0, (maxBikesEver as number) - h.bikes_min))
     : []
+
+  const [hover, setHover] = useState<{ series: 'bikes' | 'active'; index: number } | null>(null)
+  const hoveredHour = hover ? sorted[hover.index] : null
+  const hoveredBikesVal = hover?.series === 'bikes' && hoveredHour ? bikesSeries[hover.index] : null
+  const hoveredActiveVal = hover?.series === 'active' && hoveredHour ? activeSeries[hover.index] : null
+  const hoveredLabel = hoveredHour ? formatHourLabel(hoveredHour.hour_ts, timezone) : null
 
   const wrapperClass = variant === 'overlay'
     ? 'absolute bottom-12 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-neutral-200 px-4 py-3'
@@ -51,8 +68,19 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, varian
         {activeRiders !== null && (
           <div title="Bikes not parked at any station — riders out using them right now.">
             <div className="text-xl font-bold leading-tight text-orange-600">{activeRiders}</div>
-            <div className="text-xs text-neutral-600">active riders</div>
-            <div className="mt-1"><MiniLine values={activeSeries} color={ACTIVE_COLOR} /></div>
+            <div className="text-xs text-neutral-600 h-4">
+              {hoveredActiveVal != null
+                ? <span className="text-orange-700">peak {hoveredActiveVal} · {hoveredLabel}</span>
+                : 'active riders'}
+            </div>
+            <div className="mt-1">
+              <MiniLine
+                values={activeSeries}
+                color={ACTIVE_COLOR}
+                hoverIndex={hover?.series === 'active' ? hover.index : null}
+                onHoverIndexChange={i => setHover(i === null ? null : { series: 'active', index: i })}
+              />
+            </div>
           </div>
         )}
         <div>
@@ -67,8 +95,19 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, varian
               </span>
             )}
           </div>
-          <div className="text-xs text-neutral-600">bikes available</div>
-          <div className="mt-1"><MiniLine values={bikesSeries} color={BIKES_COLOR} /></div>
+          <div className="text-xs text-neutral-600 h-4">
+            {hoveredBikesVal != null
+              ? <span className="text-sky-800">peak {hoveredBikesVal} · {hoveredLabel}</span>
+              : 'bikes available'}
+          </div>
+          <div className="mt-1">
+            <MiniLine
+              values={bikesSeries}
+              color={BIKES_COLOR}
+              hoverIndex={hover?.series === 'bikes' ? hover.index : null}
+              onHoverIndexChange={i => setHover(i === null ? null : { series: 'bikes', index: i })}
+            />
+          </div>
         </div>
       </div>
       <div className="mt-2 text-xs text-neutral-500">
