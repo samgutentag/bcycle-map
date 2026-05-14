@@ -1,0 +1,44 @@
+name: backfill-activity
+
+# Replay the last N hours of compacted parquet through the activity
+# detection logic to populate the rolling activity log retroactively.
+# Manual + idempotent — re-running is safe.
+on:
+  workflow_dispatch:
+    inputs:
+      hours_back:
+        description: 'How many compacted hours to replay (default 3)'
+        type: string
+        default: '3'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: backfill-activity
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx tsx scripts/backfill-activity.ts
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_KV_API_TOKEN: ${{ secrets.CF_KV_API_TOKEN }}
+          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          SYSTEM_ID: bcycle_santabarbara
+          HOURS_BACK: ${{ github.event.inputs.hours_back || '3' }}
