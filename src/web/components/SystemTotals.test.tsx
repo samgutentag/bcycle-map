@@ -81,4 +81,23 @@ describe('SystemTotals', () => {
     ]} />)
     expect(screen.getByText(/1 \/ 2 stations online/)).toBeInTheDocument()
   })
+
+  it('renders bikes denominator when maxBikesEver is provided', () => {
+    const { container } = render(
+      <SystemTotals
+        stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]}
+        maxBikesEver={250}
+      />,
+    )
+    expect(container.textContent).toContain('/ 250')
+  })
+
+  it('omits the bikes denominator when maxBikesEver is missing or zero', () => {
+    const { container } = render(
+      <SystemTotals stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]} />,
+    )
+    // Only docks should have its "/ N" denominator, not bikes
+    const denominators = container.textContent?.match(/\/ 10/g) ?? []
+    expect(denominators.length).toBe(1)
+  })
 })

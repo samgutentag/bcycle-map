@@ -34,7 +34,7 @@ export default function Explore() {
 
       {live && (
         <div className="mb-6">
-          <SystemTotals stations={live.stations} variant="inline" />
+          <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} variant="inline" />
         </div>
       )}
 

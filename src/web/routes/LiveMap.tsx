@@ -178,7 +178,7 @@ export default function LiveMap() {
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
-      {data && <SystemTotals stations={data.stations} variant="overlay" />}
+      {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
     </div>
   )
 }

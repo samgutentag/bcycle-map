@@ -32,6 +32,13 @@ export type KVValue = {
   system: SystemInfo
   snapshot_ts: number
   stations: StationSnapshot[]
+  /**
+   * Highest value of sum(num_bikes_available) the poller has ever observed.
+   * A proxy for "total bikes in the fleet" — peak parked = closest we get
+   * to seeing every bike at once. Grows monotonically; converges to truth
+   * within a day or two of polling.
+   */
+  max_bikes_ever?: number
 }
 
 export type BufferEntry = {

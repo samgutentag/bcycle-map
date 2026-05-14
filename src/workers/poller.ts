@@ -69,7 +69,18 @@ export function latestKey(systemId: string): string {
 }
 
 export async function writeSnapshotToKV(kv: KVNamespace, snap: KVValue): Promise<void> {
-  await kv.put(latestKey(snap.system.system_id), JSON.stringify(snap))
+  const lKey = latestKey(snap.system.system_id)
+
+  // Read previous snapshot to carry forward the running max of bikes-parked.
+  // The "ever observed" max approximates total fleet size: at peak idle
+  // (typically 3am) most bikes are parked at stations.
+  const prevRaw = await kv.get(lKey)
+  const prev: KVValue | null = prevRaw ? JSON.parse(prevRaw) : null
+  const totalBikesNow = snap.stations.reduce((sum, s) => sum + s.num_bikes_available, 0)
+  const maxBikesEver = Math.max(prev?.max_bikes_ever ?? 0, totalBikesNow)
+  const enriched: KVValue = { ...snap, max_bikes_ever: maxBikesEver }
+
+  await kv.put(lKey, JSON.stringify(enriched))
 
   const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)
   const existing = await kv.get(bufKey)
