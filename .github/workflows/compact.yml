@@ -2,9 +2,10 @@ name: parquet-compact
 
 on:
   schedule:
-    # Hourly at 5 minutes past the hour — gives the previous hour buffer ~5 min
-    # to settle (poller is single-threaded but KV writes are eventually consistent).
-    - cron: '5 * * * *'
+    # Every 3 hours at :05. GitHub Actions schedule cron is "best effort" and
+    # skips hourly runs under load. The compact script seals every finished
+    # buffer in one shot, so a 3-hour cadence still backfills cleanly.
+    - cron: '5 */3 * * *'
   workflow_dispatch: {}
 
 permissions:
