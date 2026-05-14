@@ -40,7 +40,7 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
   return `
     <div class="text-sm text-neutral-900">
       <div class="font-semibold">${escapeHtml(s.name)}</div>
-      ${s.address ? `<div class="text-xs text-neutral-500 mt-0.5">${escapeHtml(s.address)}</div>` : ''}
+      ${s.address ? `<a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}" target="_blank" rel="noopener noreferrer" class="text-xs text-sky-700 hover:underline mt-0.5 inline-block">${escapeHtml(s.address)} ↗</a>` : ''}
       <div class="mt-2 flex gap-4">
         <div><span class="font-medium">${s.num_bikes_available}</span> bikes available</div>
         <div><span class="font-medium">${s.num_docks_available}</span> docks available</div>
