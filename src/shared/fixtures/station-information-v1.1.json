@@ -1021,9 +1021,129 @@
                 "address": "501 Laguna St",
                 "name": "Third Window",
                 "station_id": "bcycle_santabarbara_7778"
+            },
+            {
+                "lon": -119.7157,
+                "lat": 34.42974,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9018&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9018&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "1964 Chapala St",
+                "name": "Chapala & Mission",
+                "station_id": "bcycle_santabarbara_9018"
+            },
+            {
+                "lon": -119.7157,
+                "lat": 34.42974,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9019&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9019&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "2600 De La Vina St",
+                "name": "De La Vina & Constance",
+                "station_id": "bcycle_santabarbara_9019"
+            },
+            {
+                "lon": -119.75233,
+                "lat": 34.44056,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9021&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9021&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "4300 State St",
+                "name": "La Cumbre Animal Hospital",
+                "station_id": "bcycle_santabarbara_9021"
+            },
+            {
+                "lon": -119.68056,
+                "lat": 34.42234,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9023&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9023&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "103 N Milpas St",
+                "name": "Milpas & Mason",
+                "station_id": "bcycle_santabarbara_9023"
+            },
+            {
+                "lon": -119.67418,
+                "lat": 34.42173,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9024&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9024&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "1034 Cacique St",
+                "name": "Arts Market - Cacique & Voluntario",
+                "station_id": "bcycle_santabarbara_9024"
+            },
+            {
+                "lon": -119.67134,
+                "lat": 34.42523,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9025&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9025&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "128 S Salinas St",
+                "name": "Ensenada & Salinas",
+                "station_id": "bcycle_santabarbara_9025"
+            },
+            {
+                "lon": -119.69707,
+                "lat": 34.42373,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9027&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9027&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "300 E Canon Perdido St",
+                "name": "Garden & Canon Perdido",
+                "station_id": "bcycle_santabarbara_9027"
+            },
+            {
+                "lon": -119.6951,
+                "lat": 34.42587,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9028&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9028&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "901 Olive St",
+                "name": "Canon Perdido & Olive",
+                "station_id": "bcycle_santabarbara_9028"
+            },
+            {
+                "lon": -119.69158,
+                "lat": 34.41843,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9031&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9031&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "217 E Gutierrez St",
+                "name": "Smart & Final",
+                "station_id": "bcycle_santabarbara_9031"
+            },
+            {
+                "lon": -119.72674,
+                "lat": 34.42921,
+                "rental_uris": {
+                    "ios": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9032&platform=iOS",
+                    "android": "https://www.bcycle.com/applink?system_id=bcycle_santabarbara&station_id=bcycle_santabarbara_9032&platform=android"
+                },
+                "_bcycle_station_type": "3.0 Dock Station",
+                "address": "519 W Alamar Ave",
+                "name": "Fran Apartments",
+                "station_id": "bcycle_santabarbara_9032"
             }
         ]
     },
     "version": "1.1",
-    "last_updated": 1778700547
+    "last_updated": 1778731617
 }

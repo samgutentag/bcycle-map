@@ -38,10 +38,7 @@ export default function SystemTotals({ stations, variant = 'overlay' }: Props) {
       <div className="font-semibold text-[10px] uppercase tracking-wide text-neutral-500 mb-1">System totals</div>
       <div className="flex gap-5">
         <div>
-          <div className="text-xl font-bold leading-tight">
-            {totals.bikes}
-            <span className="text-base font-normal text-neutral-400"> / {totals.totalDockSlots}</span>
-          </div>
+          <div className="text-xl font-bold leading-tight">{totals.bikes}</div>
           <div className="text-xs text-neutral-600">bikes available</div>
         </div>
         <div>

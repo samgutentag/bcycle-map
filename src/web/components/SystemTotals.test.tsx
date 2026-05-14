@@ -54,7 +54,7 @@ describe('computeTotals', () => {
 })
 
 describe('SystemTotals', () => {
-  it('renders bikes and docks with a shared total-capacity denominator', () => {
+  it('renders bikes alone, docks with a "/total capacity" denominator', () => {
     const { container } = render(<SystemTotals stations={[
       make({ num_bikes_available: 4, num_docks_available: 6 }),
       make({ num_bikes_available: 1, num_docks_available: 9 }),
@@ -62,9 +62,9 @@ describe('SystemTotals', () => {
     // Totals: bikes=5, docks=15, total dock slots = 20
     expect(container.textContent).toContain('5')
     expect(container.textContent).toContain('15')
-    // The "/ 20" denominator should appear on both rows
+    // The "/ 20" denominator should only appear once (on the docks row, not bikes)
     const denominators = container.textContent?.match(/\/ 20/g) ?? []
-    expect(denominators.length).toBe(2)
+    expect(denominators.length).toBe(1)
   })
 
   it('renders utilization percentage', () => {
