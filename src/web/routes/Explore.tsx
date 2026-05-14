@@ -4,6 +4,7 @@ import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
 import SystemBikesOverTime from '../components/SystemBikesOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
+import ChartSkeleton from '../components/ChartSkeleton'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { resolveRange, type Preset } from '../lib/date-range'
@@ -39,13 +40,15 @@ export default function Explore() {
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-2">Bikes and open docks over time</h3>
         {totals.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{totals.error.message}</pre>}
-        {totals.data && <SystemBikesOverTime data={totals.data} />}
+        {!totals.error && (totals.loading || !totals.data) && <ChartSkeleton aspectRatio={600 / 220} />}
+        {!totals.loading && !totals.error && totals.data && <SystemBikesOverTime data={totals.data} />}
       </section>
 
       <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
         <h3 className="text-sm font-semibold text-neutral-700 mb-2">Hour-of-week heatmap</h3>
         {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
-        {hourly.data && <HourOfWeekHeatmap data={hourly.data} />}
+        {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} />}
+        {!hourly.loading && !hourly.error && hourly.data && <HourOfWeekHeatmap data={hourly.data} />}
       </section>
 
     </div>
