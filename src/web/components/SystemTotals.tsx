@@ -77,7 +77,10 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
 
   return (
     <div className={`${wrapperClass} text-sm text-neutral-900`}>
-      <div className="font-semibold text-[10px] uppercase tracking-wide text-neutral-500 mb-1">System totals</div>
+      <div className="font-semibold text-[10px] uppercase tracking-wide text-emerald-700 mb-1 flex items-center gap-1.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
+        Right now
+      </div>
       <div className="flex gap-6">
         {activeRiders !== null && (
           <div className="min-w-[160px]" title="Bikes not parked at any station — riders out using them right now.">

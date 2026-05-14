@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import type { ActivityLog as ActivityLogData, StationSnapshot, Trip } from '@shared/types'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
 
@@ -76,7 +77,13 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxRows =
                   {isDep ? '↑ out' : '↓ in'}
                   {e.delta > 1 && <span className="ml-1 opacity-70">×{e.delta}</span>}
                 </span>
-                <span className="flex-1 text-neutral-700 truncate" title={name}>{name}</span>
+                <Link
+                  to={`/station/${e.station_id}/details`}
+                  className="flex-1 text-neutral-700 truncate hover:text-sky-700 hover:underline"
+                  title={name}
+                >
+                  {name}
+                </Link>
                 <span className="text-neutral-400 whitespace-nowrap" title={formatClockTime(e.ts, timezone)}>
                   {formatRelative(e.ts, nowSec)}
                 </span>
@@ -110,7 +117,11 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxRows =
               return (
                 <li key={`${trip.departure_ts}-${trip.arrival_ts}`} className="text-xs border border-neutral-200 rounded p-2 bg-neutral-50">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium text-neutral-700 truncate">{fromName} → {toName}</span>
+                    <span className="font-medium text-neutral-700 truncate">
+                      <Link to={`/station/${trip.from_station_id}/details`} className="hover:text-sky-700 hover:underline">{fromName}</Link>
+                      <span className="text-neutral-400"> → </span>
+                      <Link to={`/station/${trip.to_station_id}/details`} className="hover:text-sky-700 hover:underline">{toName}</Link>
+                    </span>
                     <span className="text-neutral-400 whitespace-nowrap">{formatClockTime(trip.departure_ts, timezone)}</span>
                   </div>
                   <div className="mt-0.5 text-neutral-500">

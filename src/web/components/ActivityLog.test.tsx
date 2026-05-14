@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import type { ReactElement } from 'react'
 import ActivityLog from './ActivityLog'
+
+const renderWithRouter = (el: ReactElement) =>
+  render(<MemoryRouter>{el}</MemoryRouter>)
 import type { ActivityLog as ActivityLogData, StationSnapshot } from '@shared/types'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 
@@ -36,13 +41,13 @@ const MATRIX: TravelMatrix = {
 
 describe('ActivityLog', () => {
   it('shows the loading state when log is null', () => {
-    render(<ActivityLog log={null} stations={STATIONS} matrix={MATRIX} />)
+    renderWithRouter(<ActivityLog log={null} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.getByText(/loading activity/i)).toBeInTheDocument()
   })
 
   it('shows the empty state when no events or trips', () => {
     const log: ActivityLogData = { events: [], trips: [], inFlightFromStationId: null, inFlightDepartureTs: null }
-    render(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.getByText(/no movement observed yet/i)).toBeInTheDocument()
   })
 
@@ -57,7 +62,7 @@ describe('ActivityLog', () => {
       inFlightFromStationId: null,
       inFlightDepartureTs: null,
     }
-    const { container } = render(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    const { container } = renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.getByText('Anacapa St')).toBeInTheDocument()
     expect(screen.getByText('Bath St')).toBeInTheDocument()
     // The arrival event (more recent) should appear before the departure
@@ -72,7 +77,7 @@ describe('ActivityLog', () => {
       inFlightFromStationId: null,
       inFlightDepartureTs: null,
     }
-    render(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.getByText(/×3/)).toBeInTheDocument()
   })
 
@@ -90,11 +95,11 @@ describe('ActivityLog', () => {
       inFlightFromStationId: null,
       inFlightDepartureTs: null,
     }
-    render(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
-    expect(screen.getByText(/Anacapa St → Bath St/)).toBeInTheDocument()
+    const { container } = renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    // Trip endpoints are separate <Link> elements now; assert via container text
+    expect(container.textContent).toMatch(/Anacapa St.*→.*Bath St/)
     expect(screen.getByText(/10 min/)).toBeInTheDocument()
     expect(screen.getByText(/expected 12 min/)).toBeInTheDocument()
-    // diff is -2 → emerald (faster than expected)
     expect(screen.getByText(/\(-2\)/)).toBeInTheDocument()
   })
 
@@ -112,7 +117,7 @@ describe('ActivityLog', () => {
       inFlightFromStationId: null,
       inFlightDepartureTs: null,
     }
-    render(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.queryByText(/expected/i)).not.toBeInTheDocument()
   })
 })
