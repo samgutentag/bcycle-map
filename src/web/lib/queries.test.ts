@@ -45,6 +45,17 @@ describe('buildTotalBikesQuery', () => {
     })
     expect(sql).toContain('WHERE FALSE')
   })
+
+  it('dedupes by (snapshot_ts, station_id) before summing to avoid double-counted spikes', () => {
+    const sql = buildTotalBikesQuery({
+      range: { fromTs: 1778716800, toTs: 1778716800 + 100 },
+      urls: sampleUrls,
+    })
+    // The dedupe CTE groups by both columns and uses MAX() to collapse duplicates
+    expect(sql).toContain('GROUP BY snapshot_ts, station_id')
+    expect(sql).toContain('MAX(num_bikes_available)')
+    expect(sql).toContain('MAX(num_docks_available)')
+  })
 })
 
 describe('buildHourOfWeekQuery', () => {
