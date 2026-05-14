@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -6,7 +6,6 @@ import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
-import MapModeToggle, { type MapMode } from '../components/MapModeToggle'
 import type { StationSnapshot } from '@shared/types'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
@@ -62,7 +61,6 @@ export default function LiveMap() {
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
-  const [mode, setMode] = useState<MapMode>('bikes')
 
   function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
     // Clear ref BEFORE removing the old popup so its close event doesn't
@@ -143,10 +141,9 @@ export default function LiveMap() {
     for (const s of data.stations) {
       seen.add(s.station_id)
       const total = s.num_bikes_available + s.num_docks_available
-      const topValue = mode === 'bikes' ? s.num_bikes_available : s.num_docks_available
       const offline = !s.is_installed || !s.is_renting
       const { width, height } = pinSize(total)
-      const svg = buildPinSVG(topValue, total, { offline })
+      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline })
 
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
@@ -176,12 +173,11 @@ export default function LiveMap() {
     for (const [id, marker] of markersRef.current) {
       if (!seen.has(id)) { marker.remove(); markersRef.current.delete(id) }
     }
-  }, [data, mode])
+  }, [data])
 
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
       <div ref={ref} className="absolute inset-0" />
-      <MapModeToggle value={mode} onChange={setMode} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} variant="overlay" />}
     </div>

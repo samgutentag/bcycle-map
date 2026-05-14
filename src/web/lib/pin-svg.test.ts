@@ -8,17 +8,23 @@ describe('buildPinSVG', () => {
     expect(svg).toContain('M 18 47')
   })
 
-  it('renders both the top and bottom numbers', () => {
+  it('renders bikes-available on top and open-docks on bottom', () => {
     const svg = buildPinSVG(3, 8)
     expect(svg).toContain('>3<')
     expect(svg).toContain('>8<')
   })
 
-  it('shrinks the top font size for 3-digit values', () => {
-    const small = buildPinSVG(99, 100)
-    const big = buildPinSVG(150, 200)
-    expect(small).toContain('font-size="14"')
-    expect(big).toContain('font-size="11"')
+  it('renders a visible separator line between the numbers', () => {
+    const svg = buildPinSVG(3, 8)
+    expect(svg).toContain('<line')
+    expect(svg).toContain('stroke="white"')
+  })
+
+  it('shrinks the font size when either value reaches 3 digits', () => {
+    const small = buildPinSVG(99, 99)
+    const big = buildPinSVG(150, 8)
+    expect(small).toContain('font-size="12"')
+    expect(big).toContain('font-size="10"')
   })
 
   it('uses the offline color when opts.offline is true', () => {
