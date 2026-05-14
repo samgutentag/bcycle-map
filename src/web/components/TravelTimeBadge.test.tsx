@@ -8,20 +8,29 @@ describe('TravelTimeBadge', () => {
     expect(screen.getByText(/estimating bike time/i)).toBeInTheDocument()
   })
 
-  it('renders minutes and km when both values are provided', () => {
-    render(<TravelTimeBadge minutes={12} meters={2300} />)
+  it('renders minutes and miles when both values are provided', () => {
+    render(<TravelTimeBadge minutes={12} meters={3219} />)
     expect(screen.getByText(/12 min bike ride/i)).toBeInTheDocument()
-    expect(screen.getByText(/2\.3 km/i)).toBeInTheDocument()
+    expect(screen.getByText(/2\.0 mi/i)).toBeInTheDocument()
   })
 
-  it('shows meters when the distance is under a kilometer', () => {
-    render(<TravelTimeBadge minutes={3} meters={400} />)
-    expect(screen.getByText(/400 m/i)).toBeInTheDocument()
+  it('shows feet when the distance is under a tenth of a mile', () => {
+    render(<TravelTimeBadge minutes={1} meters={120} />)
+    // 120 m ≈ 394 ft
+    expect(screen.getByText(/\d{2,3} ft/i)).toBeInTheDocument()
   })
 
-  it('shows whole-km for long rides', () => {
-    render(<TravelTimeBadge minutes={45} meters={12500} />)
-    expect(screen.getByText(/13 km/i)).toBeInTheDocument()
+  it('shows whole-mile for long rides', () => {
+    render(<TravelTimeBadge minutes={60} meters={20000} />)
+    // 20 km ≈ 12.4 mi, rounded to 12
+    expect(screen.getByText(/12 mi/i)).toBeInTheDocument()
+  })
+
+  it('renders departure and arrival clock times when departureTimeSec is provided', () => {
+    // Use a fixed UTC departure timestamp and verify both clock labels appear
+    const departure = 1700000000  // arbitrary fixed timestamp
+    render(<TravelTimeBadge minutes={12} meters={3000} departureTimeSec={departure} />)
+    expect(screen.getByText(/Leave .+ → arrive .+/i)).toBeInTheDocument()
   })
 
   it('shows "unknown" when minutes and meters are null', () => {

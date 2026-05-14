@@ -2,30 +2,48 @@ type Props = {
   loading?: boolean
   minutes?: number | null
   meters?: number | null
+  /** When set, the badge prefixes "Leave HH:MM → arrive HH:MM · ..." using this departure time. */
+  departureTimeSec?: number | null
 }
 
-function formatKm(meters: number): string {
-  const km = meters / 1000
-  return km < 1
-    ? `${meters} m`
-    : km < 10
-      ? `${km.toFixed(1)} km`
-      : `${Math.round(km)} km`
+const METERS_PER_MILE = 1609.344
+
+function formatMiles(meters: number): string {
+  const mi = meters / METERS_PER_MILE
+  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
+  if (mi < 10) return `${mi.toFixed(1)} mi`
+  return `${Math.round(mi)} mi`
 }
 
-export default function TravelTimeBadge({ loading, minutes, meters }: Props) {
+function formatClockTime(tsSec: number): string {
+  return new Date(tsSec * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+export default function TravelTimeBadge({ loading, minutes, meters, departureTimeSec }: Props) {
   let content: React.ReactNode
   if (loading) {
     content = <span className="text-neutral-500">Estimating bike time…</span>
   } else if (minutes != null && meters != null) {
-    content = (
-      <>
-        <span className="font-medium text-amber-900">
-          {minutes < 1 ? '<1' : Math.round(minutes)} min bike ride
-        </span>
-        <span className="text-amber-700"> · {formatKm(meters)}</span>
-      </>
-    )
+    const minLabel = minutes < 1 ? '<1' : Math.round(minutes)
+    const distance = formatMiles(meters)
+    if (departureTimeSec != null) {
+      const arriveTs = departureTimeSec + minutes * 60
+      content = (
+        <>
+          <span className="font-medium text-amber-900">
+            Leave {formatClockTime(departureTimeSec)} → arrive {formatClockTime(arriveTs)}
+          </span>
+          <span className="text-amber-700"> · {minLabel} min · {distance}</span>
+        </>
+      )
+    } else {
+      content = (
+        <>
+          <span className="font-medium text-amber-900">{minLabel} min bike ride</span>
+          <span className="text-amber-700"> · {distance}</span>
+        </>
+      )
+    }
   } else {
     content = <span className="text-neutral-500">Travel time unknown</span>
   }

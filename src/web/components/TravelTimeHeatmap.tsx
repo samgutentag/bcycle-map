@@ -7,6 +7,8 @@ type Props = {
   stations: StationSnapshot[]
   selectedStartId: string | null
   selectedEndId: string | null
+  /** When set, clicking a non-diagonal cell calls this with (fromId, toId). */
+  onPickPair?: (fromId: string, toId: string) => void
 }
 
 const CELL = 8
@@ -24,16 +26,16 @@ function lerpColor(t: number): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-function formatKm(meters: number): string {
-  const km = meters / 1000
-  return km < 1
-    ? `${meters} m`
-    : km < 10
-      ? `${km.toFixed(1)} km`
-      : `${Math.round(km)} km`
+const METERS_PER_MILE = 1609.344
+
+function formatMiles(meters: number): string {
+  const mi = meters / METERS_PER_MILE
+  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
+  if (mi < 10) return `${mi.toFixed(1)} mi`
+  return `${Math.round(mi)} mi`
 }
 
-export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, selectedEndId }: Props) {
+export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, selectedEndId, onPickPair }: Props) {
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null)
 
   // Sort alphabetically by station name to match StationPicker's ordering.
@@ -101,7 +103,7 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
           {hoverFrom.station_id === hoverTo.station_id
             ? hoverFrom.name
             : hoverEdge
-              ? `${hoverFrom.name} → ${hoverTo.name} · ${Math.round(hoverEdge.minutes)} min · ${formatKm(hoverEdge.meters)}`
+              ? `${hoverFrom.name} → ${hoverTo.name} · ${Math.round(hoverEdge.minutes)} min · ${formatMiles(hoverEdge.meters)}`
               : `${hoverFrom.name} → ${hoverTo.name} · no data`}
         </text>
       )}
@@ -116,6 +118,7 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
             : edge
               ? lerpColor((edge.minutes - minMinutes) / Math.max(0.1, maxMinutes - minMinutes))
               : MISSING_COLOR
+          const clickable = !isDiagonal && Boolean(edge) && Boolean(onPickPair)
           return (
             <rect
               key={`${row}-${col}`}
@@ -124,8 +127,10 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
               width={CELL}
               height={CELL}
               fill={fill}
+              style={clickable ? { cursor: 'pointer' } : undefined}
               onMouseEnter={() => setHover({ row, col })}
               onMouseLeave={() => setHover(prev => (prev && prev.row === row && prev.col === col ? null : prev))}
+              onClick={clickable ? () => onPickPair!(from.station_id, to.station_id) : undefined}
             />
           )
         }))}

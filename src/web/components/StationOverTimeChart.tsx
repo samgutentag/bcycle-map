@@ -11,6 +11,10 @@ type Props = {
   externalGuideTimeSec?: number | null
   /** Optional label shown above the external guide (e.g. "leave 8:00"). */
   externalGuideLabel?: string
+  /** Persistent guide drawn at this unix timestamp (seconds), independent of hover. */
+  pinnedGuideTimeSec?: number | null
+  /** Optional label shown at the bottom for the pinned guide (e.g. "now" / "arrive 8:12"). */
+  pinnedGuideLabel?: string
   /** Called with the hovered bucket's start timestamp (seconds), or null when not hovered. */
   onHoverTimeChange?: (ts: number | null) => void
 }
@@ -32,6 +36,8 @@ const TOOLTIP_BG = '#1f2937'
 const TOOLTIP_FG = '#ffffff'
 const EXTERNAL_GUIDE_COLOR = '#d97706'  // amber-600 — distinguishes from in-chart hover guide
 const EXTERNAL_GUIDE_FG = '#ffffff'
+const PINNED_GUIDE_COLOR = '#b45309'  // amber-700 — solid, distinct from dashed external guide
+const PINNED_GUIDE_FG = '#ffffff'
 
 type Bucket = { bucketTs: number; bikes: number; docks: number; count: number }
 
@@ -113,6 +119,8 @@ export default function StationOverTimeChart({
   show = 'both',
   externalGuideTimeSec,
   externalGuideLabel,
+  pinnedGuideTimeSec,
+  pinnedGuideLabel,
   onHoverTimeChange,
 }: Props) {
   const showBikes = show === 'bikes' || show === 'both'
@@ -298,6 +306,49 @@ export default function StationOverTimeChart({
             </g>
           )
         })}
+
+        {/* Pinned guide — drawn under everything so transient guides go on top */}
+        {pinnedGuideTimeSec != null && pinnedGuideTimeSec >= xMin && pinnedGuideTimeSec <= xMax && (() => {
+          const px = scaleX(pinnedGuideTimeSec)
+          const labelWidth = pinnedGuideLabel ? Math.min(140, pinnedGuideLabel.length * 6 + 14) : 0
+          const labelX = Math.min(WIDTH - PAD_R - labelWidth / 2 - 2, Math.max(PAD_L + labelWidth / 2 + 2, px))
+          return (
+            <g pointerEvents="none">
+              <line
+                x1={px}
+                y1={PAD_T}
+                x2={px}
+                y2={HEIGHT - PAD_B}
+                stroke={PINNED_GUIDE_COLOR}
+                strokeWidth={1.5}
+                opacity={0.85}
+              />
+              {pinnedGuideLabel && (
+                <>
+                  <rect
+                    x={labelX - labelWidth / 2}
+                    y={HEIGHT - PAD_B - 16}
+                    width={labelWidth}
+                    height={14}
+                    rx={3}
+                    fill={PINNED_GUIDE_COLOR}
+                    opacity={0.92}
+                  />
+                  <text
+                    x={labelX}
+                    y={HEIGHT - PAD_B - 6}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill={PINNED_GUIDE_FG}
+                  >
+                    {pinnedGuideLabel}
+                  </text>
+                </>
+              )}
+            </g>
+          )
+        })()}
 
         {/* External guide — drawn from a sibling chart (e.g. linked route view) */}
         {externalGuideTimeSec != null && externalGuideTimeSec >= xMin && externalGuideTimeSec <= xMax && (() => {

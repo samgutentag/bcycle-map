@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
@@ -19,6 +20,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 export default function Explore() {
+  const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
@@ -127,7 +129,9 @@ export default function Explore() {
               stations={live.stations}
               selectedStartId={routeStart}
               selectedEndId={routeEnd}
+              onPickPair={(fromId, toId) => navigate(`/route/${fromId}/${toId}`)}
             />
+            <p className="text-xs text-neutral-500 mt-2">Click any cell to open that pair in the route planner.</p>
           </>
         )}
       </section>

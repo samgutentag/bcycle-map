@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
@@ -29,6 +29,16 @@ export default function RouteCheck() {
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
   const [hover, setHover] = useState<HoverState | null>(null)
+
+  // Separate ticking clock for the always-visible "now" line on the charts —
+  // updates every minute so the line drifts forward as the page stays open.
+  // Distinct from the `now` above (which is fixed at mount to keep the
+  // historical chart range stable).
+  const [nowTick, setNowTick] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Math.floor(Date.now() / 1000)), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   const start = useStationOverTime({
     apiBase: API_BASE,
@@ -82,6 +92,15 @@ export default function RouteCheck() {
     : null
   const startGuideLabel = startExternalGuide != null ? `leave ${formatClockTime(startExternalGuide)}` : undefined
   const destGuideLabel = destExternalGuide != null ? `arrive ${formatClockTime(destExternalGuide)}` : undefined
+
+  // Always-visible "now" anchor. Start chart: literal current time.
+  // Dest chart: projected arrival = now + travelTime (so the label answers
+  // "if you leave now, you'll get there by ___"). Without a known travel
+  // time the dest just shows "now" like the start.
+  const startPinnedTime = nowTick
+  const startPinnedLabel = 'now'
+  const destPinnedTime = travelTimeSec ? nowTick + travelTimeSec : nowTick
+  const destPinnedLabel = travelTimeSec ? `arrive ${formatClockTime(nowTick + travelTimeSec)}` : 'now'
 
   const handleHover = (source: 'start' | 'dest') => (ts: number | null) => {
     if (ts === null) {
@@ -139,6 +158,8 @@ export default function RouteCheck() {
             show="bikes"
             externalGuideTimeSec={startExternalGuide}
             externalGuideLabel={startGuideLabel}
+            pinnedGuideTimeSec={startPinnedTime}
+            pinnedGuideLabel={startPinnedLabel}
             onHoverTimeChange={handleHover('start')}
           />
         )}
@@ -148,6 +169,7 @@ export default function RouteCheck() {
         loading={matrix.loading && !!startId && !!endId}
         minutes={edge?.minutes ?? null}
         meters={edge?.meters ?? null}
+        departureTimeSec={edge ? nowTick : null}
       />
 
       <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
@@ -171,6 +193,8 @@ export default function RouteCheck() {
             show="docks"
             externalGuideTimeSec={destExternalGuide}
             externalGuideLabel={destGuideLabel}
+            pinnedGuideTimeSec={destPinnedTime}
+            pinnedGuideLabel={destPinnedLabel}
             onHoverTimeChange={handleHover('dest')}
           />
         )}
