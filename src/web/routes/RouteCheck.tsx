@@ -86,7 +86,7 @@ export default function RouteCheck() {
         {startId && !start.error && (start.loading || !start.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={start.phase} />
         )}
-        {startId && start.data && !start.loading && <StationOverTimeChart data={start.data} totalDocks={startTotal} />}
+        {startId && start.data && !start.loading && <StationOverTimeChart data={start.data} totalDocks={startTotal} show="bikes" />}
       </section>
 
       <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
@@ -103,7 +103,7 @@ export default function RouteCheck() {
         {endId && !dest.error && (dest.loading || !dest.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={dest.phase} />
         )}
-        {endId && dest.data && !dest.loading && <StationOverTimeChart data={dest.data} totalDocks={destTotal} />}
+        {endId && dest.data && !dest.loading && <StationOverTimeChart data={dest.data} totalDocks={destTotal} show="docks" />}
       </section>
 
       <p className="text-xs text-neutral-500 mt-2">

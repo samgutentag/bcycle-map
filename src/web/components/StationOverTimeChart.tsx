@@ -3,6 +3,8 @@ type Props = {
   data: Row[]
   /** Total dock capacity for this station — used as y-axis max so the chart shape is meaningful. */
   totalDocks?: number
+  /** Which series to render. Defaults to 'both'. */
+  show?: 'bikes' | 'docks' | 'both'
 }
 
 const WIDTH = 600
@@ -52,7 +54,9 @@ function yAxisTicks(max: number): number[] {
   return ticks
 }
 
-export default function StationOverTimeChart({ data, totalDocks }: Props) {
+export default function StationOverTimeChart({ data, totalDocks, show = 'both' }: Props) {
+  const showBikes = show === 'bikes' || show === 'both'
+  const showDocks = show === 'docks' || show === 'both'
   if (data.length === 0) {
     return (
       <div className="relative w-full h-40 rounded-md border border-dashed border-neutral-300 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 flex items-center justify-center">
@@ -68,7 +72,14 @@ export default function StationOverTimeChart({ data, totalDocks }: Props) {
   const xMin = Math.min(...xs)
   const xMax = Math.max(...xs)
   // Y max: prefer the known station capacity; else fall back to observed max
-  const observedMax = Math.max(...data.map(d => Math.max(d.bikes, d.docks, d.bikes + d.docks)))
+  const observedMax = Math.max(
+    ...data.map(d => {
+      const candidates = [d.bikes + d.docks]
+      if (showBikes) candidates.push(d.bikes)
+      if (showDocks) candidates.push(d.docks)
+      return Math.max(...candidates)
+    }),
+  )
   const yMax = totalDocks && totalDocks > 0 ? totalDocks : observedMax
   const xSpan = Math.max(1, xMax - xMin)
   const ySpan = Math.max(1, yMax)
@@ -87,14 +98,18 @@ export default function StationOverTimeChart({ data, totalDocks }: Props) {
   return (
     <div className="w-full">
       <div className="flex gap-4 text-xs text-neutral-700 mb-1 px-1">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block w-3 h-0.5" style={{ backgroundColor: BIKES_COLOR }} />
-          Bikes available <span className="text-neutral-500">(now {last.bikes})</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block w-3 h-0.5" style={{ backgroundColor: DOCKS_COLOR }} />
-          Open docks <span className="text-neutral-500">(now {last.docks})</span>
-        </span>
+        {showBikes && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-3 h-0.5" style={{ backgroundColor: BIKES_COLOR }} />
+            Bikes available <span className="text-neutral-500">(now {last.bikes})</span>
+          </span>
+        )}
+        {showDocks && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-3 h-0.5" style={{ backgroundColor: DOCKS_COLOR }} />
+            Open docks <span className="text-neutral-500">(now {last.docks})</span>
+          </span>
+        )}
         {totalDocks ? <span className="ml-auto text-neutral-500">Total docks: {totalDocks}</span> : null}
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto">
@@ -146,8 +161,8 @@ export default function StationOverTimeChart({ data, totalDocks }: Props) {
         <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
 
         {/* Data lines */}
-        <polyline fill="none" stroke={DOCKS_COLOR} strokeWidth="2" points={docksPoints} />
-        <polyline fill="none" stroke={BIKES_COLOR} strokeWidth="2" points={bikesPoints} />
+        {showDocks && <polyline fill="none" stroke={DOCKS_COLOR} strokeWidth="2" points={docksPoints} />}
+        {showBikes && <polyline fill="none" stroke={BIKES_COLOR} strokeWidth="2" points={bikesPoints} />}
       </svg>
     </div>
   )
