@@ -428,7 +428,7 @@ export default function StationDetails() {
           <DateRangePicker value={preset} onChange={setPreset} />
         </div>
         <p className="text-xs text-neutral-500 mb-3">
-          Half-hour averages. Bikes available is in blue; open docks in green. Hover any bar for the exact value.
+          Half-hour averages. Each column is a stack of dock slots — filled blue from the bottom for bikes parked, faint slots up top for empty docks. Hover any column for the exact value.
         </p>
         <div className="bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
           {!stationId && <div className="text-sm text-neutral-500 py-6">No station ID provided.</div>}
@@ -439,7 +439,7 @@ export default function StationDetails() {
             <ChartSkeleton aspectRatio={600 / 230} phase={series.phase} />
           )}
           {stationId && series.data && !series.loading && (
-            <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="both" timezone={live?.system.timezone} />
+            <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="squares" timezone={live?.system.timezone} />
           )}
         </div>
       </section>

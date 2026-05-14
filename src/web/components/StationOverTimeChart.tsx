@@ -5,8 +5,10 @@ type Props = {
   data: Row[]
   /** Total dock capacity for this station — used as y-axis max so the chart shape is meaningful. */
   totalDocks?: number
-  /** Which series to render. Defaults to 'both' (stacked). */
-  show?: 'bikes' | 'docks' | 'both'
+  /** Which series to render. 'squares' renders a per-bucket vertical
+   *  stack of N=totalDocks squares with the bottom K=bikes filled —
+   *  reads as a fill-percent heatmap rather than a bar chart. */
+  show?: 'bikes' | 'docks' | 'both' | 'squares'
   /** When set, draws a "linked" vertical guide at this unix timestamp (seconds). */
   externalGuideTimeSec?: number | null
   /** Optional label shown above the external guide (e.g. "leave 8:00"). */
@@ -31,6 +33,7 @@ const BUCKET_SEC = 30 * 60  // half-hour buckets
 
 const BIKES_COLOR = '#0d6cb0'
 const DOCKS_COLOR = '#15803d'
+const EMPTY_SQUARE_COLOR = '#eef2f7'  // very faint slate for empty dock slots in 'squares' mode
 const GRID_COLOR = '#e5e7eb'
 const TICK_COLOR = '#9ca3af'
 const MAJOR_LABEL_COLOR = '#6b7280'
@@ -135,6 +138,7 @@ export default function StationOverTimeChart({
 }: Props) {
   const showBikes = show === 'bikes' || show === 'both'
   const showDocks = show === 'docks' || show === 'both'
+  const showSquares = show === 'squares'
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
 
   if (data.length === 0) {
@@ -157,7 +161,7 @@ export default function StationOverTimeChart({
   // Y max: when stacking both series, the visual ceiling is total dock slots
   // (bikes + docks at any moment ≈ capacity). For single-series modes, the
   // ceiling is the observed max of that one series.
-  const observedMax = show === 'both'
+  const observedMax = show === 'both' || showSquares
     ? Math.max(...buckets.map(b => b.bikes + b.docks))
     : Math.max(...buckets.map(b => (showBikes ? b.bikes : b.docks)))
   const yMax = totalDocks && totalDocks > 0 ? totalDocks : Math.ceil(observedMax)
@@ -190,11 +194,18 @@ export default function StationOverTimeChart({
             Open docks <span className="text-neutral-500">(last 30m avg {last.docks.toFixed(1)})</span>
           </span>
         )}
+        {showSquares && (
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: BIKES_COLOR }} />
+            Bikes available <span className="text-neutral-500">(last 30m avg {last.bikes.toFixed(1)})</span>
+          </span>
+        )}
         {totalDocks ? <span className="ml-auto text-neutral-500">Total docks: {totalDocks}</span> : null}
       </div>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto">
-        {/* Y grid + ticks */}
-        {yTicks.map(v => (
+        {/* Y grid + ticks — skipped in 'squares' mode since the stack-height
+            already communicates capacity without numeric labels. */}
+        {!showSquares && yTicks.map(v => (
           <g key={`y-${v}`}>
             <line
               x1={PAD_L}
@@ -262,8 +273,55 @@ export default function StationOverTimeChart({
         <line x1={PAD_L} y1={HEIGHT - PAD_B} x2={WIDTH - PAD_R} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
         <line x1={PAD_L} y1={PAD_T} x2={PAD_L} y2={HEIGHT - PAD_B} stroke={GRID_COLOR} strokeWidth={1} />
 
+        {/* Squares mode — one column of N squares per bucket, bottom-up fill */}
+        {showSquares && (() => {
+          const dockCount = Math.max(1, Math.round(yMax))
+          const chartTop = PAD_T
+          const chartBottom = HEIGHT - PAD_B
+          const slotHeight = (chartBottom - chartTop) / dockCount
+          const gap = Math.min(1, slotHeight * 0.15)
+          const squareSize = Math.max(2, Math.min(slotHeight - gap, xBucketWidth - gap, 12))
+          return buckets.map((b, i) => {
+            const xLeft = scaleX(b.bucketTs) + (xBucketWidth - squareSize) / 2
+            const filledCount = Math.min(dockCount, Math.round(b.bikes))
+            const isHovered = hoverIdx === i
+            return (
+              <g
+                key={b.bucketTs}
+                onMouseEnter={() => { setHoverIdx(i); onHoverTimeChange?.(b.bucketTs) }}
+                onMouseLeave={() => { setHoverIdx(null); onHoverTimeChange?.(null) }}
+              >
+                {/* Invisible hit area for reliable hover */}
+                <rect
+                  x={scaleX(b.bucketTs)}
+                  y={PAD_T}
+                  width={Math.max(2, xBucketWidth)}
+                  height={HEIGHT - PAD_T - PAD_B}
+                  fill="transparent"
+                />
+                {Array.from({ length: dockCount }, (_, j) => {
+                  const y = chartBottom - (j + 1) * slotHeight + gap / 2
+                  const filled = j < filledCount
+                  return (
+                    <rect
+                      key={j}
+                      x={xLeft}
+                      y={y}
+                      width={squareSize}
+                      height={Math.max(1, slotHeight - gap)}
+                      fill={filled ? BIKES_COLOR : EMPTY_SQUARE_COLOR}
+                      opacity={filled ? (isHovered ? 1 : 0.9) : (isHovered ? 0.8 : 0.6)}
+                      rx={0.5}
+                    />
+                  )
+                })}
+              </g>
+            )
+          })
+        })()}
+
         {/* Stacked bars (or single bars when filtered to one series) */}
-        {buckets.map((b, i) => {
+        {!showSquares && buckets.map((b, i) => {
           const xLeft = scaleX(b.bucketTs) + (xBucketWidth - barWidth) / 2
           const isHovered = hoverIdx === i
           const bikesH = (HEIGHT - PAD_B) - scaleY(b.bikes)
@@ -414,6 +472,10 @@ export default function StationOverTimeChart({
           const valueParts: string[] = []
           if (showBikes) valueParts.push(`${hoverBucket.bikes.toFixed(1)} bikes`)
           if (showDocks) valueParts.push(`${hoverBucket.docks.toFixed(1)} docks`)
+          if (showSquares) {
+            const total = totalDocks ?? Math.round(hoverBucket.bikes + hoverBucket.docks)
+            valueParts.push(`${Math.round(hoverBucket.bikes)} / ${total} bikes`)
+          }
           const valueLabel = valueParts.join(' · ')
           return (
             <g pointerEvents="none">
