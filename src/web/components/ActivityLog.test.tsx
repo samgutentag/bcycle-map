@@ -1,12 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactElement } from 'react'
 import ActivityLog from './ActivityLog'
 
 const renderWithRouter = (el: ReactElement) =>
   render(<MemoryRouter>{el}</MemoryRouter>)
-import type { ActivityLog as ActivityLogData, StationSnapshot } from '@shared/types'
+import type { ActivityLog as ActivityLogData, StationSnapshot, Trip } from '@shared/types'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 
 const station = (id: string, name: string): StationSnapshot => ({
@@ -119,5 +119,34 @@ describe('ActivityLog', () => {
     }
     renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
     expect(screen.queryByText(/expected/i)).not.toBeInTheDocument()
+  })
+
+  it('fires onTripClick with the trip when a trip row is clicked', () => {
+    const trip: Trip = { departure_ts: 1_700_000_000, arrival_ts: 1_700_000_540, from_station_id: 'a', to_station_id: 'b', duration_sec: 540 }
+    const log: ActivityLogData = {
+      events: [],
+      trips: [trip],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    }
+    const onTripClick = vi.fn()
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} onTripClick={onTripClick} />)
+    fireEvent.click(screen.getByRole('button', { name: /anacapa.*bath/i }))
+    expect(onTripClick).toHaveBeenCalledWith(trip)
+  })
+
+  it('does not fire onTripClick when a station-name link inside a trip row is clicked', () => {
+    const trip: Trip = { departure_ts: 1_700_000_000, arrival_ts: 1_700_000_540, from_station_id: 'a', to_station_id: 'b', duration_sec: 540 }
+    const log: ActivityLogData = {
+      events: [],
+      trips: [trip],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    }
+    const onTripClick = vi.fn()
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} onTripClick={onTripClick} />)
+    const link = screen.getAllByRole('link').find(a => /anacapa/i.test(a.textContent ?? '')) as HTMLElement
+    fireEvent.click(link)
+    expect(onTripClick).not.toHaveBeenCalled()
   })
 })
