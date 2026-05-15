@@ -16,6 +16,8 @@ type Props = {
   stationFilter?: string
   /** When true, drop the column max-height cap so the page can scroll instead of each column. */
   unbounded?: boolean
+  /** Fires when a trip row is clicked. The station-name links inside the row do not trigger this. */
+  onTripClick?: (trip: Trip) => void
 }
 
 const DEPARTURE_COLOR = 'text-orange-700 bg-orange-50 border-orange-200'
@@ -47,7 +49,7 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
   return edge ? { minutes: Math.round(edge.minutes) } : null
 }
 
-export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter, unbounded = false }: Props) {
+export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter, unbounded = false, onTripClick }: Props) {
   const columnScrollClass = unbounded ? '' : 'max-h-72 overflow-y-auto pr-1'
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
   const nowSec = Math.floor(Date.now() / 1000)
@@ -130,29 +132,37 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
               const expected = expectedFor(trip, matrix)
               const actualMin = Math.round(trip.duration_sec / 60)
               const diff = expected ? actualMin - expected.minutes : null
+              const rowLabel = `${fromName} → ${toName}`
               return (
-                <li key={`${trip.departure_ts}-${trip.arrival_ts}`} className="text-xs border border-neutral-200 rounded p-2 bg-neutral-50">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium text-neutral-700 truncate">
-                      <Link to={`/station/${trip.from_station_id}/details`} className="hover:text-sky-700 hover:underline">{fromName}</Link>
-                      <span className="text-neutral-400"> → </span>
-                      <Link to={`/station/${trip.to_station_id}/details`} className="hover:text-sky-700 hover:underline">{toName}</Link>
-                    </span>
-                    <span className="text-neutral-400 whitespace-nowrap">{formatClockTime(trip.departure_ts, timezone)}</span>
-                  </div>
-                  <div className="mt-0.5 text-neutral-500">
-                    <span className="font-medium text-neutral-700">{tripDurationLabel(trip)}</span>
-                    {expected && (
-                      <>
-                        <span> · expected {expected.minutes} min</span>
-                        {diff !== null && diff !== 0 && (
-                          <span className={diff > 0 ? 'text-orange-600' : 'text-emerald-700'}>
-                            {' '}({diff > 0 ? '+' : ''}{diff})
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </div>
+                <li key={`${trip.departure_ts}-${trip.arrival_ts}`}>
+                  <button
+                    type="button"
+                    onClick={() => onTripClick?.(trip)}
+                    aria-label={rowLabel}
+                    className="w-full text-left text-xs border border-neutral-200 rounded p-2 bg-neutral-50 hover:bg-white hover:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition-colors"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-medium text-neutral-700 truncate">
+                        <Link to={`/station/${trip.from_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{fromName}</Link>
+                        <span className="text-neutral-400"> → </span>
+                        <Link to={`/station/${trip.to_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{toName}</Link>
+                      </span>
+                      <span className="text-neutral-400 whitespace-nowrap">{formatClockTime(trip.departure_ts, timezone)}</span>
+                    </div>
+                    <div className="mt-0.5 text-neutral-500">
+                      <span className="font-medium text-neutral-700">{tripDurationLabel(trip)}</span>
+                      {expected && (
+                        <>
+                          <span> · expected {expected.minutes} min</span>
+                          {diff !== null && diff !== 0 && (
+                            <span className={diff > 0 ? 'text-orange-600' : 'text-emerald-700'}>
+                              {' '}({diff > 0 ? '+' : ''}{diff})
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </button>
                 </li>
               )
             })}
