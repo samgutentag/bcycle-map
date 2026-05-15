@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import type { ActivityLog as ActivityLogData, StationSnapshot, Trip } from '@shared/types'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
+import { useStableVerb } from '../lib/spinner-verbs'
 
 type Props = {
   log: ActivityLogData | null
@@ -52,10 +53,11 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
 export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter, unbounded = false, onTripClick }: Props) {
   const columnScrollClass = unbounded ? '' : 'max-h-72 overflow-y-auto pr-1'
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
+  const verb = useStableVerb()
   const nowSec = Math.floor(Date.now() / 1000)
 
   if (!log) {
-    return <div className="text-sm text-neutral-500">Loading activity…</div>
+    return <div className="text-sm text-neutral-500">{verb}</div>
   }
 
   const filteredEventsAll = stationFilter
