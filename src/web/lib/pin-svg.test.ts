@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildPinSVG, pinSize } from './pin-svg'
+import { buildPinSVG, pinSize, buildEndpointPin } from './pin-svg'
 
 describe('buildPinSVG', () => {
   it('returns an SVG with the teardrop outline', () => {
@@ -53,5 +53,24 @@ describe('pinSize', () => {
   it('maintains the 36:48 aspect ratio', () => {
     const s = pinSize(10)
     expect(s.height / s.width).toBeCloseTo(48 / 36, 5)
+  })
+})
+
+describe('buildEndpointPin', () => {
+  it('renders an origin pin with the emerald fill', () => {
+    const svg = buildEndpointPin('origin')
+    expect(svg).toContain('<svg')
+    expect(svg.toLowerCase()).toContain('#10b981') // emerald-500
+  })
+
+  it('renders a destination pin with a red fill', () => {
+    const svg = buildEndpointPin('destination')
+    expect(svg).toContain('<svg')
+    expect(svg.toLowerCase()).toContain('#dc2626') // red-600
+  })
+
+  it('renders a via pin with reduced opacity', () => {
+    const svg = buildEndpointPin('via')
+    expect(svg).toContain('opacity="0.35"')
   })
 })

@@ -45,3 +45,24 @@ export function pinSize(totalCapacity: number): { width: number; height: number 
   const w = Math.max(30, Math.min(42, 30 + totalCapacity * 0.4))
   return { width: w, height: w * ASPECT }
 }
+
+export type EndpointRole = 'origin' | 'destination' | 'via'
+
+const ENDPOINT_COLORS: Record<EndpointRole, { fill: string; stroke: string }> = {
+  origin: { fill: '#10b981', stroke: '#047857' },       // emerald
+  destination: { fill: '#dc2626', stroke: '#991b1b' },  // red
+  via: { fill: '#9ca3af', stroke: '#6b7280' },          // neutral-400
+}
+
+/**
+ * A simpler endpoint pin for the trip-route modal — no bike/dock numbers.
+ * Reuses the teardrop outline. Via pins are smaller and dimmer.
+ */
+export function buildEndpointPin(role: EndpointRole): string {
+  const { fill, stroke } = ENDPOINT_COLORS[role]
+  const opacity = role === 'via' ? 0.35 : 1
+  return `<svg viewBox="0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}" xmlns="http://www.w3.org/2000/svg" opacity="${opacity}">` +
+    `<path d="${PIN_OUTLINE}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>` +
+    `<circle cx="${CX}" cy="15" r="4" fill="white"/>` +
+    `</svg>`
+}
