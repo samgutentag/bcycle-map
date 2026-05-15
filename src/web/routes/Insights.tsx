@@ -13,6 +13,7 @@ import {
 import { useInsights, type BeaconEvent } from '../hooks/useInsights'
 import { normalizePath } from '@shared/path-patterns'
 import MiniLine from '../components/MiniLine'
+import { useStableVerb } from '../lib/spinner-verbs'
 
 type Window = '24h' | '7d' | '30d'
 const WINDOW_DAYS: Record<Window, number> = { '24h': 1, '7d': 7, '30d': 30 }
@@ -138,6 +139,7 @@ export default function Insights() {
   const [window, setWindow] = useState<Window>('7d')
   const days = WINDOW_DAYS[window]
   const insights = useInsights(30)
+  const verb = useStableVerb()
 
   const filtered = useMemo(() => {
     if (!insights.data) return []
@@ -211,7 +213,7 @@ export default function Insights() {
 
       {insights.loading && !insights.data && (
         <Flex justifyContent="center" alignItems="center" css={{ padding: '48px 0' }}>
-          <Text variant="body" size="s" color="subdued">Loading insights…</Text>
+          <Text variant="body" size="s" color="subdued">{verb}</Text>
         </Flex>
       )}
 
