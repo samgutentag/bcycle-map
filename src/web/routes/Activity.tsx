@@ -1,8 +1,12 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useActivity } from '../hooks/useActivity'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
+import { useRouteCache } from '../hooks/useRouteCache'
 import ActivityLog from '../components/ActivityLog'
+import TripRouteModal from '../components/TripRouteModal'
+import type { Trip } from '@shared/types'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
@@ -11,6 +15,8 @@ export default function Activity() {
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const routes = useRouteCache(R2_BASE, SYSTEM_ID)
+  const [openTrip, setOpenTrip] = useState<Trip | null>(null)
 
   const eventCount = activity.data?.events.length ?? 0
   const tripCount = activity.data?.trips.length ?? 0
@@ -44,9 +50,20 @@ export default function Activity() {
             maxEvents={200}
             maxTrips={50}
             unbounded
+            onTripClick={setOpenTrip}
           />
         )}
       </section>
+      {openTrip && (
+        <TripRouteModal
+          trip={openTrip}
+          stations={live?.stations ?? []}
+          matrix={matrix.data}
+          routes={routes.data}
+          systemTz={live?.system.timezone ?? 'UTC'}
+          onClose={() => setOpenTrip(null)}
+        />
+      )}
     </div>
   )
 }

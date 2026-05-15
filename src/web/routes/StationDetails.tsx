@@ -11,7 +11,10 @@ import ChartSkeleton from '../components/ChartSkeleton'
 import ActivityLog from '../components/ActivityLog'
 import { useActivity } from '../hooks/useActivity'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
+import { useRouteCache } from '../hooks/useRouteCache'
 import { resolveRange, type Preset } from '../lib/date-range'
+import TripRouteModal from '../components/TripRouteModal'
+import type { Trip } from '@shared/types'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import type { StationSnapshot } from '@shared/types'
 
@@ -245,7 +248,9 @@ export default function StationDetails() {
   const { data: live, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
+  const [openTrip, setOpenTrip] = useState<Trip | null>(null)
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
 
@@ -477,6 +482,7 @@ export default function StationDetails() {
               matrix={matrix.data}
               timezone={live?.system.timezone}
               stationFilter={station.station_id}
+              onTripClick={setOpenTrip}
             />
           )}
         </section>
@@ -532,6 +538,16 @@ export default function StationDetails() {
           </div>
         )}
       </footer>
+      {openTrip && (
+        <TripRouteModal
+          trip={openTrip}
+          stations={live?.stations ?? []}
+          matrix={matrix.data}
+          routes={routes.data}
+          systemTz={live?.system.timezone ?? 'UTC'}
+          onClose={() => setOpenTrip(null)}
+        />
+      )}
     </div>
   )
 }
