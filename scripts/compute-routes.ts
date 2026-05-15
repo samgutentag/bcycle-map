@@ -35,8 +35,8 @@ async function r2GetRoutes(s3: S3Client, bucket: string, key: string): Promise<R
     const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }))
     const text = await r.Body!.transformToString()
     return JSON.parse(text) as RouteCache
-  } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'name' in e && (e as { name: string }).name === 'NoSuchKey') return null
+  } catch (e: any) {
+    if (e?.Code === 'NoSuchKey' || e?.name === 'NoSuchKey') return null
     throw e
   }
 }
@@ -74,12 +74,15 @@ async function fetchDirectionsRoute(from: Station, to: Station, apiKey: string):
       legs: Array<{ distance: { value: number }; duration: { value: number } }>
     }>
   }
-  if (body.status !== 'OK' || body.routes.length === 0) return null
-  const route = body.routes[0]!
-  const polyline = route.overview_polyline.points
-  const meters = route.legs.reduce((s, l) => s + l.distance.value, 0)
-  const seconds = route.legs.reduce((s, l) => s + l.duration.value, 0)
-  return { polyline, meters, seconds, via_station_ids: [] }
+  if (body.status === 'OK' && body.routes.length > 0) {
+    const route = body.routes[0]!
+    const polyline = route.overview_polyline.points
+    const meters = route.legs.reduce((s, l) => s + l.distance.value, 0)
+    const seconds = route.legs.reduce((s, l) => s + l.duration.value, 0)
+    return { polyline, meters, seconds, via_station_ids: [] }
+  }
+  if (body.status === 'OK' || body.status === 'ZERO_RESULTS') return null
+  throw new Error(`Directions API status: ${body.status}`)
 }
 
 function computeViaStations(polyline: string, fromId: string, toId: string, allStations: Station[]): string[] {
