@@ -12,6 +12,7 @@ import type { RouteCache, RouteEdge } from '../src/shared/route-cache'
 
 const DIRECTIONS_INTER_CALL_DELAY_MS = 100
 const VIA_DISTANCE_M = 150
+const CONSECUTIVE_FAILURE_ABORT_THRESHOLD = 5
 
 type Env = {
   CF_ACCOUNT_ID?: string
@@ -111,6 +112,8 @@ async function computeRoutesSequential(
   allStations: Station[],
 ): Promise<RouteUpdate[]> {
   const updates: RouteUpdate[] = []
+  let consecutiveFailures = 0
+  let lastFailureMsg = ''
   let i = 0
   for (const [from, to] of pairs) {
     i++
@@ -120,10 +123,22 @@ async function computeRoutesSequential(
         edge.via_station_ids = computeViaStations(edge.polyline, from.id, to.id, allStations)
         updates.push({ from: from.id, to: to.id, edge })
       }
+      consecutiveFailures = 0
     } catch (e: unknown) {
-      console.warn(`directions failed for ${from.id} -> ${to.id}:`, e instanceof Error ? e.message : e)
+      const msg = e instanceof Error ? e.message : String(e)
+      lastFailureMsg = msg
+      console.warn(`directions failed for ${from.id} -> ${to.id}:`, msg)
+      consecutiveFailures++
+      if (consecutiveFailures >= CONSECUTIVE_FAILURE_ABORT_THRESHOLD) {
+        throw new Error(
+          `Aborting after ${consecutiveFailures} consecutive Directions API failures. Last error: ${lastFailureMsg}. ` +
+          `Likely an auth/quota issue — verify the Directions API is enabled on the GCP project ` +
+          `(https://console.cloud.google.com/apis/library/directions-backend.googleapis.com) and that ` +
+          `the API key isn't restricted to other APIs.`,
+        )
+      }
     }
-    if (i % 50 === 0) console.log(`  progress: ${i}/${pairs.length}`)
+    if (i % 50 === 0) console.log(`  progress: ${i}/${pairs.length} (${updates.length} ok)`)
     await new Promise(r => setTimeout(r, DIRECTIONS_INTER_CALL_DELAY_MS))
   }
   return updates
@@ -200,8 +215,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const apiKey = env.GOOGLE_MAPS_API_KEY
 
     let updates: RouteUpdate[] = []
+    let attempted = 0
     if (mode === 'compute-full') {
       const pairs = allPairs(current)
+      attempted = pairs.length
       console.log(`compute-full: ${pairs.length} pairs`)
       updates = await computeRoutesSequential(pairs, apiKey, current)
     } else if (mode === 'compute') {
@@ -212,11 +229,20 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       }
       if (changedSet.size > 0) {
         const pairs = pairsToRecompute(current, diff)
+        attempted = pairs.length
         console.log(`compute: ${pairs.length} pairs (changed × all + other × changed)`)
         updates = await computeRoutesSequential(pairs, apiKey, current)
       }
     } else {
       throw new Error(`unknown mode: ${mode}`)
+    }
+
+    if (attempted > 0 && updates.length === 0) {
+      throw new Error(
+        `compute-routes produced 0 successful edges out of ${attempted} attempted pairs. ` +
+        `Refusing to write an empty cache to R2. Check the Directions API is enabled on the ` +
+        `GCP project and the API key isn't restricted to other APIs.`,
+      )
     }
 
     const mergedEdges = mode === 'compute-full'
