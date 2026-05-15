@@ -2,6 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import {
+  Box,
+  Flex,
+  Hint,
+  IconArrowLeft,
+  IconCalendarDay,
+  IconCaretRight,
+  IconExternalLink,
+  IconInfo,
+  Paper,
+  Tag,
+  Text,
+  useTheme,
+} from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
 import DateRangePicker from '../components/DateRangePicker'
@@ -36,11 +50,6 @@ type TypicalProfile = {
   timezone: string
 }
 
-/**
- * Mirror of the popup's sparkline fetcher — same endpoint, just returns the
- * parsed body for use in the right-now-vs-typical callout instead of rendering
- * an SVG into a DOM node.
- */
 async function fetchStationTypical(
   apiBase: string,
   systemId: string,
@@ -50,11 +59,11 @@ async function fetchStationTypical(
     `${apiBase}/api/systems/${encodeURIComponent(systemId)}/stations/${encodeURIComponent(stationId)}/recent`,
   )
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return await res.json() as TypicalProfile
+  return (await res.json()) as TypicalProfile
 }
 
 function haversineMiles(aLat: number, aLon: number, bLat: number, bLon: number): number {
-  const R = 3958.7613  // Earth radius in miles
+  const R = 3958.7613
   const toRad = (d: number) => (d * Math.PI) / 180
   const dLat = toRad(bLat - aLat)
   const dLon = toRad(bLon - aLon)
@@ -89,10 +98,7 @@ function formatClockTime(ts: number): string {
   return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-/**
- * Small non-interactive MapLibre inset rendered at block-level zoom with a
- * single pin matching the live map's pin style. Manages its own map lifecycle.
- */
+/** Small non-interactive MapLibre inset rendered at block-level zoom. */
 function MiniMap({ station }: { station: StationSnapshot }) {
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
@@ -114,11 +120,9 @@ function MiniMap({ station }: { station: StationSnapshot }) {
       mapRef.current?.remove()
       mapRef.current = null
     }
-    // Boot only — re-center handled below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-center + redraw pin when station data changes
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -142,22 +146,22 @@ function MiniMap({ station }: { station: StationSnapshot }) {
     el.style.width = `${width}px`
     el.style.height = `${height}px`
     el.innerHTML = svg
-  }, [station.lat, station.lon, station.num_bikes_available, station.num_docks_available, station.is_installed, station.is_renting])
+  }, [
+    station.lat,
+    station.lon,
+    station.num_bikes_available,
+    station.num_docks_available,
+    station.is_installed,
+    station.is_renting,
+  ])
 
-  return <div ref={ref} className="w-full h-[200px] rounded-lg overflow-hidden" />
+  return <Box css={{ width: '100%', height: 240, overflow: 'hidden' }} ref={ref} />
 }
 
-type TypicalCalloutProps = {
-  stationId: string
-  currentBikes: number
-}
+type TypicalCalloutProps = { stationId: string; currentBikes: number }
 
-/**
- * Single-sentence summary of how the current bikes-available compares to the
- * station's typical value for this hour-of-week. Hidden until the API resolves.
- * Shows a "not enough history" placeholder when daysCovered < 3.
- */
 function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
+  const theme = useTheme()
   const [profile, setProfile] = useState<TypicalProfile | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [loading, setLoading] = useState(true)
@@ -173,33 +177,30 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
   }, [stationId])
 
   if (loading) {
-    return (
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
-        Comparing to typical…
-      </div>
-    )
+    return <Hint icon={IconInfo}>Comparing to typical…</Hint>
   }
   if (error || !profile) {
-    return (
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-500">
-        Typical comparison unavailable right now.
-      </div>
-    )
+    return <Hint icon={IconInfo}>Typical comparison unavailable right now.</Hint>
   }
   if (profile.daysCovered < 3) {
     const daysSoFar = profile.daysCovered
     return (
-      <div className="rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-4">
-        <div className="text-sm font-medium text-neutral-700">Once there's enough history</div>
-        <div className="text-xs text-neutral-600 mt-1">
-          This card will compare the current bike count against the typical count for this hour and day of week — so you can tell at a glance whether the station is fuller, emptier, or about the same as usual.
-        </div>
-        <div className="text-xs text-neutral-500 mt-2">
-          {daysSoFar === 0
-            ? 'No days of data yet. Need at least 3 days of polling to establish a baseline.'
-            : `${daysSoFar} day${daysSoFar === 1 ? '' : 's'} of data so far. Need 3 days of polling to establish a baseline; once we have 21 days the comparison filters by day-of-week too.`}
-        </div>
-      </div>
+      <Hint icon={IconInfo}>
+        <Flex direction="column" gap="2xs">
+          <Text variant="title" size="s" strength="strong" color="default">
+            Once there's enough history
+          </Text>
+          <Text variant="body" size="s" color="subdued">
+            This card will compare the current bike count against the typical count for this hour and day of week
+            — so you can tell at a glance whether the station is fuller, emptier, or about the same as usual.
+          </Text>
+          <Text variant="body" size="xs" color="subdued">
+            {daysSoFar === 0
+              ? 'No days of data yet. Need at least 3 days of polling to establish a baseline.'
+              : `${daysSoFar} day${daysSoFar === 1 ? '' : 's'} of data so far. Need 3 days of polling for the baseline; 21 days enables the day-of-week filter.`}
+          </Text>
+        </Flex>
+      </Hint>
     )
   }
 
@@ -231,19 +232,29 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
     tone = 'avg'
   }
 
-  const toneClass =
-    tone === 'more' ? 'border-sky-200 bg-sky-50 text-sky-900'
-    : tone === 'fewer' ? 'border-amber-200 bg-amber-50 text-amber-900'
-    : 'border-neutral-200 bg-neutral-50 text-neutral-800'
+  const toneAccent =
+    tone === 'more' ? theme.color.status.success
+      : tone === 'fewer' ? theme.color.status.warning
+      : theme.color.border.default
 
   return (
-    <div className={`rounded-lg border p-4 text-sm ${toneClass}`}>
-      <span className="font-semibold">{title}</span> {body}
-    </div>
+    <Paper
+      p="l"
+      borderRadius="m"
+      shadow="near"
+      border="default"
+      direction="column"
+      gap="2xs"
+      css={{ borderLeft: `4px solid ${toneAccent}` }}
+    >
+      <Text variant="title" size="m" strength="strong" color="heading">{title}</Text>
+      <Text variant="body" size="s" color="default">{body}</Text>
+    </Paper>
   )
 }
 
 export default function StationDetails() {
+  const theme = useTheme()
   const { stationId } = useParams<{ stationId: string }>()
   const { data: live, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
@@ -254,9 +265,6 @@ export default function StationDetails() {
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
 
-  // Tick every second so the "Reported X seconds ago" line updates without a
-  // full re-fetch. useLiveSnapshot already refreshes the underlying data every
-  // 60s; this local clock just keeps the relative label fresh.
   const [tick, setTick] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
     const t = setInterval(() => setTick(Math.floor(Date.now() / 1000)), 1000)
@@ -266,12 +274,8 @@ export default function StationDetails() {
   const station = live?.stations.find(s => s.station_id === stationId)
   const totalDocks = station ? station.num_bikes_available + station.num_docks_available : undefined
   const offline = station ? !station.is_renting || !station.is_returning || !station.is_installed : false
-  const mapsHref = station
-    ? `https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}`
-    : null
-  const pctFull = station && totalDocks
-    ? Math.round((station.num_bikes_available / totalDocks) * 100)
-    : null
+  const mapsHref = station ? `https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}` : null
+  const pctFull = station && totalDocks ? Math.round((station.num_bikes_available / totalDocks) * 100) : null
   const reportedAge = station ? Math.max(0, tick - station.last_reported) : 0
 
   const series = useStationOverTime({
@@ -282,9 +286,6 @@ export default function StationDetails() {
     range,
   })
 
-  // Aggregate the per-station 2-min samples into one average-bikes-per-hour
-  // point per UTC hour for the "right now" sparkline. Caps at the most recent
-  // 24 hours to match the SystemTotals sparkline's window.
   const sparklineSeries = useMemo(() => {
     if (!series.data || series.data.length === 0) return { bikes: [], docks: [], timestamps: [] }
     const byHour = new Map<number, { bikes: number; docks: number; n: number }>()
@@ -296,9 +297,7 @@ export default function StationDetails() {
       cur.n += 1
       byHour.set(hourTs, cur)
     }
-    const sorted = Array.from(byHour.entries())
-      .sort(([a], [b]) => a - b)
-      .slice(-24)
+    const sorted = Array.from(byHour.entries()).sort(([a], [b]) => a - b).slice(-24)
     return {
       bikes: sorted.map(([, v]) => v.bikes / v.n),
       docks: sorted.map(([, v]) => v.docks / v.n),
@@ -306,8 +305,6 @@ export default function StationDetails() {
     }
   }, [series.data])
 
-  // Hover state for the two sparklines on the "Right now" card. Only one can
-  // be hovered at a time; the un-hovered series shows its plain subtitle.
   const [sparkHover, setSparkHover] = useState<{ series: 'bikes' | 'docks'; index: number } | null>(null)
   const hoveredHourTs = sparkHover ? sparklineSeries.timestamps[sparkHover.index] : null
   const hoveredHourLabel = hoveredHourTs != null
@@ -322,8 +319,6 @@ export default function StationDetails() {
     ? sparklineSeries.docks[sparkHover.index]
     : null
 
-  // Closest stations by Haversine distance — pulled from the live snapshot so
-  // no extra fetch is needed. We take the 5 nearest after excluding self.
   const nearby = useMemo(() => {
     if (!live || !station) return []
     return live.stations
@@ -335,119 +330,172 @@ export default function StationDetails() {
   }, [live, station])
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-4">
-        <Link to="/" className="text-xs text-sky-700 hover:underline">← Back to live map</Link>
-      </div>
+    <Flex
+      direction="column"
+      gap="l"
+      css={{ maxWidth: 1024, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+    >
+      <Link
+        to="/"
+        css={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: theme.spacing.xs,
+          color: theme.color.text.subdued,
+          textDecoration: 'none',
+          fontSize: 14,
+          alignSelf: 'flex-start',
+          '&:hover': { color: theme.color.text.default, textDecoration: 'underline' },
+        }}
+      >
+        <IconArrowLeft size="s" color="subdued" /> Back to live map
+      </Link>
 
       {/* Hero: name + address on the left, live stats card on the right */}
-      <section className="mb-6 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="text-3xl font-semibold text-neutral-900">
-              {station?.name ?? <span className="text-neutral-400">Station {stationId}</span>}
-            </h2>
-            {offline && (
-              <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 text-xs font-bold tracking-wide uppercase border border-red-200">
-                Station offline
-              </span>
-            )}
-          </div>
+      <Flex
+        direction="column"
+        gap="l"
+        css={{
+          '@media (min-width: 720px)': {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+          },
+        }}
+      >
+        <Flex direction="column" gap="xs" css={{ minWidth: 0, flex: 1 }}>
+          <Flex alignItems="center" gap="s" wrap="wrap">
+            <Text variant="display" size="s" strength="strong" color="heading">
+              {station?.name ?? <Text color="subdued" tag="span">Station {stationId}</Text>}
+            </Text>
+            {offline && <Tag>Offline</Tag>}
+          </Flex>
           {station?.address && mapsHref && (
             <a
               href={mapsHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-sky-700 hover:underline mt-1 inline-block"
+              css={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: theme.color.text.warning,
+                textDecoration: 'none',
+                fontSize: 14,
+                '&:hover': { textDecoration: 'underline' },
+              }}
             >
-              {station.address} ↗
+              {station.address} <IconExternalLink size="xs" color="warning" />
             </a>
           )}
           {station && (
-            <p className="text-xs text-neutral-500 mt-2">
+            <Text variant="body" size="xs" color="subdued">
               Reported {formatAge(reportedAge)}
-            </p>
+            </Text>
           )}
           {!station && live && (
-            <p className="text-sm text-neutral-500 mt-2">
+            <Text variant="body" size="s" color="subdued">
               That station isn't in the current snapshot. It may have been recently removed, or the ID is wrong.
-            </p>
+            </Text>
           )}
-        </div>
+        </Flex>
 
         {station && (
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 px-5 py-4 md:min-w-[260px]">
-            <div className="font-semibold text-[10px] uppercase tracking-wide text-neutral-500 mb-2">Right now</div>
-            <div className="flex gap-6 text-neutral-900">
-              <div className="min-w-[120px]">
-                <div className="text-3xl font-bold leading-none">{station.num_bikes_available}</div>
-                <div className="text-xs text-neutral-600 mt-1 h-4 whitespace-nowrap overflow-hidden">
+          <Paper
+            p="l"
+            borderRadius="m"
+            shadow="near"
+            border="default"
+            direction="column"
+            gap="s"
+            css={{ minWidth: 300 }}
+          >
+            <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
+              Right now
+            </Text>
+            <Flex gap="xl" alignItems="flex-end">
+              <Flex direction="column" gap="2xs" css={{ minWidth: 130 }}>
+                <Text variant="display" size="s" strength="strong" color="heading">
+                  {station.num_bikes_available}
+                </Text>
+                <Text variant="label" size="xs" color="subdued" css={{ height: 16, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {hoveredBikesVal != null && hoveredHourLabel
-                    ? <span className="text-sky-800">avg {hoveredBikesVal.toFixed(1)} · {hoveredHourLabel}</span>
+                    ? `avg ${hoveredBikesVal.toFixed(1)} · ${hoveredHourLabel}`
                     : 'bikes available'}
-                </div>
+                </Text>
                 {sparklineSeries.bikes.length > 1 && (
-                  <div className="mt-1.5">
-                    <MiniLine
-                      values={sparklineSeries.bikes}
-                      color="#0d6cb0"
-                      hoverIndex={sparkHover?.series === 'bikes' ? sparkHover.index : null}
-                      onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'bikes', index: i })}
-                    />
-                  </div>
+                  <MiniLine
+                    values={sparklineSeries.bikes}
+                    color="#0d6cb0"
+                    hoverIndex={sparkHover?.series === 'bikes' ? sparkHover.index : null}
+                    onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'bikes', index: i })}
+                  />
                 )}
-              </div>
-              <div className="min-w-[120px]">
-                <div className="text-3xl font-bold leading-none">
-                  {station.num_docks_available}
+              </Flex>
+              <Flex direction="column" gap="2xs" css={{ minWidth: 130 }}>
+                <Flex alignItems="baseline" gap="2xs">
+                  <Text variant="display" size="s" strength="strong" color="heading">
+                    {station.num_docks_available}
+                  </Text>
                   {totalDocks ? (
-                    <span className="text-xl font-normal text-neutral-400"> / {totalDocks}</span>
+                    <Text variant="title" size="s" color="subdued">/ {totalDocks}</Text>
                   ) : null}
-                </div>
-                <div className="text-xs text-neutral-600 mt-1 h-4 whitespace-nowrap overflow-hidden">
+                </Flex>
+                <Text variant="label" size="xs" color="subdued" css={{ height: 16, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {hoveredDocksVal != null && hoveredHourLabel
-                    ? <span className="text-emerald-800">avg {hoveredDocksVal.toFixed(1)} · {hoveredHourLabel}</span>
+                    ? `avg ${hoveredDocksVal.toFixed(1)} · ${hoveredHourLabel}`
                     : 'open docks'}
-                </div>
+                </Text>
                 {sparklineSeries.docks.length > 1 && (
-                  <div className="mt-1.5">
-                    <MiniLine
-                      values={sparklineSeries.docks}
-                      color="#15803d"
-                      hoverIndex={sparkHover?.series === 'docks' ? sparkHover.index : null}
-                      onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'docks', index: i })}
-                    />
-                  </div>
+                  <MiniLine
+                    values={sparklineSeries.docks}
+                    color="#15803d"
+                    hoverIndex={sparkHover?.series === 'docks' ? sparkHover.index : null}
+                    onHoverIndexChange={i => setSparkHover(i === null ? null : { series: 'docks', index: i })}
+                  />
                 )}
-              </div>
-            </div>
+              </Flex>
+            </Flex>
             {pctFull !== null && (
-              <div className="text-xs text-neutral-500 mt-2">{pctFull}% full</div>
+              <Text variant="body" size="xs" color="subdued">{pctFull}% full</Text>
             )}
-          </div>
+          </Paper>
         )}
-      </section>
+      </Flex>
 
       {/* Mini map inset */}
       {station && (
-        <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
+        <Paper borderRadius="m" shadow="near" border="default" css={{ overflow: 'hidden' }}>
           <MiniMap station={station} />
-        </section>
+        </Paper>
       )}
 
-      {/* Typical patterns chart */}
-      <section className="mb-6">
-        <div className="flex items-center justify-between gap-4 mb-2">
-          <h3 className="text-sm font-semibold text-neutral-700">Typical patterns</h3>
+      {/* Typical patterns */}
+      <Flex direction="column" gap="s">
+        <Flex alignItems="center" justifyContent="space-between" gap="m" wrap="wrap">
+          <Flex alignItems="center" gap="xs">
+            <IconCalendarDay size="s" color="subdued" />
+            <Text variant="title" size="m" strength="strong" color="heading">Typical patterns</Text>
+          </Flex>
           <DateRangePicker value={preset} onChange={setPreset} />
-        </div>
-        <p className="text-xs text-neutral-500 mb-3">
-          Half-hour averages. Each column is a stack of dock slots — filled blue from the bottom for bikes parked, faint slots up top for empty docks. Hover any column for the exact value.
-        </p>
-        <div className="bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-          {!stationId && <div className="text-sm text-neutral-500 py-6">No station ID provided.</div>}
+        </Flex>
+        <Text variant="body" size="xs" color="subdued">
+          Half-hour averages. Each column is a stack of dock slots — filled from the bottom for bikes parked,
+          faint slots up top for empty docks. Hover any column for the exact value.
+        </Text>
+        <Paper p="m" borderRadius="m" shadow="near" border="default">
+          {!stationId && <Text variant="body" size="s" color="subdued">No station ID provided.</Text>}
           {stationId && series.error && (
-            <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{series.error.message}</pre>
+            <pre css={{
+              padding: 16,
+              margin: 0,
+              fontSize: 12,
+              color: theme.color.text.danger,
+              background: theme.color.background.surface1,
+              border: `1px solid ${theme.color.border.default}`,
+              borderRadius: theme.cornerRadius.s,
+              whiteSpace: 'pre-wrap',
+            }}>{series.error.message}</pre>
           )}
           {stationId && !series.error && (series.loading || !series.data) && (
             <ChartSkeleton aspectRatio={600 / 230} phase={series.phase} />
@@ -455,25 +503,31 @@ export default function StationDetails() {
           {stationId && series.data && !series.loading && (
             <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="squares" timezone={live?.system.timezone} />
           )}
-        </div>
-      </section>
+        </Paper>
+      </Flex>
 
-      {/* Right-now-vs-typical callout */}
+      {/* Typical-vs-current callout */}
       {station && (
-        <section className="mb-6">
-          <TypicalCallout stationId={station.station_id} currentBikes={station.num_bikes_available} />
-        </section>
+        <TypicalCallout stationId={station.station_id} currentBikes={station.num_bikes_available} />
       )}
 
-      {/* Activity log filtered to this station */}
+      {/* Activity log at this station */}
       {station && (
-        <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-          <h3 className="text-sm font-semibold text-neutral-700">Activity at this station</h3>
-          <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-            Recent departures and arrivals captured at this specific station, plus any inferred trips that started or ended here. Filtered live from the rolling 200-event window.
-          </p>
+        <Paper p="l" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+          <Text variant="title" size="m" strength="strong" color="heading">Activity at this station</Text>
+          <Text variant="body" size="xs" color="subdued">
+            Recent departures and arrivals captured at this specific station, plus any inferred trips that
+            started or ended here. Filtered live from the rolling 200-event window.
+          </Text>
           {activity.error && (
-            <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{activity.error.message}</pre>
+            <pre css={{
+              padding: 16, margin: 0, fontSize: 12,
+              color: theme.color.text.danger,
+              background: theme.color.background.surface1,
+              border: `1px solid ${theme.color.border.default}`,
+              borderRadius: theme.cornerRadius.s,
+              whiteSpace: 'pre-wrap',
+            }}>{activity.error.message}</pre>
           )}
           {!activity.error && (
             <ActivityLog
@@ -485,59 +539,97 @@ export default function StationDetails() {
               onTripClick={setOpenTrip}
             />
           )}
-        </section>
+        </Paper>
       )}
 
       {/* Nearby stations */}
       {nearby.length > 0 && (
-        <section className="mb-6">
-          <h3 className="text-sm font-semibold text-neutral-700 mb-2">Nearby stations</h3>
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 divide-y divide-neutral-100">
-            {nearby.map(({ s, miles }) => {
+        <Flex direction="column" gap="s">
+          <Text variant="title" size="m" strength="strong" color="heading">Nearby stations</Text>
+          <Paper borderRadius="m" shadow="near" border="default" direction="column" css={{ overflow: 'hidden' }}>
+            {nearby.map(({ s, miles }, idx) => {
               const total = s.num_bikes_available + s.num_docks_available
               return (
-                <div key={s.station_id} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-neutral-900 truncate">{s.name}</div>
-                    <div className="text-xs text-neutral-500">{formatDistance(miles)} away</div>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-neutral-700 shrink-0">
-                    <div className="text-right">
-                      <span className="font-semibold text-neutral-900">{s.num_bikes_available}</span>
-                      <span className="text-neutral-500"> bikes</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-semibold text-neutral-900">{s.num_docks_available}</span>
-                      <span className="text-neutral-500">
-                        {total > 0 ? ` / ${total}` : ''} docks
-                      </span>
-                    </div>
+                <Flex
+                  key={s.station_id}
+                  alignItems="center"
+                  justifyContent="space-between"
+                  gap="m"
+                  css={{
+                    padding: `${theme.spacing.s}px ${theme.spacing.l}px`,
+                    borderTop: idx === 0 ? 'none' : `1px solid ${theme.color.border.default}`,
+                    transition: `background ${theme.motion.quick}`,
+                    '&:hover': { background: theme.color.background.surface1 },
+                  }}
+                >
+                  <Flex direction="column" gap="2xs" css={{ minWidth: 0, flex: 1 }}>
+                    <Text variant="body" size="s" strength="strong" color="heading" ellipses>{s.name}</Text>
+                    <Text variant="body" size="xs" color="subdued">{formatDistance(miles)} away</Text>
+                  </Flex>
+                  <Flex alignItems="center" gap="m" css={{ flexShrink: 0 }}>
+                    <Flex direction="column" alignItems="center" gap="2xs" css={{ minWidth: 56 }}>
+                      <Text variant="title" size="s" strength="strong" color="heading">{s.num_bikes_available}</Text>
+                      <Text variant="label" size="xs" color="subdued">bikes</Text>
+                    </Flex>
+                    <Flex direction="column" alignItems="center" gap="2xs" css={{ minWidth: 64 }}>
+                      <Text variant="title" size="s" strength="strong" color="heading">
+                        {s.num_docks_available}{total > 0 ? <Text tag="span" color="subdued"> / {total}</Text> : null}
+                      </Text>
+                      <Text variant="label" size="xs" color="subdued">docks</Text>
+                    </Flex>
                     <Link
                       to={`/station/${encodeURIComponent(s.station_id)}/details`}
-                      className="text-sky-700 hover:underline font-medium"
+                      css={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        color: theme.color.text.accent,
+                        fontSize: 14,
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        '&:hover': { textDecoration: 'underline' },
+                      }}
                     >
-                      Details →
+                      Details <IconCaretRight size="xs" color="accent" />
                     </Link>
-                  </div>
-                </div>
+                  </Flex>
+                </Flex>
               )
             })}
-          </div>
-        </section>
+          </Paper>
+        </Flex>
       )}
 
-      {/* Footer */}
-      <footer className="mt-8 pt-4 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-neutral-500">
-        <div>
-          Tip: bookmark <code className="bg-neutral-100 px-1 rounded">/station/{stationId}/details</code> to come back to this page.
-        </div>
+      <Flex
+        direction="column"
+        gap="xs"
+        css={{
+          paddingTop: theme.spacing.l,
+          borderTop: `1px solid ${theme.color.border.default}`,
+          '@media (min-width: 540px)': { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+        }}
+      >
+        <Text variant="body" size="xs" color="subdued">
+          Tip: bookmark{' '}
+          <code css={{
+            background: theme.color.background.surface1,
+            padding: '1px 6px',
+            borderRadius: theme.cornerRadius.xs,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontSize: 12,
+          }}>
+            /station/{stationId}/details
+          </code>{' '}
+          to come back.
+        </Text>
         {live && (
-          <div>
+          <Text variant="body" size="xs" color="subdued">
             Last updated: {formatClockTime(live.snapshot_ts)}
-            <span className="text-neutral-400"> ({ageSec < 60 ? `${ageSec}s` : `${Math.floor(ageSec / 60)}m`} ago)</span>
-          </div>
+            <Text tag="span" color="subdued"> ({ageSec < 60 ? `${ageSec}s` : `${Math.floor(ageSec / 60)}m`} ago)</Text>
+          </Text>
         )}
-      </footer>
+      </Flex>
+
       {openTrip && (
         <TripRouteModal
           trip={openTrip}
@@ -548,6 +640,6 @@ export default function StationDetails() {
           onClose={() => setOpenTrip(null)}
         />
       )}
-    </div>
+    </Flex>
   )
 }

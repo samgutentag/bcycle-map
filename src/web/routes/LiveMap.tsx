@@ -93,26 +93,29 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
     s.bikes_smart > 0 ? `Smart: ${s.bikes_smart}` : null,
   ].filter(Boolean)
 
+  // Inline styles rather than Tailwind classes — the popup mounts inside MapLibre's
+  // DOM, which lives outside React, so it can't pick up Harmony's emotion classes.
+  // Using --app-* CSS variables ties popup colors to the active theme.
   return `
-    <div class="text-sm text-neutral-900">
-      <div class="font-semibold">${escapeHtml(s.name)}</div>
-      ${s.address ? `<a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}" target="_blank" rel="noopener noreferrer" class="text-xs text-sky-700 hover:underline mt-0.5 inline-block">${escapeHtml(s.address)} ↗</a>` : ''}
-      <div class="mt-2 flex gap-4">
-        <div><span class="font-medium">${s.num_bikes_available}</span> bikes available</div>
-        <div><span class="font-medium">${s.num_docks_available}</span> docks available</div>
+    <div style="font-size:13px;color:var(--app-text);font-family:var(--harmony-font-family,system-ui);min-width:220px">
+      <div style="font-weight:700;color:var(--app-text-heading);font-size:14px">${escapeHtml(s.name)}</div>
+      ${s.address ? `<a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--app-accent);text-decoration:none;margin-top:2px;display:inline-block">${escapeHtml(s.address)} ↗</a>` : ''}
+      <div style="margin-top:8px;display:flex;gap:18px;font-size:12px">
+        <div><span style="font-weight:600;color:var(--app-text-heading);font-size:14px">${s.num_bikes_available}</span> <span style="color:var(--app-text-subdued)">bikes</span></div>
+        <div><span style="font-weight:600;color:var(--app-text-heading);font-size:14px">${s.num_docks_available}</span> <span style="color:var(--app-text-subdued)">docks</span></div>
       </div>
-      ${types.length > 0 ? `<div class="mt-2 text-xs text-neutral-600 space-y-0.5">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
-      ${offline ? `<div class="mt-2 text-xs font-medium text-red-700">Station offline</div>` : ''}
-      <div class="mt-2 text-xs text-neutral-500">Reported ${ageText}</div>
-      <div class="mt-3">
-        <div data-sparkline="${escapeHtml(s.station_id)}" class="block"></div>
-        <div class="flex gap-3 text-[10px] text-neutral-500 mt-1">
-          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #0d6cb0; opacity: 0.85"></span>Typical</span>
-          <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-sm" style="background-color: #ea580c"></span>Now</span>
+      ${types.length > 0 ? `<div style="margin-top:8px;font-size:11px;color:var(--app-text-subdued);display:flex;flex-direction:column;gap:2px">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
+      ${offline ? `<div style="margin-top:8px;font-size:11px;font-weight:600;color:var(--app-danger);text-transform:uppercase;letter-spacing:0.04em">Station offline</div>` : ''}
+      <div style="margin-top:8px;font-size:11px;color:var(--app-text-subdued)">Reported ${ageText}</div>
+      <div style="margin-top:10px">
+        <div data-sparkline="${escapeHtml(s.station_id)}" style="display:block"></div>
+        <div style="display:flex;gap:10px;font-size:10px;color:var(--app-text-subdued);margin-top:4px">
+          <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#0d6cb0;opacity:0.85"></span>Typical</span>
+          <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#ea580c"></span>Now</span>
         </div>
       </div>
-      <div class="mt-3 flex flex-wrap gap-2 text-xs">
-        <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa class="px-2 py-1 rounded bg-neutral-900 text-white hover:bg-neutral-800 no-underline">Details</a>
+      <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;font-size:12px">
+        <a href="/station/${encodeURIComponent(s.station_id)}/details" data-spa style="padding:5px 10px;border-radius:6px;background:var(--app-text-heading);color:var(--app-bg-surface);text-decoration:none;font-weight:600">Open details →</a>
       </div>
     </div>
   `

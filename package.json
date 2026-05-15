@@ -23,6 +23,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.5.0",
+    "esbuild-plugin-react-virtualized": "^1.0.6",
     "happy-dom": "^15.11.7",
     "postcss": "^8.5.14",
     "tailwindcss": "^3.4.19",
@@ -33,11 +34,14 @@
     "wrangler": "^4.86.0"
   },
   "dependencies": {
+    "@audius/harmony": "^0.4.3",
     "@deck.gl/aggregation-layers": "^9.3.2",
     "@deck.gl/core": "^9.3.2",
     "@deck.gl/layers": "^9.3.2",
     "@deck.gl/react": "^9.3.2",
     "@duckdb/duckdb-wasm": "^1.32.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "apache-arrow": "^21.1.0",
     "deck.gl": "^9.3.2",
     "h3-js": "^4.4.0",

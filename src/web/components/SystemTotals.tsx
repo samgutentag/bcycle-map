@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Flex, Paper, Text, useTheme } from '@audius/harmony'
 import type { HourBikeStats, StationSnapshot } from '@shared/types'
 import MiniLine from './MiniLine'
 import { formatRelative } from '../lib/relative-time'
@@ -13,7 +14,7 @@ type Props = {
   timezone?: string
   /** Unix seconds of the most recent poll. Drives the "checked Xm ago" badge. */
   snapshotTs?: number
-  /** Unix seconds of the most recent system-wide bike count change. Drives "changed Xm ago". */
+  /** Unix seconds of the most recent system-wide bike count change. */
   lastChangedTs?: number
   variant?: 'overlay' | 'inline'
 }
@@ -30,10 +31,7 @@ export function computeTotals(stations: StationSnapshot[]) {
     }),
     { bikes: 0, docks: 0, stationsOnline: 0 },
   )
-  return {
-    ...base,
-    totalDockSlots: base.bikes + base.docks,
-  }
+  return { ...base, totalDockSlots: base.bikes + base.docks }
 }
 
 function formatHourLabel(hourTsSec: number, tz?: string): string {
@@ -44,26 +42,29 @@ function formatHourLabel(hourTsSec: number, tz?: string): string {
   })
 }
 
-export default function SystemTotals({ stations, maxBikesEver, recent24h, timezone, snapshotTs, lastChangedTs, variant = 'overlay' }: Props) {
+export default function SystemTotals({
+  stations,
+  maxBikesEver,
+  recent24h,
+  timezone,
+  snapshotTs,
+  lastChangedTs,
+  variant = 'overlay',
+}: Props) {
+  const theme = useTheme()
   const totals = computeTotals(stations)
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
   const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
 
-  // Tick every 10 seconds to keep the fuzzy "Xm ago" badges fresh without
-  // hammering the read API. The data source (snapshotTs / lastChangedTs)
-  // updates on its own poll cadence — this is purely for relative-time text.
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
     const id = setInterval(() => setNowSec(Math.floor(Date.now() / 1000)), 10_000)
     return () => clearInterval(id)
   }, [])
 
-  // Build the two sparkline series from the 24-hour rolling stats
   const sorted = (recent24h ?? []).slice().sort((a, b) => a.hour_ts - b.hour_ts)
   const bikesSeries = sorted.map(h => h.bikes_max)
-  const activeSeries = showBikeMax
-    ? sorted.map(h => Math.max(0, (maxBikesEver as number) - h.bikes_min))
-    : []
+  const activeSeries = showBikeMax ? sorted.map(h => Math.max(0, (maxBikesEver as number) - h.bikes_min)) : []
 
   const [hover, setHover] = useState<{ series: 'bikes' | 'active'; index: number } | null>(null)
   const hoveredHour = hover ? sorted[hover.index] : null
@@ -71,75 +72,147 @@ export default function SystemTotals({ stations, maxBikesEver, recent24h, timezo
   const hoveredActiveVal = hover?.series === 'active' && hoveredHour ? activeSeries[hover.index] : null
   const hoveredLabel = hoveredHour ? formatHourLabel(hoveredHour.hour_ts, timezone) : null
 
-  const wrapperClass = variant === 'overlay'
-    ? 'absolute bottom-12 right-4 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-neutral-200 px-4 py-3'
-    : 'block bg-white rounded-lg shadow-sm border border-neutral-200 p-4'
+  const overlayCss =
+    variant === 'overlay'
+      ? {
+          position: 'absolute' as const,
+          bottom: 56,
+          right: 16,
+          minWidth: 280,
+          backdropFilter: 'saturate(160%) blur(8px)',
+          background: `color-mix(in srgb, ${theme.color.background.white} 92%, transparent)`,
+        }
+      : { background: theme.color.background.white }
 
   return (
-    <div className={`${wrapperClass} text-sm text-neutral-900`}>
-      <div className="font-semibold text-[10px] uppercase tracking-wide text-emerald-700 mb-1 flex items-center gap-1.5">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
-        Right now
-      </div>
-      <div className="flex gap-6">
+    <Paper
+      p="m"
+      borderRadius="m"
+      shadow={variant === 'overlay' ? 'far' : 'near'}
+      border="default"
+      direction="column"
+      gap="s"
+      css={overlayCss}
+    >
+      <Flex alignItems="center" gap="xs">
+        <span
+          aria-hidden
+          css={{
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: theme.color.status.success,
+            boxShadow: `0 0 0 2px color-mix(in srgb, ${theme.color.status.success} 30%, transparent)`,
+            animation: 'pulseDot 2s ease-out infinite',
+            '@keyframes pulseDot': {
+              '0%, 100%': { opacity: 1 },
+              '50%': { opacity: 0.4 },
+            },
+          }}
+        />
+        <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
+          Right now
+        </Text>
+      </Flex>
+
+      <Flex
+        gap="xl"
+        alignItems="flex-end"
+        justifyContent={variant === 'inline' ? 'center' : 'flex-start'}
+        css={
+          variant === 'inline'
+            ? {
+                // Constrain the two stat columns to the middle third of the
+                // inline card — they're a small amount of data and reading
+                // across a full-width row looked stretched.
+                maxWidth: 'calc(100% / 3)',
+                margin: '0 auto',
+                minWidth: 280,
+              }
+            : undefined
+        }
+      >
         {activeRiders !== null && (
-          <div className="min-w-[160px]" title="Bikes not parked at any station — riders out using them right now.">
-            <div className="text-xl font-bold leading-tight text-orange-600">{activeRiders}</div>
-            <div className="text-xs text-neutral-600 h-4 whitespace-nowrap overflow-hidden">
-              {hoveredActiveVal != null
-                ? <span className="text-orange-700">peak {hoveredActiveVal} · {hoveredLabel}</span>
-                : 'active riders'}
-            </div>
-            <div className="mt-1">
-              <MiniLine
-                values={activeSeries}
-                color={ACTIVE_COLOR}
-                hoverIndex={hover?.series === 'active' ? hover.index : null}
-                onHoverIndexChange={i => setHover(i === null ? null : { series: 'active', index: i })}
-              />
-            </div>
-          </div>
+          <Flex direction="column" gap="2xs" css={{ minWidth: 130 }}>
+            <Text
+              variant="display"
+              size="s"
+              strength="strong"
+              color="warning"
+              title="Bikes not parked at any station — riders out using them right now."
+            >
+              {activeRiders}
+            </Text>
+            <Text variant="label" size="xs" color="subdued" css={{ height: 16, whiteSpace: 'nowrap' }}>
+              {hoveredActiveVal != null ? `peak ${hoveredActiveVal} · ${hoveredLabel}` : 'active riders'}
+            </Text>
+            <MiniLine
+              values={activeSeries}
+              color={ACTIVE_COLOR}
+              hoverIndex={hover?.series === 'active' ? hover.index : null}
+              onHoverIndexChange={i => setHover(i === null ? null : { series: 'active', index: i })}
+            />
+          </Flex>
         )}
-        <div className="min-w-[160px]">
-          <div className="text-xl font-bold leading-tight">
-            {totals.bikes}
+        <Flex direction="column" gap="2xs" css={{ minWidth: 130 }}>
+          <Flex alignItems="baseline" gap="2xs">
+            <Text variant="display" size="s" strength="strong" color="heading">
+              {totals.bikes}
+            </Text>
             {showBikeMax && (
-              <span
-                className="text-base font-normal text-neutral-400"
+              <Text
+                variant="title"
+                size="s"
+                color="subdued"
                 title="Running max of bikes parked across the system — approximates fleet size."
               >
-                {' / '}{maxBikesEver}
-              </span>
+                / {maxBikesEver}
+              </Text>
             )}
-          </div>
-          <div className="text-xs text-neutral-600 h-4 whitespace-nowrap overflow-hidden">
-            {hoveredBikesVal != null
-              ? <span className="text-sky-800">peak {hoveredBikesVal} · {hoveredLabel}</span>
-              : 'bikes available'}
-          </div>
-          <div className="mt-1">
-            <MiniLine
-              values={bikesSeries}
-              color={BIKES_COLOR}
-              hoverIndex={hover?.series === 'bikes' ? hover.index : null}
-              onHoverIndexChange={i => setHover(i === null ? null : { series: 'bikes', index: i })}
-            />
-          </div>
-        </div>
-      </div>
-      <div className="mt-2 text-xs text-neutral-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+          </Flex>
+          <Text variant="label" size="xs" color="subdued" css={{ height: 16, whiteSpace: 'nowrap' }}>
+            {hoveredBikesVal != null ? `peak ${hoveredBikesVal} · ${hoveredLabel}` : 'bikes available'}
+          </Text>
+          <MiniLine
+            values={bikesSeries}
+            color={BIKES_COLOR}
+            hoverIndex={hover?.series === 'bikes' ? hover.index : null}
+            onHoverIndexChange={i => setHover(i === null ? null : { series: 'bikes', index: i })}
+          />
+        </Flex>
+      </Flex>
+
+      <Flex
+        alignItems="center"
+        gap="m"
+        wrap="wrap"
+        css={{
+          paddingTop: theme.spacing.xs,
+          borderTop: `1px solid ${theme.color.border.default}`,
+        }}
+      >
         {snapshotTs != null && (
-          <span title={`Last poll: ${new Date(snapshotTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}>
+          <Text
+            variant="body"
+            size="xs"
+            color="subdued"
+            title={`Last poll: ${new Date(snapshotTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}
+          >
             checked {formatRelative(snapshotTs, nowSec)}
-          </span>
+          </Text>
         )}
         {lastChangedTs != null && (
-          <span title={`Bike count last changed: ${new Date(lastChangedTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}>
+          <Text
+            variant="body"
+            size="xs"
+            color="subdued"
+            title={`Bike count last changed: ${new Date(lastChangedTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}
+          >
             changed {formatRelative(lastChangedTs, nowSec)}
-          </span>
+          </Text>
         )}
-        <span className="ml-auto">{totals.stationsOnline} / {stations.length} stations online</span>
-      </div>
-    </div>
+      </Flex>
+    </Paper>
   )
 }

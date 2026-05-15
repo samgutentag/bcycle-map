@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
 import SystemTotals, { computeTotals } from './SystemTotals'
 import type { StationSnapshot } from '@shared/types'
+import { renderWithTheme } from '../test-utils'
 
 const make = (overrides: Partial<StationSnapshot> = {}): StationSnapshot => ({
   station_id: 'a',
@@ -55,7 +55,7 @@ describe('computeTotals', () => {
 
 describe('SystemTotals', () => {
   it('renders the total bikes available number', () => {
-    const { container } = render(<SystemTotals stations={[
+    const { container } = renderWithTheme(<SystemTotals stations={[
       make({ num_bikes_available: 4, num_docks_available: 6 }),
       make({ num_bikes_available: 1, num_docks_available: 9 }),
     ]} />)
@@ -64,16 +64,8 @@ describe('SystemTotals', () => {
     expect(container.textContent).toMatch(/bikes available/i)
   })
 
-  it('shows stations-online ratio', () => {
-    render(<SystemTotals stations={[
-      make(),
-      make({ is_renting: false }),
-    ]} />)
-    expect(screen.getByText(/1 \/ 2 stations online/)).toBeInTheDocument()
-  })
-
   it('renders the bikes / maxBikesEver denominator when maxBikesEver is provided', () => {
-    const { container } = render(
+    const { container } = renderWithTheme(
       <SystemTotals
         stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]}
         maxBikesEver={250}
@@ -83,12 +75,12 @@ describe('SystemTotals', () => {
   })
 
   it('renders active riders block only when maxBikesEver is known', () => {
-    const without = render(
+    const without = renderWithTheme(
       <SystemTotals stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]} />,
     )
     expect(without.container.textContent).not.toMatch(/active riders/i)
     without.unmount()
-    const withMax = render(
+    const withMax = renderWithTheme(
       <SystemTotals
         stations={[make({ num_bikes_available: 5, num_docks_available: 5 })]}
         maxBikesEver={20}

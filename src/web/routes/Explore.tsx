@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import {
+  Box,
+  Flex,
+  IconArrowRotate,
+  IconCalendarWeek,
+  IconCaretRight,
+  Paper,
+  Text,
+  useTheme,
+} from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
@@ -9,7 +19,6 @@ import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
 import TravelTimeBadge from '../components/TravelTimeBadge'
 import StationPicker from '../components/StationPicker'
 import ActivityLog from '../components/ActivityLog'
-import { Link } from 'react-router-dom'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
@@ -25,7 +34,51 @@ const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
+function Section({
+  title,
+  description,
+  children,
+  trailing,
+}: {
+  title: string
+  description?: string
+  children: React.ReactNode
+  trailing?: React.ReactNode
+}) {
+  return (
+    <Flex direction="column" gap="s">
+      <Flex alignItems="center" justifyContent="space-between" gap="m" wrap="wrap">
+        <Text variant="title" size="m" strength="strong" color="heading">{title}</Text>
+        {trailing}
+      </Flex>
+      {description && (
+        <Text variant="body" size="xs" color="subdued">{description}</Text>
+      )}
+      <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+        {children}
+      </Paper>
+    </Flex>
+  )
+}
+
+function ErrorBox({ message }: { message: string }) {
+  const theme = useTheme()
+  return (
+    <pre css={{
+      padding: 16,
+      margin: 0,
+      fontSize: 12,
+      color: theme.color.text.danger,
+      background: theme.color.background.surface1,
+      border: `1px solid ${theme.color.border.default}`,
+      borderRadius: theme.cornerRadius.s,
+      whiteSpace: 'pre-wrap',
+    }}>{message}</pre>
+  )
+}
+
 export default function Explore() {
+  const theme = useTheme()
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
@@ -48,52 +101,69 @@ export default function Explore() {
   const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
   const hourly = useHourOfWeek({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range, timezone })
   const riders = useHourOfWeekActiveRiders({
-    apiBase: API_BASE,
-    r2Base: R2_BASE,
-    system: SYSTEM_ID,
-    range,
-    timezone,
-    maxBikesEver,
+    apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range, timezone, maxBikesEver,
   })
 
   const bikesHeatmapData = hourly.data?.map(r => ({
-    dow: r.dow,
-    hod: r.hod,
-    value: r.avg_bikes,
-    samples: r.samples,
+    dow: r.dow, hod: r.hod, value: r.avg_bikes, samples: r.samples,
   })) ?? []
   const ridersHeatmapData = riders.data?.map(r => ({
-    dow: r.dow,
-    hod: r.hod,
-    value: r.avg_active_riders,
-    samples: r.samples,
+    dow: r.dow, hod: r.hod, value: r.avg_active_riders, samples: r.samples,
   })) ?? []
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-neutral-900">Explore</h2>
-          <p className="text-sm text-neutral-600 mt-1">Historical patterns for the Santa Barbara BCycle system.</p>
-        </div>
+    <Flex
+      direction="column"
+      gap="xl"
+      css={{ maxWidth: 1280, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+    >
+      <Flex alignItems="flex-end" justifyContent="space-between" gap="m" wrap="wrap">
+        <Flex direction="column" gap="xs">
+          <Flex alignItems="center" gap="s">
+            <IconCalendarWeek size="m" color="subdued" />
+            <Text variant="display" size="s" strength="strong" color="heading">Explore</Text>
+          </Flex>
+          <Text variant="body" size="s" color="subdued">
+            Historical patterns for the Santa Barbara BCycle system.
+          </Text>
+        </Flex>
         <DateRangePicker value={preset} onChange={setPreset} />
-      </div>
+      </Flex>
 
       {live && (
-        <div className="mb-8">
-          <SystemTotals stations={live.stations} maxBikesEver={live.max_bikes_ever} recent24h={live.recent24h} timezone={live.system.timezone} snapshotTs={live.snapshot_ts} lastChangedTs={live.last_total_changed_ts} variant="inline" />
-        </div>
+        <SystemTotals
+          stations={live.stations}
+          maxBikesEver={live.max_bikes_ever}
+          recent24h={live.recent24h}
+          timezone={live.system.timezone}
+          snapshotTs={live.snapshot_ts}
+          lastChangedTs={live.last_total_changed_ts}
+          variant="inline"
+        />
       )}
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <div className="flex items-baseline justify-between gap-3 mb-1">
-          <h3 className="text-sm font-semibold text-neutral-700">Activity log</h3>
-          <Link to="/activity" className="text-xs text-sky-700 hover:underline">View all →</Link>
-        </div>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair a departure with the next arrival, but only during "quiet periods" where the system has exactly one active rider — so the assumption holds.
-        </p>
-        {activity.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{activity.error.message}</pre>}
+      <Section
+        title="Activity log"
+        description="Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair a departure with the next arrival, but only during quiet periods where the system has exactly one active rider."
+        trailing={
+          <Link
+            to="/activity"
+            css={{
+              color: theme.color.text.accent,
+              textDecoration: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 2,
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            View all <IconCaretRight size="xs" color="accent" />
+          </Link>
+        }
+      >
+        {activity.error && <ErrorBox message={activity.error.message} />}
         {!activity.error && (
           <ActivityLog
             log={activity.data}
@@ -105,58 +175,74 @@ export default function Explore() {
             onTripClick={setOpenTrip}
           />
         )}
-      </section>
+      </Section>
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Active riders — hour of week</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Estimated bikes in use system-wide (max bikes observed minus bikes parked) per day-of-week and hour-of-day. Darker cells = more riders out at that time.
-          {!riders.enabled && ' Available once the poller has captured a peak bikes-parked value to compare against.'}
-        </p>
+      <Section
+        title="Active riders — hour of week"
+        description={`Estimated bikes in use system-wide (max bikes observed minus bikes parked) per day-of-week and hour-of-day. Darker cells = more riders out at that time.${riders.enabled ? '' : ' Available once the poller has captured a peak bikes-parked value to compare against.'}`}
+      >
         {!riders.enabled && (
-          <div className="p-6 text-center text-sm text-neutral-500 bg-neutral-50 rounded border border-dashed border-neutral-300">
-            Waiting for a peak bikes-parked observation (usually a 3am idle moment).
-          </div>
+          <Box css={{
+            padding: 24,
+            textAlign: 'center',
+            background: theme.color.background.surface1,
+            borderRadius: theme.cornerRadius.s,
+            border: `1px dashed ${theme.color.border.default}`,
+          }}>
+            <Text variant="body" size="s" color="subdued">
+              Waiting for a peak bikes-parked observation (usually a 3am idle moment).
+            </Text>
+          </Box>
         )}
-        {riders.enabled && riders.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{riders.error.message}</pre>}
-        {riders.enabled && !riders.error && (riders.loading || !riders.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={riders.phase} />}
+        {riders.enabled && riders.error && <ErrorBox message={riders.error.message} />}
+        {riders.enabled && !riders.error && (riders.loading || !riders.data) && (
+          <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={riders.phase} />
+        )}
         {riders.enabled && !riders.loading && !riders.error && riders.data && (
           <HourOfWeekHeatmap data={ridersHeatmapData} scheme="riders" unit="riders" />
         )}
-      </section>
+      </Section>
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Available bikes — hour of week</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns{timezone ? `, ${timezone}` : ''}). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden.
-        </p>
-        {hourly.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{hourly.error.message}</pre>}
-        {!hourly.error && (hourly.loading || !hourly.data) && <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />}
+      <Section
+        title="Available bikes — hour of week"
+        description={`Average bikes parked across the system, broken down by day-of-week (rows) and hour-of-day (columns${timezone ? `, ${timezone}` : ''}). Darker cells mean more bikes parked; lighter cells mean bikes are out being ridden.`}
+      >
+        {hourly.error && <ErrorBox message={hourly.error.message} />}
+        {!hourly.error && (hourly.loading || !hourly.data) && (
+          <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />
+        )}
         {!hourly.loading && !hourly.error && hourly.data && (
           <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
         )}
-      </section>
+      </Section>
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Bikes and open docks over time</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Totals summed across every station, sampled every two minutes. Bikes + open docks at any moment ≈ total docks in service.
-        </p>
-        {totals.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{totals.error.message}</pre>}
-        {!totals.error && (totals.loading || !totals.data) && <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />}
+      <Section
+        title="Bikes and open docks over time"
+        description="Totals summed across every station, sampled every two minutes. Bikes + open docks at any moment ≈ total docks in service."
+      >
+        {totals.error && <ErrorBox message={totals.error.message} />}
+        {!totals.error && (totals.loading || !totals.data) && (
+          <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />
+        )}
         {!totals.loading && !totals.error && totals.data && <SystemBikesOverTime data={totals.data} />}
-      </section>
+      </Section>
 
-      <section className="mb-8 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">Travel-time matrix</h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
-          Bike-route minutes between every pair of stations, via Google Distance Matrix. Pick an origin and a destination to outline the row and column — they cross at the travel time for that pair. Darker cells = longer rides.
-        </p>
-        {matrix.error && <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{matrix.error.message}</pre>}
+      <Section
+        title="Travel-time matrix"
+        description="Bike-route minutes between every pair of stations, via Google Distance Matrix. Pick an origin and a destination to outline the row and column — they cross at the travel time for that pair. Darker cells = longer rides."
+      >
+        {matrix.error && <ErrorBox message={matrix.error.message} />}
         {!matrix.error && matrix.loading && <ChartSkeleton aspectRatio={1} />}
         {!matrix.error && !matrix.loading && matrix.data && live && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-end gap-3 mb-3">
+            <Box css={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto 1fr',
+              alignItems: 'flex-end',
+              gap: theme.spacing.s,
+              marginBottom: theme.spacing.s,
+              '@media (max-width: 600px)': { gridTemplateColumns: '1fr' },
+            }}>
               <StationPicker label="Origin" value={routeStart} stations={live.stations} onChange={setRouteStart} />
               <button
                 type="button"
@@ -164,12 +250,29 @@ export default function Explore() {
                 disabled={!routeStart && !routeEnd}
                 aria-label="Reverse route (swap origin and destination)"
                 title="Reverse route"
-                className="self-end mb-1 px-3 py-2 rounded-md border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                css={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  alignSelf: 'flex-end',
+                  marginBottom: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+                  borderRadius: theme.cornerRadius.s,
+                  border: `1px solid ${theme.color.border.default}`,
+                  background: theme.color.background.white,
+                  color: theme.color.text.default,
+                  transition: `background ${theme.motion.quick}`,
+                  '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+                  '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+                  '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+                }}
               >
-                <span aria-hidden>⇅</span>
+                <IconArrowRotate size="s" color="subdued" />
               </button>
               <StationPicker label="Destination" value={routeEnd} stations={live.stations} onChange={setRouteEnd} />
-            </div>
+            </Box>
             {(routeStart || routeEnd) && (
               <TravelTimeBadge minutes={routeEdge?.minutes ?? null} meters={routeEdge?.meters ?? null} />
             )}
@@ -180,10 +283,12 @@ export default function Explore() {
               selectedEndId={routeEnd}
               onPickPair={(fromId, toId) => navigate(`/route/${fromId}/${toId}`)}
             />
-            <p className="text-xs text-neutral-500 mt-2">Click any cell to open that pair in the route planner.</p>
+            <Text variant="body" size="xs" color="subdued" css={{ marginTop: theme.spacing.xs }}>
+              Click any cell to open that pair in the route planner.
+            </Text>
           </>
         )}
-      </section>
+      </Section>
 
       {openTrip && (
         <TripRouteModal
@@ -195,6 +300,6 @@ export default function Explore() {
           onClose={() => setOpenTrip(null)}
         />
       )}
-    </div>
+    </Flex>
   )
 }

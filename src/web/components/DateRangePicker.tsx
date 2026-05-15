@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@audius/harmony'
 import type { Preset } from '../lib/date-range'
 
 type Props = {
@@ -5,33 +6,19 @@ type Props = {
   onChange: (preset: Preset) => void
 }
 
-const PRESETS: { value: Preset; label: string }[] = [
-  { value: '24h', label: '24h' },
-  { value: '7d', label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: 'all', label: 'All' },
+const OPTIONS: { key: Preset; text: string }[] = [
+  { key: '24h', text: '24h' },
+  { key: '7d', text: '7d' },
+  { key: '30d', text: '30d' },
+  { key: 'all', text: 'All' },
 ]
 
 export default function DateRangePicker({ value, onChange }: Props) {
   return (
-    <div className="inline-flex gap-1 p-1 bg-neutral-100 rounded-lg border border-neutral-200">
-      {PRESETS.map(p => {
-        const selected = p.value === value
-        return (
-          <button
-            key={p.value}
-            type="button"
-            onClick={() => onChange(p.value)}
-            className={
-              selected
-                ? 'px-3 py-1 text-sm font-medium rounded-md bg-white shadow-sm text-neutral-900'
-                : 'px-3 py-1 text-sm rounded-md text-neutral-600 hover:text-neutral-900'
-            }
-          >
-            {p.label}
-          </button>
-        )
-      })}
-    </div>
+    <SegmentedControl
+      options={OPTIONS}
+      selected={value}
+      onSelectOption={onChange}
+    />
   )
 }
