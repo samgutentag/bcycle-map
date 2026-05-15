@@ -40,5 +40,6 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/web/test-setup.ts'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.claude/**'],
   },
 })
