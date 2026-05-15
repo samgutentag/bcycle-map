@@ -1,4 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
+
+const ROTATE_INTERVAL_MS = 3000
 
 export const BIKE_VERBS: string[] = [
   'Pedaling…',
@@ -47,6 +49,22 @@ export function getRandomVerb(): string {
   return BIKE_VERBS[Math.floor(Math.random() * BIKE_VERBS.length)]!
 }
 
+/**
+ * Picks a verb on mount and rotates to a different one every 3 seconds.
+ * Stable across React re-renders — only the interval drives changes.
+ */
 export function useStableVerb(): string {
-  return useMemo(() => getRandomVerb(), [])
+  const [verb, setVerb] = useState<string>(() => getRandomVerb())
+  useEffect(() => {
+    const id = setInterval(() => {
+      setVerb(prev => {
+        if (BIKE_VERBS.length <= 1) return prev
+        let next = getRandomVerb()
+        while (next === prev) next = getRandomVerb()
+        return next
+      })
+    }, ROTATE_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [])
+  return verb
 }

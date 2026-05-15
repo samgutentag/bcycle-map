@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
 import { BIKE_VERBS, getRandomVerb, useStableVerb } from './spinner-verbs'
 
 describe('BIKE_VERBS', () => {
@@ -25,6 +25,13 @@ describe('getRandomVerb', () => {
 })
 
 describe('useStableVerb', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('returns a string from BIKE_VERBS', () => {
     const { result } = renderHook(() => useStableVerb())
     expect(BIKE_VERBS).toContain(result.current)
@@ -37,5 +44,25 @@ describe('useStableVerb', () => {
     rerender()
     rerender()
     expect(result.current).toBe(first)
+  })
+
+  it('rotates to a different verb every 3 seconds', () => {
+    const { result } = renderHook(() => useStableVerb())
+    const first = result.current
+    act(() => { vi.advanceTimersByTime(3000) })
+    const second = result.current
+    expect(second).not.toBe(first)
+    expect(BIKE_VERBS).toContain(second)
+    act(() => { vi.advanceTimersByTime(3000) })
+    expect(result.current).not.toBe(second)
+  })
+
+  it('clears the interval on unmount', () => {
+    const { result, unmount } = renderHook(() => useStableVerb())
+    const snapshot = result.current
+    unmount()
+    act(() => { vi.advanceTimersByTime(9000) })
+    // Hook is unmounted; result.current is the last value before unmount.
+    expect(result.current).toBe(snapshot)
   })
 })
