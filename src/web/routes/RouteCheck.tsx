@@ -12,10 +12,13 @@ import { IconBike } from '../components/icons'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
+import { useRoutePopularity } from '../hooks/useRoutePopularity'
+import { lookupPairStat } from '@shared/popularity'
 import DateRangePicker from '../components/DateRangePicker'
 import StationPicker from '../components/StationPicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
 import TravelTimeBadge from '../components/TravelTimeBadge'
+import AvgTripDurationBadge from '../components/AvgTripDurationBadge'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { resolveRange, type Preset } from '../lib/date-range'
 
@@ -39,6 +42,7 @@ export default function RouteCheck() {
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
@@ -200,6 +204,10 @@ export default function RouteCheck() {
         meters={edge?.meters ?? null}
         departureTimeSec={edge ? nowTick : null}
         timezone={timezone}
+      />
+      <AvgTripDurationBadge
+        count={lookupPairStat(popularity.data, startId, endId)?.count ?? null}
+        meanSec={lookupPairStat(popularity.data, startId, endId)?.mean_sec ?? null}
       />
 
       <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
