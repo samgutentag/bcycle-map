@@ -14,6 +14,8 @@ type Props = {
   maxTrips?: number
   /** When set, filter events to this station and trips touching it. */
   stationFilter?: string
+  /** When true, drop the column max-height cap so the page can scroll instead of each column. */
+  unbounded?: boolean
 }
 
 const DEPARTURE_COLOR = 'text-orange-700 bg-orange-50 border-orange-200'
@@ -45,7 +47,8 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
   return edge ? { minutes: Math.round(edge.minutes) } : null
 }
 
-export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter }: Props) {
+export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter, unbounded = false }: Props) {
+  const columnScrollClass = unbounded ? '' : 'max-h-72 overflow-y-auto pr-1'
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
   const nowSec = Math.floor(Date.now() / 1000)
 
@@ -80,7 +83,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
         <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">
           {stationFilter ? 'Recent activity at this station' : 'Recent departures & arrivals'}
         </div>
-        <ul className="space-y-1 max-h-72 overflow-y-auto pr-1" aria-live="polite">
+        <ul className={`space-y-1 ${columnScrollClass}`} aria-live="polite">
           {events.map((e, i) => {
             const name = namesById.get(e.station_id) ?? e.station_id
             const isDep = e.type === 'departure'
@@ -120,7 +123,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
             None yet. Trips are paired only when the system transitions cleanly through a single active rider — typically overnight.
           </div>
         ) : (
-          <ul className="space-y-2 max-h-72 overflow-y-auto pr-1">
+          <ul className={`space-y-2 ${columnScrollClass}`}>
             {trips.map(trip => {
               const fromName = namesById.get(trip.from_station_id) ?? trip.from_station_id
               const toName = namesById.get(trip.to_station_id) ?? trip.to_station_id
