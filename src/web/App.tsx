@@ -17,6 +17,7 @@ import BrandMark from './components/BrandMark'
 import ThemeToggle from './components/ThemeToggle'
 import { IconBike } from './components/icons'
 import type { ComponentType } from 'react'
+import { useStableVerb } from './lib/spinner-verbs'
 
 function BeaconReporter() {
   useBeaconReporter()
@@ -155,7 +156,8 @@ function AppHeader({ onOpenAbout }: { onOpenAbout: () => void }) {
   )
 }
 
-function RouteFallback({ label }: { label: string }) {
+function RouteFallback() {
+  const verb = useStableVerb()
   return (
     <Flex
       direction="column"
@@ -166,7 +168,7 @@ function RouteFallback({ label }: { label: string }) {
     >
       <LoadingSpinner css={{ width: 32, height: 32 }} />
       <Text variant="body" size="s" color="subdued">
-        {label}
+        {verb}
       </Text>
     </Flex>
   )
@@ -186,7 +188,7 @@ export default function App() {
           <Route
             path="/station/:stationId/details"
             element={
-              <Suspense fallback={<RouteFallback label="Loading station details" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <StationDetails />
               </Suspense>
             }
@@ -194,7 +196,7 @@ export default function App() {
           <Route
             path="/route"
             element={
-              <Suspense fallback={<RouteFallback label="Loading route planner" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <RouteCheck />
               </Suspense>
             }
@@ -202,7 +204,7 @@ export default function App() {
           <Route
             path="/route/:startId"
             element={
-              <Suspense fallback={<RouteFallback label="Loading route planner" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <RouteCheck />
               </Suspense>
             }
@@ -210,7 +212,7 @@ export default function App() {
           <Route
             path="/route/:startId/:endId"
             element={
-              <Suspense fallback={<RouteFallback label="Loading route planner" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <RouteCheck />
               </Suspense>
             }
@@ -218,7 +220,7 @@ export default function App() {
           <Route
             path="/explore"
             element={
-              <Suspense fallback={<RouteFallback label="Loading explore" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <Explore />
               </Suspense>
             }
@@ -226,7 +228,7 @@ export default function App() {
           <Route
             path="/activity"
             element={
-              <Suspense fallback={<RouteFallback label="Loading activity" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <Activity />
               </Suspense>
             }
@@ -234,7 +236,7 @@ export default function App() {
           <Route
             path="/insights"
             element={
-              <Suspense fallback={<RouteFallback label="Loading insights" />}>
+              <Suspense fallback={<RouteFallback />}>
                 <Insights />
               </Suspense>
             }
