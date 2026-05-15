@@ -1,3 +1,5 @@
+import { getRandomVerb } from './spinner-verbs'
+
 type HourBucket = { hour: number; bikes: number; docks: number; samples: number }
 
 type TypicalResponse = {
@@ -34,7 +36,7 @@ export async function renderSparkline(
   currentBikes: number,
 ): Promise<void> {
   container.innerHTML = `
-    <div class="text-xs text-neutral-400 italic mb-1">Loading…</div>
+    <div class="text-xs text-neutral-400 italic mb-1">${getRandomVerb()}</div>
     <div class="block" data-spark-svg></div>
   `
   try {

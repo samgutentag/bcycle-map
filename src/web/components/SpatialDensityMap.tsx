@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { MapboxOverlay } from '@deck.gl/mapbox'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import { useStationSnapshots } from '../hooks/useStationSnapshots'
+import { useStableVerb } from '../lib/spinner-verbs'
 
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
@@ -16,6 +17,7 @@ export default function SpatialDensityMap({ apiBase, r2Base, system, atTs }: Pro
   const overlayRef = useRef<MapboxOverlay | null>(null)
   const boundsSetRef = useRef(false)
   const { data, loading } = useStationSnapshots({ apiBase, r2Base, system, atTs })
+  const verb = useStableVerb()
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return
@@ -83,7 +85,7 @@ export default function SpatialDensityMap({ apiBase, r2Base, system, atTs }: Pro
       <div ref={ref} className="absolute inset-0" />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/80 text-neutral-600">
-          Loading hex aggregation...
+          {verb}
         </div>
       )}
     </div>
