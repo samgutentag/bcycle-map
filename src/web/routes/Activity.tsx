@@ -43,6 +43,7 @@ export default function Activity() {
             timezone={live?.system.timezone}
             maxEvents={200}
             maxTrips={50}
+            unbounded
           />
         )}
       </section>
