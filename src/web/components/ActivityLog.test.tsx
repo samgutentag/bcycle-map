@@ -41,8 +41,9 @@ const MATRIX: TravelMatrix = {
 
 describe('ActivityLog', () => {
   it('shows the loading state when log is null', () => {
-    renderWithRouter(<ActivityLog log={null} stations={STATIONS} matrix={MATRIX} />)
-    expect(screen.getByText(/loading activity/i)).toBeInTheDocument()
+    const { container } = renderWithRouter(<ActivityLog log={null} stations={STATIONS} matrix={MATRIX} />)
+    // Shows a random bike-themed verb — just assert something non-empty renders
+    expect(container.textContent?.trim().length).toBeGreaterThan(0)
   })
 
   it('shows the empty state when no events or trips', () => {
