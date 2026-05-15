@@ -26,6 +26,9 @@ import { useHourOfWeekActiveRiders } from '../hooks/useHourOfWeekActiveRiders'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { useRouteCache } from '../hooks/useRouteCache'
 import { useActivity } from '../hooks/useActivity'
+import { useRoutePopularity } from '../hooks/useRoutePopularity'
+import PopularStationsTile from '../components/PopularStationsTile'
+import PopularRoutesTile from '../components/PopularRoutesTile'
 import { resolveRange, type Preset } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
 import type { Trip } from '@shared/types'
@@ -82,6 +85,7 @@ export default function Explore() {
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
@@ -175,6 +179,22 @@ export default function Explore() {
             onTripClick={setOpenTrip}
           />
         )}
+      </Section>
+
+      <Section title="Popular stations · 30 days">
+        <PopularStationsTile
+          top={popularity.data?.topStations ?? []}
+          stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
+          loading={popularity.loading}
+        />
+      </Section>
+
+      <Section title="Popular routes · 30 days">
+        <PopularRoutesTile
+          top={popularity.data?.topRoutes ?? []}
+          stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
+          loading={popularity.loading}
+        />
       </Section>
 
       <Section
