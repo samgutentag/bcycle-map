@@ -1,11 +1,13 @@
+import { useStableVerb } from '../lib/spinner-verbs'
+
 type Phase = 'init' | 'partitions' | 'query' | 'ready' | 'idle'
 
-const PHASE_LABEL: Record<Phase, string> = {
-  init: 'Booting in-browser database…',
-  partitions: 'Checking available data…',
-  query: 'Querying parquet from R2…',
+const PHASE_LABEL: Record<Phase, string | undefined> = {
+  init: undefined,
+  partitions: undefined,
+  query: undefined,
   ready: '',
-  idle: 'Loading…',
+  idle: undefined,
 }
 
 type Props = {
@@ -16,7 +18,9 @@ type Props = {
 }
 
 export default function ChartSkeleton({ aspectRatio = 600 / 220, label, phase = 'idle' }: Props) {
-  const text = label ?? PHASE_LABEL[phase] ?? 'Loading…'
+  const verb = useStableVerb()
+  const phaseOverride = PHASE_LABEL[phase]
+  const text = label ?? (phaseOverride !== undefined ? phaseOverride : verb)
 
   return (
     <div
