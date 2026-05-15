@@ -15,8 +15,11 @@ import { useTotalBikesOverTime } from '../hooks/useTotalBikesOverTime'
 import { useHourOfWeek } from '../hooks/useHourOfWeek'
 import { useHourOfWeekActiveRiders } from '../hooks/useHourOfWeekActiveRiders'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
+import { useRouteCache } from '../hooks/useRouteCache'
 import { useActivity } from '../hooks/useActivity'
 import { resolveRange, type Preset } from '../lib/date-range'
+import TripRouteModal from '../components/TripRouteModal'
+import type { Trip } from '@shared/types'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -26,8 +29,10 @@ export default function Explore() {
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
+  const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
+  const [openTrip, setOpenTrip] = useState<Trip | null>(null)
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
   const [routeStart, setRouteStart] = useState<string | null>(null)
@@ -97,6 +102,7 @@ export default function Explore() {
             timezone={live?.system.timezone}
             maxEvents={20}
             maxTrips={20}
+            onTripClick={setOpenTrip}
           />
         )}
       </section>
@@ -179,6 +185,16 @@ export default function Explore() {
         )}
       </section>
 
+      {openTrip && (
+        <TripRouteModal
+          trip={openTrip}
+          stations={live?.stations ?? []}
+          matrix={matrix.data}
+          routes={routes.data}
+          systemTz={live?.system.timezone ?? 'UTC'}
+          onClose={() => setOpenTrip(null)}
+        />
+      )}
     </div>
   )
 }
