@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import {
+  Box,
+  Flex,
+  IconArrowRotate,
+  Paper,
+  Text,
+  useTheme,
+} from '@audius/harmony'
+import { IconBike } from '../components/icons'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
@@ -25,6 +34,7 @@ function formatClockTime(tsSec: number, tz?: string): string {
 }
 
 export default function RouteCheck() {
+  const theme = useTheme()
   const { startId, endId } = useParams<{ startId?: string; endId?: string }>()
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
@@ -34,10 +44,6 @@ export default function RouteCheck() {
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
   const [hover, setHover] = useState<HoverState | null>(null)
 
-  // Separate ticking clock for the always-visible "now" line on the charts —
-  // updates every minute so the line drifts forward as the page stays open.
-  // Distinct from the `now` above (which is fixed at mount to keep the
-  // historical chart range stable).
   const [nowTick, setNowTick] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
     const id = setInterval(() => setNowTick(Math.floor(Date.now() / 1000)), 60_000)
@@ -45,18 +51,10 @@ export default function RouteCheck() {
   }, [])
 
   const start = useStationOverTime({
-    apiBase: API_BASE,
-    r2Base: R2_BASE,
-    system: SYSTEM_ID,
-    stationId: startId ?? null,
-    range,
+    apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, stationId: startId ?? null, range,
   })
   const dest = useStationOverTime({
-    apiBase: API_BASE,
-    r2Base: R2_BASE,
-    system: SYSTEM_ID,
-    stationId: endId ?? null,
-    range,
+    apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, stationId: endId ?? null, range,
   })
 
   function setStart(id: string | null) {
@@ -65,14 +63,12 @@ export default function RouteCheck() {
     else if (endId) navigate(`/route//${endId}`)
     else navigate('/route')
   }
-
   function setEnd(id: string | null) {
     if (startId && id) navigate(`/route/${startId}/${id}`)
     else if (id) navigate(`/route//${id}`)
     else if (startId) navigate(`/route/${startId}`)
     else navigate('/route')
   }
-
   function swapEnds() {
     if (startId && endId) navigate(`/route/${endId}/${startId}`)
     else if (startId) navigate(`/route//${startId}`)
@@ -89,45 +85,57 @@ export default function RouteCheck() {
   const edge = lookupTravelTime(matrix.data, startId, endId)
   const travelTimeSec = edge ? edge.minutes * 60 : null
 
-  const startExternalGuide = hover?.source === 'dest' && travelTimeSec
-    ? hover.timeSec - travelTimeSec
-    : null
-  const destExternalGuide = hover?.source === 'start' && travelTimeSec
-    ? hover.timeSec + travelTimeSec
-    : null
+  const startExternalGuide = hover?.source === 'dest' && travelTimeSec ? hover.timeSec - travelTimeSec : null
+  const destExternalGuide = hover?.source === 'start' && travelTimeSec ? hover.timeSec + travelTimeSec : null
   const startGuideLabel = startExternalGuide != null ? `leave ${formatClockTime(startExternalGuide, timezone)}` : undefined
   const destGuideLabel = destExternalGuide != null ? `arrive ${formatClockTime(destExternalGuide, timezone)}` : undefined
 
-  // Always-visible "now" anchor. Start chart: literal current time.
-  // Dest chart: projected arrival = now + travelTime (so the label answers
-  // "if you leave now, you'll get there by ___"). Without a known travel
-  // time the dest just shows "now" like the start.
   const startPinnedTime = nowTick
   const startPinnedLabel = 'now'
   const destPinnedTime = travelTimeSec ? nowTick + travelTimeSec : nowTick
   const destPinnedLabel = travelTimeSec ? `arrive ${formatClockTime(nowTick + travelTimeSec, timezone)}` : 'now'
 
   const handleHover = (source: 'start' | 'dest') => (ts: number | null) => {
-    if (ts === null) {
-      setHover(prev => (prev?.source === source ? null : prev))
-    } else {
-      setHover({ source, timeSec: ts })
-    }
+    if (ts === null) setHover(prev => (prev?.source === source ? null : prev))
+    else setHover({ source, timeSec: ts })
+  }
+
+  const errCss = {
+    padding: 16, margin: 0, fontSize: 12,
+    color: theme.color.text.danger,
+    background: theme.color.background.surface1,
+    border: `1px solid ${theme.color.border.default}`,
+    borderRadius: theme.cornerRadius.s,
+    whiteSpace: 'pre-wrap' as const,
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-neutral-900">Route check</h2>
-          <p className="text-sm text-neutral-600 mt-1">
-            Pick a start and a destination. Hover either chart to see the matching time on the other, offset by your bike-ride duration.
-          </p>
-        </div>
+    <Flex
+      direction="column"
+      gap="l"
+      css={{ maxWidth: 1280, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+    >
+      <Flex alignItems="flex-end" justifyContent="space-between" gap="m" wrap="wrap">
+        <Flex direction="column" gap="xs">
+          <Flex alignItems="center" gap="s">
+            <IconBike size="m" color="subdued" />
+            <Text variant="display" size="s" strength="strong" color="heading">Route check</Text>
+          </Flex>
+          <Text variant="body" size="s" color="subdued">
+            Pick a start and a destination. Hover either chart to see the matching time on the other,
+            offset by your bike-ride duration.
+          </Text>
+        </Flex>
         <DateRangePicker value={preset} onChange={setPreset} />
-      </div>
+      </Flex>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-end gap-3 mb-6">
+      <Box css={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'flex-end',
+        gap: theme.spacing.s,
+        '@media (max-width: 600px)': { gridTemplateColumns: '1fr' },
+      }}>
         <StationPicker label="Start" value={startId ?? null} stations={stations} onChange={setStart} />
         <button
           type="button"
@@ -135,24 +143,39 @@ export default function RouteCheck() {
           disabled={!startId && !endId}
           aria-label="Reverse route (swap start and destination)"
           title="Reverse route"
-          className="self-end mb-1 px-3 py-2 rounded-md border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          css={{
+            all: 'unset',
+            cursor: 'pointer',
+            alignSelf: 'flex-end',
+            marginBottom: 4,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+            borderRadius: theme.cornerRadius.s,
+            border: `1px solid ${theme.color.border.default}`,
+            background: theme.color.background.white,
+            color: theme.color.text.default,
+            transition: `background ${theme.motion.quick}`,
+            '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+            '&:disabled': { opacity: 0.4, cursor: 'not-allowed' },
+            '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+          }}
         >
-          <span aria-hidden>⇅</span>
+          <IconArrowRotate size="s" color="subdued" />
         </button>
         <StationPicker label="Destination" value={endId ?? null} stations={stations} onChange={setEnd} />
-      </div>
+      </Box>
 
-      <section className="mb-2 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">
-          Start: {startStation?.name ?? <span className="text-neutral-400">(no station selected)</span>}
-        </h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+      <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+        <Text variant="title" size="s" strength="strong" color="heading">
+          Start: {startStation?.name ?? <Text tag="span" color="subdued">(no station selected)</Text>}
+        </Text>
+        <Text variant="body" size="xs" color="subdued">
           Bikes available at the start station over the selected range. Higher line = easier to find one to grab.
-        </p>
-        {!startId && <div className="text-sm text-neutral-500 py-6">Pick a start station above to see its trends.</div>}
-        {startId && start.error && (
-          <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{start.error.message}</pre>
-        )}
+        </Text>
+        {!startId && <Text variant="body" size="s" color="subdued">Pick a start station above to see its trends.</Text>}
+        {startId && start.error && <pre css={errCss}>{start.error.message}</pre>}
         {startId && !start.error && (start.loading || !start.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={start.phase} />
         )}
@@ -169,7 +192,7 @@ export default function RouteCheck() {
             timezone={timezone}
           />
         )}
-      </section>
+      </Paper>
 
       <TravelTimeBadge
         loading={matrix.loading && !!startId && !!endId}
@@ -179,17 +202,15 @@ export default function RouteCheck() {
         timezone={timezone}
       />
 
-      <section className="mb-6 bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
-        <h3 className="text-sm font-semibold text-neutral-700">
-          Destination: {destStation?.name ?? <span className="text-neutral-400">(no station selected)</span>}
-        </h3>
-        <p className="text-xs text-neutral-500 mt-0.5 mb-3">
+      <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+        <Text variant="title" size="s" strength="strong" color="heading">
+          Destination: {destStation?.name ?? <Text tag="span" color="subdued">(no station selected)</Text>}
+        </Text>
+        <Text variant="body" size="xs" color="subdued">
           Open docks at the destination station. Higher line = easier to find a parking spot when you arrive.
-        </p>
-        {!endId && <div className="text-sm text-neutral-500 py-6">Pick a destination above to see its trends.</div>}
-        {endId && dest.error && (
-          <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{dest.error.message}</pre>
-        )}
+        </Text>
+        {!endId && <Text variant="body" size="s" color="subdued">Pick a destination above to see its trends.</Text>}
+        {endId && dest.error && <pre css={errCss}>{dest.error.message}</pre>}
         {endId && !dest.error && (dest.loading || !dest.data) && (
           <ChartSkeleton aspectRatio={600 / 200} phase={dest.phase} />
         )}
@@ -206,11 +227,19 @@ export default function RouteCheck() {
             timezone={timezone}
           />
         )}
-      </section>
+      </Paper>
 
-      <p className="text-xs text-neutral-500 mt-2">
-        Tip: the URL stays in sync with your selections. Bookmark <code className="bg-neutral-100 px-1 rounded">/route/&lt;start&gt;/&lt;destination&gt;</code> to come back to a specific pair.
-      </p>
-    </div>
+      <Text variant="body" size="xs" color="subdued">
+        Tip: the URL stays in sync with your selections. Bookmark{' '}
+        <code css={{
+          background: theme.color.background.surface1,
+          padding: '1px 6px',
+          borderRadius: theme.cornerRadius.xs,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          fontSize: 11,
+        }}>/route/&lt;start&gt;/&lt;destination&gt;</code>{' '}
+        to come back to a specific pair.
+      </Text>
+    </Flex>
   )
 }

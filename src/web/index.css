@@ -1,6 +1,45 @@
-@tailwind base;
-@tailwind components;
+/* Harmony owns the global reset + typography (Avenir is bundled inside harmony.css).
+ * Importing this first means Tailwind utilities composed on top can still win when
+ * they share specificity, while Harmony components ship with their own pre-bound styles. */
+@import '@audius/harmony/dist/harmony.css';
+
+/* Tailwind utilities only — no base reset (harmony.css owns that), no components layer. */
 @tailwind utilities;
+
+/* Surface token aliases. Pointing app-level tokens at Harmony CSS variables means
+ * non-Harmony surfaces (MapLibre popup, inline SVGs, sparklines drawn imperatively)
+ * read from one source of truth that flips automatically with light/dark theme. */
+:root {
+  --app-bg: var(--harmony-bg-default);
+  --app-bg-surface: var(--harmony-bg-white);
+  --app-bg-surface-2: var(--harmony-bg-surface-1);
+  --app-text: var(--harmony-text-default);
+  --app-text-subdued: var(--harmony-text-subdued);
+  --app-text-heading: var(--harmony-text-heading);
+  --app-border: var(--harmony-border-default);
+  --app-border-strong: var(--harmony-border-strong);
+  --app-accent: var(--harmony-blue);
+  --app-warning: var(--harmony-orange);
+  --app-danger: var(--harmony-red);
+  --app-success: var(--harmony-green);
+  --app-shadow-near: var(--harmony-shadow-near);
+  --app-shadow-mid: var(--harmony-shadow-mid);
+  --app-shadow-far: var(--harmony-shadow-far);
+  --app-radius-s: var(--harmony-border-radius-s);
+  --app-radius-m: var(--harmony-border-radius-m);
+  --app-radius-l: var(--harmony-border-radius-l);
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: var(--harmony-font-family);
+}
+
+#root {
+  min-height: 100vh;
+  background: var(--app-bg);
+}
 
 @layer utilities {
   @keyframes shimmer {
@@ -10,11 +49,51 @@
   .shimmer {
     background-image: linear-gradient(
       90deg,
-      rgb(243 244 246) 0%,
-      rgb(229 231 235) 50%,
-      rgb(243 244 246) 100%
+      var(--app-bg-surface-2) 0%,
+      var(--app-border) 50%,
+      var(--app-bg-surface-2) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 1.6s linear infinite;
   }
+}
+
+.maplibregl-popup-content {
+  background: var(--app-bg-surface) !important;
+  color: var(--app-text) !important;
+  box-shadow: var(--app-shadow-mid) !important;
+  border-radius: var(--app-radius-m, 8px) !important;
+  border: 1px solid var(--app-border) !important;
+  padding: 12px 14px !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: var(--app-bg-surface) !important;
+  border-bottom-color: var(--app-bg-surface) !important;
+}
+
+.maplibregl-popup-close-button {
+  color: var(--app-text-subdued) !important;
+  font-size: 18px !important;
+  padding: 2px 6px !important;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: var(--app-text) !important;
+  background: transparent !important;
+}
+
+.maplibregl-ctrl-attrib {
+  background: rgba(255, 255, 255, 0.7) !important;
+  color: var(--app-text-subdued) !important;
+  font-size: 11px !important;
+}
+
+[data-theme='dark'] .maplibregl-ctrl-attrib {
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: var(--app-text-subdued) !important;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: var(--app-accent) !important;
 }

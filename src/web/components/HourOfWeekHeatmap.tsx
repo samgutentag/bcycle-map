@@ -110,7 +110,9 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
         }),
       )}
 
-      {/* Hover tooltip — dark pill at the top, centered horizontally. Falls back to a hint when nothing is hovered. */}
+      {/* Hover tooltip — dark pill at the top, centered horizontally.
+       * Empty (rather than a "hover me" placeholder) when nothing is hovered;
+       * the interactive cells themselves invite the gesture. */}
       {tooltipText ? (
         <g pointerEvents="none">
           <rect x={LABEL_W} y={0} width={WIDTH - LABEL_W} height={TOOLTIP_H - 2} rx={3} fill={TOOLTIP_BG} opacity={0.92} />
@@ -118,11 +120,7 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
             {tooltipText}
           </text>
         </g>
-      ) : (
-        <text x={LABEL_W + 4} y={TOOLTIP_H - 6} fontSize="9" fill="#9ca3af" fontStyle="italic">
-          Hover a cell for details
-        </text>
-      )}
+      ) : null}
     </svg>
   )
 }

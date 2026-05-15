@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Flex, IconArrowLeft, Paper, Text, useTheme } from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useActivity } from '../hooks/useActivity'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
@@ -12,6 +13,7 @@ const SYSTEM_ID = 'bcycle_santabarbara'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 export default function Activity() {
+  const theme = useTheme()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
@@ -22,24 +24,52 @@ export default function Activity() {
   const tripCount = activity.data?.trips.length ?? 0
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-4">
-        <Link to="/explore" className="text-xs text-sky-700 hover:underline">← Back to Explore</Link>
-      </div>
+    <Flex
+      direction="column"
+      gap="l"
+      css={{ maxWidth: 1280, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+    >
+      <Link
+        to="/explore"
+        css={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: theme.spacing.xs,
+          color: theme.color.text.subdued,
+          textDecoration: 'none',
+          fontSize: 13,
+          alignSelf: 'flex-start',
+          '&:hover': { color: theme.color.text.default, textDecoration: 'underline' },
+        }}
+      >
+        <IconArrowLeft size="s" color="subdued" /> Back to Explore
+      </Link>
 
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-neutral-900">Activity log</h2>
-        <p className="text-sm text-neutral-600 mt-1">
-          The poller diffs per-station bike counts every two minutes and emits a departure (count down) or arrival (count up) event for any station that changed. Trips are paired only when the system passes cleanly through a single active rider, so they're rare during busy hours and clump up overnight. Capped to the most recent 200 events and 50 trips in storage.
-        </p>
-        <p className="text-xs text-neutral-500 mt-2">
+      <Flex direction="column" gap="xs">
+        <Text variant="display" size="s" strength="strong" color="heading">
+          Activity log
+        </Text>
+        <Text variant="body" size="s" color="subdued">
+          The poller diffs per-station bike counts every two minutes and emits a departure (count down) or arrival
+          (count up) event for any station that changed. Trips are paired only when the system passes cleanly through
+          a single active rider, so they're rare during busy hours and clump up overnight. Capped to the most recent
+          200 events and 50 trips in storage.
+        </Text>
+        <Text variant="body" size="xs" color="subdued">
           {eventCount} {eventCount === 1 ? 'event' : 'events'} · {tripCount} inferred {tripCount === 1 ? 'trip' : 'trips'}
-        </p>
-      </div>
+        </Text>
+      </Flex>
 
-      <section className="bg-white rounded-lg shadow-sm border border-neutral-200 p-4">
+      <Paper p="m" borderRadius="m" shadow="near" border="default">
         {activity.error && (
-          <pre className="p-4 text-xs text-red-700 bg-red-50 border border-red-200 rounded whitespace-pre-wrap select-all">{activity.error.message}</pre>
+          <pre css={{
+            padding: 16, margin: 0, fontSize: 12,
+            color: theme.color.text.danger,
+            background: theme.color.background.surface1,
+            border: `1px solid ${theme.color.border.default}`,
+            borderRadius: theme.cornerRadius.s,
+            whiteSpace: 'pre-wrap',
+          }}>{activity.error.message}</pre>
         )}
         {!activity.error && (
           <ActivityLog
@@ -53,7 +83,8 @@ export default function Activity() {
             onTripClick={setOpenTrip}
           />
         )}
-      </section>
+      </Paper>
+
       {openTrip && (
         <TripRouteModal
           trip={openTrip}
@@ -64,6 +95,6 @@ export default function Activity() {
           onClose={() => setOpenTrip(null)}
         />
       )}
-    </div>
+    </Flex>
   )
 }

@@ -1,5 +1,15 @@
-import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  Flex,
+  IconExternalLink,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  Text,
+  useTheme,
+} from '@audius/harmony'
+import { BikeGlyph } from './BrandMark'
 
 type Props = {
   open: boolean
@@ -8,123 +18,146 @@ type Props = {
 
 type LinkCard = {
   href: string
-  icon: string
   label: string
   desc: string
   internal?: boolean
 }
 
 const LINKS: LinkCard[] = [
-  {
-    href: 'https://github.com/samgutentag/bcycle-map',
-    icon: '💻',
-    label: 'GitHub',
-    desc: 'View the code',
-  },
-  {
-    href: 'https://gbfs.bcycle.com/bcycle_santabarbara/gbfs.json',
-    icon: '📡',
-    label: 'GBFS feed',
-    desc: 'Live data origin',
-  },
-  {
-    href: '/activity',
-    icon: '🚦',
-    label: 'Activity',
-    desc: 'Recent rides',
-    internal: true,
-  },
-  {
-    href: 'https://santabarbara.bcycle.com',
-    icon: '🚲',
-    label: 'BCycle',
-    desc: 'Rent a real bike',
-  },
-  {
-    href: 'mailto:bcycle-map@samgutentag.com',
-    icon: '✉️',
-    label: 'Contact',
-    desc: 'Feedback & corrections',
-  },
+  { href: 'https://github.com/samgutentag/bcycle-map', label: 'GitHub', desc: 'View the code' },
+  { href: 'https://gbfs.bcycle.com/bcycle_santabarbara/gbfs.json', label: 'GBFS feed', desc: 'Live data origin' },
+  { href: '/activity', label: 'Activity', desc: 'Recent rides', internal: true },
+  { href: 'https://santabarbara.bcycle.com', label: 'BCycle', desc: 'Rent a real bike' },
+  { href: 'mailto:bcycle-map@samgutentag.com', label: 'Contact', desc: 'Feedback & corrections' },
 ]
 
+function LinkTile({ link, onClose }: { link: LinkCard; onClose: () => void }) {
+  const theme = useTheme()
+  const sharedCss = {
+    all: 'unset' as const,
+    cursor: 'pointer',
+    aspectRatio: '1 / 1',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+    padding: theme.spacing.s,
+    textAlign: 'center' as const,
+    borderRadius: theme.cornerRadius.m,
+    background: theme.color.background.surface1,
+    border: `1px solid ${theme.color.border.default}`,
+    color: theme.color.text.default,
+    transition: `background ${theme.motion.quick}, border-color ${theme.motion.quick}`,
+    '&:hover': {
+      background: theme.color.background.white,
+      borderColor: theme.color.border.strong,
+    },
+    '&:focus-visible': {
+      outline: `2px solid ${theme.color.focus.default}`,
+      outlineOffset: 2,
+    },
+  }
+  const body = (
+    <>
+      <Text variant="title" size="s" strength="strong" color="heading">
+        {link.label}
+      </Text>
+      <Text variant="body" size="xs" color="subdued">
+        {link.desc}
+      </Text>
+    </>
+  )
+  return link.internal ? (
+    <Link to={link.href} onClick={onClose} css={sharedCss}>
+      {body}
+    </Link>
+  ) : (
+    <a href={link.href} target="_blank" rel="noopener noreferrer" css={sharedCss}>
+      {body}
+    </a>
+  )
+}
+
 export default function AboutModal({ open, onClose }: Props) {
-  // Close on Escape, lock body scroll while open
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
-    }
-  }, [open, onClose])
-
-  if (!open) return null
-
+  const theme = useTheme()
   return (
-    <div
-      className="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="about-title"
-    >
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute top-3 right-3 w-8 h-8 rounded-full text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 flex items-center justify-center text-xl leading-none"
-        >
-          ×
-        </button>
+    <Modal isOpen={open} onClose={onClose} dismissOnClickOutside>
+      <ModalHeader onClose={onClose}>
+        <Flex direction="column" alignItems="center" gap="s" css={{ width: '100%' }}>
+          <Flex
+            alignItems="center"
+            justifyContent="center"
+            css={{
+              width: 56,
+              height: 56,
+              borderRadius: theme.cornerRadius.l,
+              background: theme.color.background.surface1,
+              border: `1px solid ${theme.color.border.default}`,
+              color: theme.color.text.heading,
+            }}
+          >
+            <BikeGlyph size={32} />
+          </Flex>
+          <ModalTitle title="bcycle-map" />
+          <Text variant="label" size="s" color="warning" strength="strong">
+            Santa Barbara, CA
+          </Text>
+        </Flex>
+      </ModalHeader>
+      <ModalContent>
+        <Flex direction="column" gap="l" css={{ paddingBottom: theme.spacing.l }}>
+          <Text variant="body" size="m" color="default" textAlign="center">
+            A live map of Santa Barbara's BCycle bike share, with historical patterns, a route planner, and a feed
+            of recent activity. Find an available bike or an open dock before you walk over.
+          </Text>
 
-        <div className="px-6 pt-8 pb-2 text-center">
-          <h2 id="about-title" className="text-2xl font-semibold text-neutral-900">bcycle-map</h2>
-          <p className="text-amber-600 mt-1">Santa Barbara, CA</p>
-        </div>
+          <Flex
+            css={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: theme.spacing.s,
+            }}
+          >
+            {LINKS.map((l) => (
+              <LinkTile key={l.href} link={l} onClose={onClose} />
+            ))}
+          </Flex>
 
-        <div className="px-8 pt-3 pb-6 text-center">
-          <p className="text-neutral-700">
-            A live map of Santa Barbara's BCycle bike share, with historical patterns, a route planner, and a feed of recent activity. Find an available bike or an open dock before you walk over.
-          </p>
-        </div>
-
-        <div className="px-6 pb-6">
-          <div className="grid grid-cols-3 gap-3">
-            {LINKS.map(l => {
-              const cardClass = 'flex flex-col items-center justify-center gap-1 text-center rounded-md bg-neutral-100 hover:bg-neutral-200 transition-colors p-3 aspect-square'
-              const body = (
-                <>
-                  <span aria-hidden className="text-2xl mb-0.5">{l.icon}</span>
-                  <span className="text-sm font-semibold text-neutral-900">{l.label}</span>
-                  <span className="text-xs text-neutral-500 leading-tight">{l.desc}</span>
-                </>
-              )
-              return l.internal ? (
-                <Link key={l.href} to={l.href} onClick={onClose} className={cardClass}>{body}</Link>
-              ) : (
-                <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className={cardClass}>{body}</a>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="border-t border-neutral-100 px-6 py-4 text-center text-sm text-neutral-500">
-          Made by{' '}
-          <a
-            href="https://www.gutentag.world"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-amber-600 hover:underline"
-          >Sam Gutentag</a>{' '}in Santa Barbara, CA
-        </div>
-      </div>
-    </div>
+          <Flex
+            justifyContent="center"
+            alignItems="center"
+            gap="xs"
+            css={{
+              paddingTop: theme.spacing.m,
+              borderTop: `1px solid ${theme.color.border.default}`,
+            }}
+          >
+            <Text variant="body" size="s" color="subdued">
+              Made by
+            </Text>
+            <a
+              href="https://www.gutentag.world"
+              target="_blank"
+              rel="noopener noreferrer"
+              css={{
+                color: theme.color.text.warning,
+                textDecoration: 'none',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                '&:hover': { textDecoration: 'underline' },
+              }}
+            >
+              Sam Gutentag <IconExternalLink size="xs" color="warning" />
+            </a>
+            <Text variant="body" size="s" color="subdued">
+              in Santa Barbara
+            </Text>
+          </Flex>
+        </Flex>
+      </ModalContent>
+    </Modal>
   )
 }
