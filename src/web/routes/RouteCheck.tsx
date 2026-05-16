@@ -23,6 +23,7 @@ import StationOverTimeChart from '../components/StationOverTimeChart'
 import TravelTimeBadge from '../components/TravelTimeBadge'
 import AvgTripDurationBadge from '../components/AvgTripDurationBadge'
 import TripRouteMap from '../components/TripRouteMap'
+import LiveDot from '../components/LiveDot'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { resolveRange, type Preset } from '../lib/date-range'
 
@@ -34,12 +35,14 @@ type HoverState = { source: 'start' | 'dest'; timeSec: number }
 
 function LiveStationTile({ role, station }: { role: 'Start' | 'Destination'; station: StationSnapshot | undefined }) {
   const total = station ? station.num_bikes_available + station.num_docks_available : 0
-  const pctFull = station && total > 0 ? Math.round((station.num_bikes_available / total) * 100) : null
   const offline = station ? !station.is_renting || !station.is_returning || !station.is_installed : false
   return (
     <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="xs">
       <Flex alignItems="center" justifyContent="space-between" gap="s">
-        <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">{role}</Text>
+        <Flex alignItems="center" gap="xs">
+          <LiveDot />
+          <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">{role}</Text>
+        </Flex>
         {offline && <Text variant="label" size="xs" color="danger">Offline</Text>}
       </Flex>
       <Text variant="title" size="s" strength="strong" color="heading" css={{ wordBreak: 'break-word' }}>
@@ -48,7 +51,7 @@ function LiveStationTile({ role, station }: { role: 'Start' | 'Destination'; sta
       {station ? (
         <Flex alignItems="baseline" gap="l">
           <Flex direction="column" gap="2xs">
-            <Text variant="display" size="s" strength="strong" color="heading" lineHeight="single">
+            <Text variant="display" size="s" strength="strong" color="warning" lineHeight="single">
               {station.num_bikes_available}
             </Text>
             <Text variant="label" size="xs" color="subdued">bikes available</Text>
@@ -65,9 +68,6 @@ function LiveStationTile({ role, station }: { role: 'Start' | 'Destination'; sta
         </Flex>
       ) : (
         <Text variant="body" size="xs" color="subdued">Pick a {role.toLowerCase()} station above.</Text>
-      )}
-      {pctFull !== null && (
-        <Text variant="body" size="xs" color="subdued">{pctFull}% full</Text>
       )}
     </Paper>
   )

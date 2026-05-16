@@ -21,6 +21,7 @@ import { useStationOverTime } from '../hooks/useStationOverTime'
 import DateRangePicker from '../components/DateRangePicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
 import MiniLine from '../components/MiniLine'
+import LiveDot from '../components/LiveDot'
 import ChartSkeleton from '../components/ChartSkeleton'
 import ActivityLog from '../components/ActivityLog'
 import { useActivity } from '../hooks/useActivity'
@@ -275,7 +276,6 @@ export default function StationDetails() {
   const totalDocks = station ? station.num_bikes_available + station.num_docks_available : undefined
   const offline = station ? !station.is_renting || !station.is_returning || !station.is_installed : false
   const mapsHref = station ? `https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}` : null
-  const pctFull = station && totalDocks ? Math.round((station.num_bikes_available / totalDocks) * 100) : null
   const reportedAge = station ? Math.max(0, tick - station.last_reported) : 0
 
   const series = useStationOverTime({
@@ -423,12 +423,15 @@ export default function StationDetails() {
             gap="s"
             css={{ minWidth: 300 }}
           >
-            <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
-              Right now
-            </Text>
+            <Flex alignItems="center" gap="xs">
+              <LiveDot />
+              <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
+                Right now
+              </Text>
+            </Flex>
             <Flex gap="xl" alignItems="flex-end">
               <Flex direction="column" gap="2xs" css={{ minWidth: 130 }}>
-                <Text variant="display" size="s" strength="strong" color="heading">
+                <Text variant="display" size="s" strength="strong" color="warning">
                   {station.num_bikes_available}
                 </Text>
                 <Text variant="label" size="xs" color="subdued" css={{ height: 16, whiteSpace: 'nowrap', overflow: 'hidden' }}>
@@ -469,9 +472,6 @@ export default function StationDetails() {
                 )}
               </Flex>
             </Flex>
-            {pctFull !== null && (
-              <Text variant="body" size="xs" color="subdued">{pctFull}% full</Text>
-            )}
           </Paper>
         )}
       </Flex>
