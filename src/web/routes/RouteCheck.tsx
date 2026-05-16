@@ -13,12 +13,15 @@ import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { useRoutePopularity } from '../hooks/useRoutePopularity'
+import { useRouteCache } from '../hooks/useRouteCache'
+import { lookupRoute } from '@shared/route-cache'
 import { lookupPairStat } from '@shared/popularity'
 import DateRangePicker from '../components/DateRangePicker'
 import StationPicker from '../components/StationPicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
 import TravelTimeBadge from '../components/TravelTimeBadge'
 import AvgTripDurationBadge from '../components/AvgTripDurationBadge'
+import TripRouteMap from '../components/TripRouteMap'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { resolveRange, type Preset } from '../lib/date-range'
 
@@ -43,6 +46,7 @@ export default function RouteCheck() {
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
+  const routeCache = useRouteCache(R2_BASE, SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
@@ -88,6 +92,7 @@ export default function RouteCheck() {
 
   const edge = lookupTravelTime(matrix.data, startId, endId)
   const travelTimeSec = edge ? edge.minutes * 60 : null
+  const routeEdge = lookupRoute(routeCache.data, startId, endId)
 
   const startExternalGuide = hover?.source === 'dest' && travelTimeSec ? hover.timeSec - travelTimeSec : null
   const destExternalGuide = hover?.source === 'start' && travelTimeSec ? hover.timeSec + travelTimeSec : null
@@ -183,6 +188,23 @@ export default function RouteCheck() {
         </button>
         <StationPicker label="Destination" value={endId ?? null} stations={stations} onChange={setEnd} />
       </Box>
+
+      {startStation && destStation && (
+        <Paper p="0" borderRadius="m" shadow="near" border="default" direction="column" css={{ overflow: 'hidden' }}>
+          <TripRouteMap
+            from={startStation}
+            to={destStation}
+            routeEdge={routeEdge}
+            stations={stations}
+            className="h-64 sm:h-80 w-full bg-neutral-100"
+          />
+          {!routeEdge && (
+            <Text variant="body" size="xs" color="subdued" css={{ padding: theme.spacing.s, textAlign: 'center' }}>
+              Approximate route — bike directions not yet cached for this pair.
+            </Text>
+          )}
+        </Paper>
+      )}
 
       <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
         <Text variant="title" size="s" strength="strong" color="heading">
