@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import type { StationSnapshot } from '@shared/types'
 import {
   Box,
   Flex,
@@ -30,6 +31,47 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 type HoverState = { source: 'start' | 'dest'; timeSec: number }
+
+function LiveStationTile({ role, station }: { role: 'Start' | 'Destination'; station: StationSnapshot | undefined }) {
+  const total = station ? station.num_bikes_available + station.num_docks_available : 0
+  const pctFull = station && total > 0 ? Math.round((station.num_bikes_available / total) * 100) : null
+  const offline = station ? !station.is_renting || !station.is_returning || !station.is_installed : false
+  return (
+    <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="xs">
+      <Flex alignItems="center" justifyContent="space-between" gap="s">
+        <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">{role}</Text>
+        {offline && <Text variant="label" size="xs" color="danger">Offline</Text>}
+      </Flex>
+      <Text variant="title" size="s" strength="strong" color="heading" css={{ wordBreak: 'break-word' }}>
+        {station?.name ?? <Text tag="span" color="subdued">(no station selected)</Text>}
+      </Text>
+      {station ? (
+        <Flex alignItems="baseline" gap="l">
+          <Flex direction="column" gap="2xs">
+            <Text variant="display" size="s" strength="strong" color="heading" lineHeight="single">
+              {station.num_bikes_available}
+            </Text>
+            <Text variant="label" size="xs" color="subdued">bikes available</Text>
+          </Flex>
+          <Flex direction="column" gap="2xs">
+            <Flex alignItems="baseline" gap="2xs">
+              <Text variant="display" size="s" strength="strong" color="heading" lineHeight="single">
+                {station.num_docks_available}
+              </Text>
+              {total > 0 && <Text variant="title" size="s" color="subdued">/ {total}</Text>}
+            </Flex>
+            <Text variant="label" size="xs" color="subdued">open docks</Text>
+          </Flex>
+        </Flex>
+      ) : (
+        <Text variant="body" size="xs" color="subdued">Pick a {role.toLowerCase()} station above.</Text>
+      )}
+      {pctFull !== null && (
+        <Text variant="body" size="xs" color="subdued">{pctFull}% full</Text>
+      )}
+    </Paper>
+  )
+}
 
 function formatClockTime(tsSec: number, tz?: string): string {
   return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
@@ -188,6 +230,20 @@ export default function RouteCheck() {
         </button>
         <StationPicker label="Destination" value={endId ?? null} stations={stations} onChange={setEnd} />
       </Box>
+
+      {(startStation || destStation) && (
+        <Box
+          css={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: theme.spacing.s,
+            '@media (max-width: 600px)': { gridTemplateColumns: '1fr' },
+          }}
+        >
+          <LiveStationTile role="Start" station={startStation} />
+          <LiveStationTile role="Destination" station={destStation} />
+        </Box>
+      )}
 
       {startStation && destStation && (
         <Paper p="0" borderRadius="m" shadow="near" border="default" direction="column" css={{ overflow: 'hidden' }}>
