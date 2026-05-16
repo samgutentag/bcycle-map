@@ -163,7 +163,7 @@ export default function Explore() {
 
       <Section
         title="Activity log"
-        description="Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair a departure with the next arrival, but only during quiet periods where the system has exactly one active rider."
+        description="Recent station-level departures (bike count went down) and arrivals (bike count went up), sampled every two minutes. Inferred trips on the right pair each departure with its most likely matching arrival, scored against the travel-time matrix."
         trailing={
           <Link
             to="/activity"
