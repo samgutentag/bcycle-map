@@ -18,8 +18,7 @@ import {
 } from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
-import DateRangePicker from '../components/DateRangePicker'
-import StationOverTimeChart from '../components/StationOverTimeChart'
+import StationTodayChart from '../components/StationTodayChart'
 import MiniLine from '../components/MiniLine'
 import LiveDot from '../components/LiveDot'
 import ChartSkeleton from '../components/ChartSkeleton'
@@ -27,7 +26,7 @@ import ActivityLog from '../components/ActivityLog'
 import { useActivity } from '../hooks/useActivity'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import { useRouteCache } from '../hooks/useRouteCache'
-import { resolveRange, type Preset } from '../lib/date-range'
+import { resolveRange } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
 import type { Trip } from '@shared/types'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
@@ -261,10 +260,11 @@ export default function StationDetails() {
   const activity = useActivity(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
-  const [preset, setPreset] = useState<Preset>('24h')
   const [openTrip, setOpenTrip] = useState<Trip | null>(null)
   const [now] = useState(() => Math.floor(Date.now() / 1000))
-  const range = useMemo(() => resolveRange(preset, now), [preset, now])
+  // Last 24 hours is enough cushion to always contain "today since midnight"
+  // in the station's local timezone. The today-chart filters down.
+  const range = useMemo(() => resolveRange('24h', now), [now])
 
   const [tick, setTick] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
@@ -483,18 +483,15 @@ export default function StationDetails() {
         </Paper>
       )}
 
-      {/* Typical patterns */}
+      {/* Today's history at this station */}
       <Flex direction="column" gap="s">
-        <Flex alignItems="center" justifyContent="space-between" gap="m" wrap="wrap">
-          <Flex alignItems="center" gap="xs">
-            <IconCalendarDay size="s" color="subdued" />
-            <Text variant="title" size="m" strength="strong" color="heading">Typical patterns</Text>
-          </Flex>
-          <DateRangePicker value={preset} onChange={setPreset} />
+        <Flex alignItems="center" gap="xs">
+          <IconCalendarDay size="s" color="subdued" />
+          <Text variant="title" size="m" strength="strong" color="heading">Today's bikes available</Text>
         </Flex>
         <Text variant="body" size="xs" color="subdued">
-          Half-hour averages. Each column is a stack of dock slots — filled from the bottom for bikes parked,
-          faint slots up top for empty docks. Hover any column for the exact value.
+          Bikes parked at this station since midnight (station local time). The right edge tracks the live
+          number above — no lag against the parquet sample.
         </Text>
         <Paper p="m" borderRadius="m" shadow="near" border="default">
           {!stationId && <Text variant="body" size="s" color="subdued">No station ID provided.</Text>}
@@ -514,7 +511,13 @@ export default function StationDetails() {
             <ChartSkeleton aspectRatio={600 / 230} phase={series.phase} />
           )}
           {stationId && series.data && !series.loading && (
-            <StationOverTimeChart data={series.data} totalDocks={totalDocks} show="squares" timezone={live?.system.timezone} />
+            <StationTodayChart
+              data={series.data}
+              liveValue={station?.num_bikes_available ?? null}
+              liveTs={live?.snapshot_ts ?? null}
+              totalDocks={totalDocks}
+              timezone={live?.system.timezone}
+            />
           )}
         </Paper>
       </Flex>

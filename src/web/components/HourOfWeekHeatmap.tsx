@@ -77,6 +77,8 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
 
   const lookup = new Map<string, { value: number; samples: number }>()
   for (const r of data) lookup.set(`${r.dow}-${r.hod}`, { value: r.value, samples: r.samples })
+  // Scale across the whole grid (all 168 dow×hod cells), not per row or per
+  // column — so cells are comparable across the entire heatmap.
   const values = data.map(d => d.value)
   const min = Math.min(...values)
   const max = Math.max(...values)
