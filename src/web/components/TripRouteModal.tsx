@@ -1,12 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react'
-import maplibregl from 'maplibre-gl'
+import { useEffect, useMemo } from 'react'
 import type { Trip, StationSnapshot } from '@shared/types'
 import { lookupRoute, type RouteCache } from '@shared/route-cache'
-import { decodePolyline } from '@shared/polyline'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
-import { buildEndpointPin } from '../lib/pin-svg'
-
-const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
+import TripRouteMap from './TripRouteMap'
 
 type TripRouteModalProps = {
   trip: Trip
@@ -43,25 +39,7 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
-function svgDataUri(svg: string): string {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
-}
-
-function makePinElement(role: 'origin' | 'destination' | 'via'): HTMLDivElement {
-  const wrapper = document.createElement('div')
-  wrapper.style.width = role === 'via' ? '20px' : '32px'
-  wrapper.style.height = role === 'via' ? '27px' : '42px'
-  wrapper.style.backgroundImage = `url("${svgDataUri(buildEndpointPin(role))}")`
-  wrapper.style.backgroundSize = 'contain'
-  wrapper.style.backgroundRepeat = 'no-repeat'
-  wrapper.style.pointerEvents = 'none'
-  return wrapper
-}
-
 export default function TripRouteModal({ trip, stations, matrix, routes, systemTz, onClose }: TripRouteModalProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<maplibregl.Map | null>(null)
-
   const stationById = useMemo(() => new Map(stations.map(s => [s.station_id, s])), [stations])
   const fromStation = stationById.get(trip.from_station_id)
   const toStation = stationById.get(trip.to_station_id)
@@ -83,75 +61,6 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
-
-  // Mount the map after the container exists; tear it down on unmount
-  useEffect(() => {
-    if (!containerRef.current || !fromStation || !toStation) return
-
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: POSITRON_STYLE,
-      attributionControl: { compact: true },
-      interactive: true,
-    })
-    mapRef.current = map
-
-    const onLoad = () => {
-      const decoded = routeEdge ? decodePolyline(routeEdge.polyline) : null
-      const lineCoords: Array<[number, number]> = decoded && decoded.length >= 2
-        ? decoded
-        : [[fromStation.lon, fromStation.lat], [toStation.lon, toStation.lat]]
-
-      map.addSource('trip-route', {
-        type: 'geojson',
-        data: { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: lineCoords } },
-      })
-      map.addLayer({
-        id: 'trip-route-line',
-        type: 'line',
-        source: 'trip-route',
-        paint: {
-          'line-color': '#0d6cb0',
-          'line-width': 4,
-          'line-opacity': 0.85,
-          ...(decoded ? {} : { 'line-dasharray': [2, 2] }),
-        },
-      })
-
-      // Endpoint markers
-      new maplibregl.Marker({ element: makePinElement('origin'), anchor: 'bottom' })
-        .setLngLat([fromStation.lon, fromStation.lat])
-        .addTo(map)
-      new maplibregl.Marker({ element: makePinElement('destination'), anchor: 'bottom' })
-        .setLngLat([toStation.lon, toStation.lat])
-        .addTo(map)
-
-      // Dim via-station markers
-      if (routeEdge) {
-        for (const viaId of routeEdge.via_station_ids) {
-          if (viaId === trip.from_station_id || viaId === trip.to_station_id) continue
-          const via = stationById.get(viaId)
-          if (!via) continue
-          new maplibregl.Marker({ element: makePinElement('via'), anchor: 'bottom' })
-            .setLngLat([via.lon, via.lat])
-            .addTo(map)
-        }
-      }
-
-      // Fit bounds
-      const bounds = new maplibregl.LngLatBounds()
-      for (const c of lineCoords) bounds.extend(c)
-      map.fitBounds(bounds, { padding: 40, duration: 0 })
-    }
-
-    map.on('load', onLoad)
-
-    return () => {
-      map.off('load', onLoad)
-      map.remove()
-      mapRef.current = null
-    }
-  }, [fromStation, toStation, routeEdge, stationById, trip.from_station_id, trip.to_station_id])
 
   if (!fromStation || !toStation) {
     // Defensive: parent should not render the modal until stations are loaded.
@@ -198,10 +107,12 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
           </button>
         </div>
 
-        <div
-          ref={containerRef}
+        <TripRouteMap
+          from={fromStation}
+          to={toStation}
+          routeEdge={routeEdge}
+          stations={stations}
           className="h-72 sm:h-96 w-full bg-neutral-100"
-          aria-label="Bike route map"
         />
 
         <div className="p-4 border-t border-neutral-200">
