@@ -13,7 +13,7 @@ function InferredTripsInfoButton() {
         aria-label="How are inferred trips calculated?"
         aria-expanded={open}
         onClick={() => setOpen(true)}
-        className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-[10px] text-ink-subdued hover:text-ink hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300"
+        className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full border border-line bg-transparent text-[10px] text-ink-subdued hover:text-ink hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300"
       >
         i
       </button>
