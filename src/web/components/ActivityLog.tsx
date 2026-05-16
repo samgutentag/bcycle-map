@@ -7,46 +7,63 @@ import { useStableVerb } from '../lib/spinner-verbs'
 function InferredTripsInfoButton() {
   const [open, setOpen] = useState(false)
   return (
-    <span className="inline-flex relative ml-1">
+    <>
       <button
         type="button"
         aria-label="How are inferred trips calculated?"
         aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
-        className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-[10px] text-ink-subdued hover:text-ink hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300"
+        onClick={() => setOpen(true)}
+        className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-[10px] text-ink-subdued hover:text-ink hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300"
       >
         i
       </button>
       {open && (
         <div
-          role="dialog"
-          aria-label="How inferred trips are calculated"
-          className="absolute z-30 top-6 left-0 w-72 rounded-md border border-line bg-surface shadow-xl p-3 text-xs text-ink-subdued normal-case font-normal tracking-normal"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-900/60 backdrop-blur-sm"
+          data-testid="inferred-trips-info-backdrop"
+          onClick={() => setOpen(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
         >
-          <div className="font-semibold text-ink mb-1">Not directly sourced</div>
-          <p>
-            GBFS doesn't publish ride events. Trips here are <em>inferred</em> from the
-            station-count diff the poller sees every two minutes.
-          </p>
-          <p className="mt-2">
-            When a bike disappears from one station and reappears at another within a
-            plausible window, the algorithm pairs them — scored against the travel-time
-            matrix so the most likely match wins. Quiet periods (one rider in flight) yield
-            unambiguous pairs; busy periods are best-guesses.
-          </p>
-          <p className="mt-2">
-            So: think of these as <em>probable</em> trips, not a tracked ride log.
-          </p>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="mt-2 text-[11px] underline text-ink-subdued hover:text-ink"
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inferred-trips-info-title"
+            className="bg-surface rounded-lg shadow-xl w-full max-w-sm border border-line p-4 normal-case font-normal tracking-normal"
+            css={{ background: 'var(--app-bg-surface)' }}
+            onClick={e => e.stopPropagation()}
           >
-            close
-          </button>
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div id="inferred-trips-info-title" className="text-sm font-semibold text-ink">
+                Not directly sourced
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
+                className="text-ink-subdued hover:text-ink text-lg leading-none p-0.5"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-xs text-ink-subdued space-y-2">
+              <p>
+                GBFS doesn't publish ride events. Trips here are <em>inferred</em> from
+                the station-count diff the poller sees every two minutes.
+              </p>
+              <p>
+                When a bike disappears from one station and reappears at another within a
+                plausible window, the algorithm pairs them — scored against the travel-time
+                matrix so the most likely match wins. Quiet periods (one rider in flight)
+                yield unambiguous pairs; busy periods are best-guesses.
+              </p>
+              <p>
+                So: think of these as <em>probable</em> trips, not a tracked ride log.
+              </p>
+            </div>
+          </div>
         </div>
       )}
-    </span>
+    </>
   )
 }
 
