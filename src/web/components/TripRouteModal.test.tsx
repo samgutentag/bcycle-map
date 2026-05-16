@@ -84,7 +84,8 @@ describe('TripRouteModal', () => {
     renderModal()
     expect(screen.getByText(/9 min/)).toBeInTheDocument()    // actual = 540s
     expect(screen.getByText(/7 min/)).toBeInTheDocument()    // typical
-    expect(screen.getByText(/1\.4 km|1\.4\s*km/)).toBeInTheDocument()
+    // 1400 m ≈ 0.87 mi → renders as "0.9 mi"
+    expect(screen.getByText(/0\.9\s*mi/)).toBeInTheDocument()
   })
 
   it('renders the approximate-route note when the route is missing', () => {
@@ -114,5 +115,18 @@ describe('TripRouteModal', () => {
     const { onClose } = renderModal()
     fireEvent.click(screen.getByRole('dialog'))
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('renders a link to the route page for the same pair', () => {
+    renderModal()
+    const link = screen.getByRole('link', { name: /check live status/i })
+    expect(link).toHaveAttribute('href', '/route/s1/s2')
+  })
+
+  it('closes the modal when the route link is clicked', () => {
+    const { onClose } = renderModal()
+    const link = screen.getByRole('link', { name: /check live status/i })
+    fireEvent.click(link)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
