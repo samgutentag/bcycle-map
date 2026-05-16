@@ -48,7 +48,13 @@ export default function BrandMark() {
         <Text variant="title" size="m" strength="strong" color="heading" lineHeight="single">
           bcycle-map
         </Text>
-        <Text variant="label" size="xs" color="subdued" lineHeight="single">
+        <Text
+          variant="label"
+          size="xs"
+          color="subdued"
+          lineHeight="single"
+          css={{ '@media (max-width: 600px)': { display: 'none' } }}
+        >
           Santa Barbara · Live
         </Text>
       </Flex>

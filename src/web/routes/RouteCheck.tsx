@@ -117,13 +117,26 @@ export default function RouteCheck() {
     <Flex
       direction="column"
       gap="l"
-      css={{ maxWidth: 1280, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+      css={{
+        maxWidth: 1280,
+        margin: '0 auto',
+        padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px`,
+        '@media (max-width: 600px)': {
+          padding: `${theme.spacing.m}px ${theme.spacing.s}px ${theme.spacing.xl}px`,
+        },
+      }}
     >
       <Flex alignItems="flex-end" justifyContent="space-between" gap="m" wrap="wrap">
         <Flex direction="column" gap="xs">
           <Flex alignItems="center" gap="s">
             <IconBike size="m" color="subdued" />
-            <Text variant="display" size="s" strength="strong" color="heading">Route check</Text>
+            <Text
+              variant="display"
+              size="s"
+              strength="strong"
+              color="heading"
+              css={{ '@media (max-width: 600px)': { fontSize: 24, lineHeight: '1.2' } }}
+            >Route check</Text>
           </Flex>
           <Text variant="body" size="s" color="subdued">
             Pick a start and a destination. Hover either chart to see the matching time on the other,

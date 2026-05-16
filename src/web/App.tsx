@@ -78,7 +78,13 @@ function PrimaryNavLink({ to, label, Icon, matchPrefix }: NavSpec) {
       }}
     >
       <Icon size="s" color={active ? 'default' : 'subdued'} />
-      <Text variant="title" size="s" strength={active ? 'strong' : 'default'} color="inherit">
+      <Text
+        variant="title"
+        size="s"
+        strength={active ? 'strong' : 'default'}
+        color="inherit"
+        css={{ '@media (max-width: 600px)': { display: 'none' } }}
+      >
         {label}
       </Text>
     </NavLink>
@@ -107,6 +113,10 @@ function AppHeader({ onOpenAbout }: { onOpenAbout: () => void }) {
           maxWidth: 1280,
           margin: '0 auto',
           padding: `${theme.spacing.s}px ${theme.spacing.l}px`,
+          '@media (max-width: 600px)': {
+            padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+            gap: theme.spacing.xs,
+          },
         }}
       >
         <NavLink to="/" css={{ textDecoration: 'none', color: 'inherit' }} aria-label="bcycle-map home">
