@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useAppTheme } from '../theme'
 import type { StationSnapshot } from '@shared/types'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 
@@ -14,15 +15,26 @@ type Props = {
 const CELL = 8
 const LABEL_PAD = 8
 const TOOLTIP_H = 22
-const COLOR_LIGHT: [number, number, number] = [255, 247, 237]  // amber-50
-const COLOR_DARK: [number, number, number] = [180, 83, 9]      // amber-700
-const DIAGONAL_COLOR = '#f3f4f6'  // neutral-100
-const MISSING_COLOR = '#fafafa'   // even paler — pair not in matrix
+// Endpoints flip per theme so the "near zero" cells fade into the surface
+// instead of standing out as bright squares.
+const PALETTE_LIGHT = {
+  low: [255, 247, 237] as [number, number, number],   // amber-50
+  high: [180, 83, 9] as [number, number, number],     // amber-700
+  diagonal: '#f3f4f6',                                // neutral-100
+  missing: '#fafafa',
+}
+const PALETTE_DARK = {
+  low: [42, 36, 30] as [number, number, number],      // warm-near-surface
+  high: [251, 146, 60] as [number, number, number],   // orange-400
+  diagonal: 'rgb(34, 38, 46)',
+  missing: 'rgb(28, 32, 38)',
+}
 
-function lerpColor(t: number): string {
-  const r = Math.round(COLOR_LIGHT[0] + (COLOR_DARK[0] - COLOR_LIGHT[0]) * t)
-  const g = Math.round(COLOR_LIGHT[1] + (COLOR_DARK[1] - COLOR_LIGHT[1]) * t)
-  const b = Math.round(COLOR_LIGHT[2] + (COLOR_DARK[2] - COLOR_LIGHT[2]) * t)
+function lerpColor(t: number, dark: boolean): string {
+  const { low, high } = dark ? PALETTE_DARK : PALETTE_LIGHT
+  const r = Math.round(low[0] + (high[0] - low[0]) * t)
+  const g = Math.round(low[1] + (high[1] - low[1]) * t)
+  const b = Math.round(low[2] + (high[2] - low[2]) * t)
   return `rgb(${r}, ${g}, ${b})`
 }
 
@@ -37,6 +49,9 @@ function formatMiles(meters: number): string {
 
 export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, selectedEndId, onPickPair }: Props) {
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null)
+  const { resolved } = useAppTheme()
+  const dark = resolved === 'dark'
+  const palette = dark ? PALETTE_DARK : PALETTE_LIGHT
 
   // Sort alphabetically by station name to match StationPicker's ordering.
   // Filter to only stations that exist in the matrix so the diagonal stays diagonal.
@@ -98,7 +113,7 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
           y={TOOLTIP_H - 6}
           textAnchor="middle"
           fontSize="11"
-          fill="#374151"
+          fill="var(--app-text)"
         >
           {hoverFrom.station_id === hoverTo.station_id
             ? hoverFrom.name
@@ -114,10 +129,10 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
           const isDiagonal = from.station_id === to.station_id
           const edge = isDiagonal ? null : matrix.edges[from.station_id]?.[to.station_id]
           const fill = isDiagonal
-            ? DIAGONAL_COLOR
+            ? palette.diagonal
             : edge
-              ? lerpColor((edge.minutes - minMinutes) / Math.max(0.1, maxMinutes - minMinutes))
-              : MISSING_COLOR
+              ? lerpColor((edge.minutes - minMinutes) / Math.max(0.1, maxMinutes - minMinutes), dark)
+              : palette.missing
           const clickable = !isDiagonal && Boolean(edge) && Boolean(onPickPair)
           return (
             <rect
