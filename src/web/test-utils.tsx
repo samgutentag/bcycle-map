@@ -1,12 +1,18 @@
 import type { ReactElement } from 'react'
 import { render, type RenderOptions, type RenderResult } from '@testing-library/react'
 import { ThemeProvider } from '@audius/harmony'
+import { AppThemeProvider } from './theme'
 
 /**
- * Wraps the rendered tree in Harmony's `ThemeProvider` so components that call
- * `useTheme()` resolve to the day-mode token palette. Use this in any test
- * that touches Harmony primitives (Paper, Text, SegmentedControl, …).
+ * Wraps the rendered tree in Harmony's `ThemeProvider` and the project's
+ * `AppThemeProvider`, so components that call `useTheme()` or `useAppTheme()`
+ * resolve to the day-mode token palette.
  */
 export function renderWithTheme(ui: ReactElement, options?: RenderOptions): RenderResult {
-  return render(<ThemeProvider theme="day">{ui}</ThemeProvider>, options)
+  return render(
+    <AppThemeProvider>
+      <ThemeProvider theme="day">{ui}</ThemeProvider>
+    </AppThemeProvider>,
+    options,
+  )
 }

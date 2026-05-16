@@ -87,17 +87,17 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
         role="dialog"
         aria-modal="true"
         aria-labelledby="trip-route-modal-title"
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-4 border-b border-neutral-200">
+        <div className="flex items-start justify-between p-4 border-b border-line">
           <div>
-            <h2 id="trip-route-modal-title" className="text-base font-semibold text-neutral-900">
+            <h2 id="trip-route-modal-title" className="text-base font-semibold text-ink-heading">
               <span>{fromStation.name}</span>
-              <span className="text-neutral-400 mx-1">→</span>
+              <span className="text-ink-subdued mx-1">→</span>
               <span>{toStation.name}</span>
             </h2>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="text-xs text-ink-subdued mt-1">
               {formatClockTime(trip.departure_ts, systemTz)} → {formatClockTime(trip.arrival_ts, systemTz)}
               <span className="mx-1">·</span>
               {formatDateLine(trip.departure_ts, systemTz)}
@@ -107,7 +107,7 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-neutral-500 hover:text-neutral-900 text-xl leading-none p-1"
+            className="text-ink-subdued hover:text-ink-heading text-xl leading-none p-1"
           >
             ✕
           </button>
@@ -118,30 +118,30 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
           to={toStation}
           routeEdge={routeEdge}
           stations={stations}
-          className="h-72 sm:h-96 w-full bg-neutral-100"
+          className="h-72 sm:h-96 w-full bg-surface-2"
         />
 
-        <div className="p-4 border-t border-neutral-200">
+        <div className="p-4 border-t border-line">
           <dl className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-neutral-500">Actual</dt>
-              <dd className="text-sm font-semibold text-neutral-900">{formatMinutes(actualSec)}</dd>
+              <dt className="text-[10px] uppercase tracking-wide text-ink-subdued">Actual</dt>
+              <dd className="text-sm font-semibold text-ink-heading">{formatMinutes(actualSec)}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-neutral-500">Typical</dt>
-              <dd className="text-sm font-semibold text-neutral-900">
+              <dt className="text-[10px] uppercase tracking-wide text-ink-subdued">Typical</dt>
+              <dd className="text-sm font-semibold text-ink-heading">
                 {typicalSec !== null ? formatMinutes(typicalSec) : '—'}
               </dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-neutral-500">Distance</dt>
-              <dd className="text-sm font-semibold text-neutral-900">
+              <dt className="text-[10px] uppercase tracking-wide text-ink-subdued">Distance</dt>
+              <dd className="text-sm font-semibold text-ink-heading">
                 {distanceMeters !== null ? formatDistance(distanceMeters) : '—'}
               </dd>
             </div>
           </dl>
           {!routeEdge && (
-            <p className="text-[11px] text-neutral-500 mt-3 text-center">
+            <p className="text-[11px] text-ink-subdued mt-3 text-center">
               Approximate route — bike directions not yet cached for this pair.
             </p>
           )}

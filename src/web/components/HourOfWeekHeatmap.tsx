@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAppTheme } from '../theme'
 
 export type HeatmapScheme = 'bikes' | 'riders'
 
@@ -25,18 +26,28 @@ const HEIGHT = GRID_TOP + CELL * 7
 const TOOLTIP_BG = '#1f2937'
 const TOOLTIP_FG = '#ffffff'
 
-const SCHEMES: Record<HeatmapScheme, { light: [number, number, number]; dark: [number, number, number] }> = {
-  bikes:  { light: [229, 231, 235], dark: [21, 128, 61] },    // neutral → green-700
-  riders: { light: [255, 237, 213], dark: [194, 65, 12] },    // orange-100 → orange-700
+type Endpoints = { low: [number, number, number]; high: [number, number, number] }
+const SCHEMES_LIGHT: Record<HeatmapScheme, Endpoints> = {
+  bikes:  { low: [229, 231, 235], high: [21, 128, 61] },    // neutral-200 → green-700
+  riders: { low: [255, 237, 213], high: [194, 65, 12] },    // orange-100 → orange-700
+}
+// In dark mode, the empty cells need to be close to the surface background, not bright.
+const SCHEMES_DARK: Record<HeatmapScheme, Endpoints> = {
+  bikes:  { low: [40, 48, 58], high: [34, 197, 94] },       // dim slate → green-500
+  riders: { low: [50, 38, 32], high: [251, 146, 60] },      // dim warm → orange-400
 }
 
-function colorFor(value: number, min: number, max: number, scheme: HeatmapScheme): string {
-  if (max === min) return '#e5e7eb'
+function colorFor(value: number, min: number, max: number, scheme: HeatmapScheme, dark: boolean): string {
+  const palette = dark ? SCHEMES_DARK : SCHEMES_LIGHT
+  if (max === min) {
+    const [r, g, b] = palette[scheme].low
+    return `rgb(${r}, ${g}, ${b})`
+  }
   const t = (value - min) / (max - min)
-  const { light, dark } = SCHEMES[scheme]
-  const r = Math.round(light[0] + (dark[0] - light[0]) * t)
-  const g = Math.round(light[1] + (dark[1] - light[1]) * t)
-  const b = Math.round(light[2] + (dark[2] - light[2]) * t)
+  const { low, high } = palette[scheme]
+  const r = Math.round(low[0] + (high[0] - low[0]) * t)
+  const g = Math.round(low[1] + (high[1] - low[1]) * t)
+  const b = Math.round(low[2] + (high[2] - low[2]) * t)
   return `rgb(${r}, ${g}, ${b})`
 }
 
@@ -48,13 +59,17 @@ function formatHour(h: number): string {
 
 export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bikes' }: Props) {
   const [hover, setHover] = useState<{ dow: number; hod: number } | null>(null)
+  const { resolved } = useAppTheme()
+  const dark = resolved === 'dark'
+  const labelFill = 'var(--app-text-subdued)'
+  const emptyFill = dark ? 'rgb(40, 48, 58)' : '#f3f4f6'
 
   if (data.length === 0) {
     return (
-      <div className="relative w-full h-40 rounded-md border border-dashed border-neutral-300 bg-gradient-to-br from-neutral-50 via-white to-neutral-100 flex items-center justify-center">
+      <div className="relative w-full h-40 rounded-md border border-dashed border-line-strong bg-surface-2 flex items-center justify-center">
         <div className="text-center px-6">
-          <div className="text-sm font-medium text-neutral-700">Not enough data yet</div>
-          <div className="text-xs text-neutral-500 mt-1">Hour-of-week patterns need at least a week of history. Check back soon.</div>
+          <div className="text-sm font-medium text-ink">Not enough data yet</div>
+          <div className="text-xs text-ink-subdued mt-1">Hour-of-week patterns need at least a week of history. Check back soon.</div>
         </div>
       </div>
     )
@@ -75,13 +90,13 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="w-full h-auto">
       {/* Day labels (rows) — note: shifted down by TOOLTIP_H so we have room for the hover pill */}
       {DAYS_SHORT.map((d, dow) => (
-        <text key={d} x={LABEL_W - 6} y={GRID_TOP + dow * CELL + CELL * 0.65} textAnchor="end" fontSize="10" fill="#6b7280">
+        <text key={d} x={LABEL_W - 6} y={GRID_TOP + dow * CELL + CELL * 0.65} textAnchor="end" fontSize="10" fill={labelFill}>
           {d}
         </text>
       ))}
       {/* Hour labels (columns) */}
       {[0, 6, 12, 18, 23].map(h => (
-        <text key={h} x={LABEL_W + h * CELL + CELL / 2} y={GRID_TOP - 4} textAnchor="middle" fontSize="10" fill="#6b7280">
+        <text key={h} x={LABEL_W + h * CELL + CELL / 2} y={GRID_TOP - 4} textAnchor="middle" fontSize="10" fill={labelFill}>
           {h}
         </text>
       ))}
@@ -90,7 +105,7 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
       {Array.from({ length: 7 }).map((_, dow) =>
         Array.from({ length: 24 }).map((_, hod) => {
           const v = lookup.get(`${dow}-${hod}`)
-          const fill = v === undefined ? '#f3f4f6' : colorFor(v.value, min, max, scheme)
+          const fill = v === undefined ? emptyFill : colorFor(v.value, min, max, scheme, dark)
           const isHovered = hover?.dow === dow && hover?.hod === hod
           return (
             <rect

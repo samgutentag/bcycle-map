@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { renderWithTheme as render } from '../test-utils'
 import TravelTimeHeatmap from './TravelTimeHeatmap'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 import type { StationSnapshot } from '@shared/types'

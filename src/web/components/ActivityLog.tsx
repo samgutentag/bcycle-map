@@ -57,7 +57,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
   const nowSec = Math.floor(Date.now() / 1000)
 
   if (!log) {
-    return <div className="text-sm text-neutral-500">{verb}</div>
+    return <div className="text-sm text-ink-subdued">{verb}</div>
   }
 
   const filteredEventsAll = stationFilter
@@ -72,7 +72,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
 
   if (events.length === 0 && trips.length === 0) {
     return (
-      <div className="text-sm text-neutral-500 py-4 text-center bg-neutral-50 rounded border border-dashed border-neutral-300">
+      <div className="text-sm text-ink-subdued py-4 text-center bg-surface rounded border border-dashed border-line-strong">
         {stationFilter
           ? 'No departures or arrivals captured at this station yet.'
           : 'No movement observed yet. The poller emits departures and arrivals as bike counts change at any station — watch this space.'}
@@ -84,7 +84,7 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4">
       {/* Recent events column */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subdued mb-2">
           {stationFilter ? 'Recent activity at this station' : 'Recent departures & arrivals'}
         </div>
         <ul className={`space-y-1 ${columnScrollClass}`} aria-live="polite">
@@ -99,12 +99,12 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
                 </span>
                 <Link
                   to={`/station/${e.station_id}/details`}
-                  className="flex-1 text-neutral-700 truncate hover:text-sky-700 hover:underline"
+                  className="flex-1 text-ink truncate hover:text-sky-700 hover:underline"
                   title={name}
                 >
                   {name}
                 </Link>
-                <span className="text-neutral-400 whitespace-nowrap" title={formatClockTime(e.ts, timezone)}>
+                <span className="text-ink-subdued whitespace-nowrap" title={formatClockTime(e.ts, timezone)}>
                   {formatRelative(e.ts, nowSec)}
                 </span>
               </li>
@@ -118,12 +118,12 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
 
       {/* Inferred trips column */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subdued mb-2">
           {stationFilter ? 'Inferred trips touching this station' : 'Inferred trips'}
-          <span className="ml-1 normal-case text-neutral-400 font-normal">(quiet-period only)</span>
+          <span className="ml-1 normal-case text-ink-subdued font-normal">(quiet-period only)</span>
         </div>
         {trips.length === 0 ? (
-          <div className="text-xs text-neutral-500 py-2">
+          <div className="text-xs text-ink-subdued py-2">
             None yet. Trips are paired only when the system transitions cleanly through a single active rider — typically overnight.
           </div>
         ) : (
@@ -141,18 +141,18 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
                     type="button"
                     onClick={() => onTripClick?.(trip)}
                     aria-label={rowLabel}
-                    className="w-full text-left text-xs border border-neutral-200 rounded p-2 bg-neutral-50 hover:bg-white hover:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-sky-300 transition-colors"
+                    className="w-full text-left text-xs border border-line rounded p-2 bg-surface hover:bg-surface-2 hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300 transition-colors"
                   >
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-neutral-700 truncate">
+                      <span className="font-medium text-ink truncate">
                         <Link to={`/station/${trip.from_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{fromName}</Link>
-                        <span className="text-neutral-400"> → </span>
+                        <span className="text-ink-subdued"> → </span>
                         <Link to={`/station/${trip.to_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{toName}</Link>
                       </span>
-                      <span className="text-neutral-400 whitespace-nowrap">{formatClockTime(trip.departure_ts, timezone)}</span>
+                      <span className="text-ink-subdued whitespace-nowrap">{formatClockTime(trip.departure_ts, timezone)}</span>
                     </div>
-                    <div className="mt-0.5 text-neutral-500">
-                      <span className="font-medium text-neutral-700">{tripDurationLabel(trip)}</span>
+                    <div className="mt-0.5 text-ink-subdued">
+                      <span className="font-medium text-ink">{tripDurationLabel(trip)}</span>
                       {expected && (
                         <>
                           <span> · expected {expected.minutes} min</span>
