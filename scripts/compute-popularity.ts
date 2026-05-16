@@ -95,13 +95,18 @@ function synthesizeEvents(rows: SnapshotRow[]): ActivityEvent[] {
   return events
 }
 
+type StationCounts = { departures: number; arrivals: number }
+
 function aggregate(events: ActivityEvent[], trips: Trip[]): {
-  stationCounts: Map<string, number>
+  stationCounts: Map<string, StationCounts>
   pairAgg: Map<string, Map<string, { count: number; durationSum: number }>>
 } {
-  const stationCounts = new Map<string, number>()
+  const stationCounts = new Map<string, StationCounts>()
   for (const e of events) {
-    stationCounts.set(e.station_id, (stationCounts.get(e.station_id) ?? 0) + e.delta)
+    let row = stationCounts.get(e.station_id)
+    if (!row) { row = { departures: 0, arrivals: 0 }; stationCounts.set(e.station_id, row) }
+    if (e.type === 'departure') row.departures += e.delta
+    else row.arrivals += e.delta
   }
   const pairAgg = new Map<string, Map<string, { count: number; durationSum: number }>>()
   for (const t of trips) {
@@ -166,7 +171,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { stationCounts, pairAgg } = aggregate(events, trips)
 
     const topStations = [...stationCounts.entries()]
-      .map(([station_id, count]) => ({ station_id, count }))
+      .map(([station_id, { departures, arrivals }]) => ({
+        station_id,
+        departures,
+        arrivals,
+        count: departures + arrivals,
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, TOP_N)
 
