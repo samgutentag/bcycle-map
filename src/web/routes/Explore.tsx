@@ -13,7 +13,7 @@ import {
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
 import DateRangePicker from '../components/DateRangePicker'
-import SystemBikesOverTime from '../components/SystemBikesOverTime'
+import ActiveRidersOverTime from '../components/ActiveRidersOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
 import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
 import TravelTimeBadge from '../components/TravelTimeBadge'
@@ -102,7 +102,9 @@ export default function Explore() {
 
   const timezone = live?.system.timezone
   const maxBikesEver = live?.max_bikes_ever
-  const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range })
+  // Active riders chart is locked to the last 7 days (independent of the page date-range picker).
+  const sevenDayRange = useMemo(() => resolveRange('7d', now), [now])
+  const totals = useTotalBikesOverTime({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range: sevenDayRange })
   const hourly = useHourOfWeek({ apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range, timezone })
   const riders = useHourOfWeekActiveRiders({
     apiBase: API_BASE, r2Base: R2_BASE, system: SYSTEM_ID, range, timezone, maxBikesEver,
@@ -250,14 +252,16 @@ export default function Explore() {
       </Section>
 
       <Section
-        title="Bikes and open docks over time"
-        description="Totals summed across every station, sampled every two minutes. Bikes + open docks at any moment ≈ total docks in service."
+        title="Active riders over time · 7 days"
+        description={`Bikes not parked at any station, sampled every two minutes. active_riders = max(0, peak_observed_bikes − parked_bikes), where peak_observed_bikes ≈ fleet size.${maxBikesEver ? ` Current fleet baseline: ${maxBikesEver}.` : ''}`}
       >
         {totals.error && <ErrorBox message={totals.error.message} />}
         {!totals.error && (totals.loading || !totals.data) && (
           <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />
         )}
-        {!totals.loading && !totals.error && totals.data && <SystemBikesOverTime data={totals.data} />}
+        {!totals.loading && !totals.error && totals.data && (
+          <ActiveRidersOverTime data={totals.data} maxBikesEver={maxBikesEver} />
+        )}
       </Section>
 
       <Section
