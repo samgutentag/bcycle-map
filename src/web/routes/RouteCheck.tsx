@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { StationSnapshot } from '@shared/types'
+import type { StationSnapshot, Trip, ActivityLog as ActivityLogData } from '@shared/types'
 import {
   Box,
   Flex,
@@ -15,6 +15,8 @@ import { useStationOverTime } from '../hooks/useStationOverTime'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { useRoutePopularity } from '../hooks/useRoutePopularity'
 import { useRouteCache } from '../hooks/useRouteCache'
+import { useActivity } from '../hooks/useActivity'
+import TripRouteModal from '../components/TripRouteModal'
 import { lookupRoute } from '@shared/route-cache'
 import { lookupPairStat } from '@shared/popularity'
 import DateRangePicker from '../components/DateRangePicker'
@@ -73,6 +75,86 @@ function LiveStationTile({ role, station }: { role: 'Start' | 'Destination'; sta
   )
 }
 
+function RouteHistorySection({
+  activity,
+  fromId,
+  toId,
+  matrix,
+  timezone,
+  onTripClick,
+}: {
+  activity: ActivityLogData | null
+  fromId: string
+  toId: string
+  matrix: ReturnType<typeof useTravelMatrix>['data']
+  timezone: string | undefined
+  onTripClick: (t: Trip) => void
+}) {
+  const trips = (activity?.trips ?? [])
+    .filter(t => t.from_station_id === fromId && t.to_station_id === toId)
+    .slice()
+    .sort((a, b) => b.departure_ts - a.departure_ts)
+    .slice(0, 10)
+  const expected = lookupTravelTime(matrix, fromId, toId)
+  return (
+    <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+      <Text variant="title" size="s" strength="strong" color="heading">Recent trips on this route</Text>
+      <Text variant="body" size="xs" color="subdued">
+        Inferred from the rolling activity buffer — last {trips.length || 'few'} observed trips along this directed pair.
+      </Text>
+      {trips.length === 0 ? (
+        <Text variant="body" size="s" color="subdued">
+          No observed trips yet in the rolling window. The activity buffer holds the most recent 50 trips system-wide,
+          so a specific pair often has zero matches until it's a popular route.
+        </Text>
+      ) : (
+        <Flex direction="column" gap="xs">
+          {trips.map(trip => {
+            const minutes = Math.round(trip.duration_sec / 60)
+            const exp = expected ? Math.round(expected.minutes) : null
+            const diff = exp !== null ? minutes - exp : null
+            return (
+              <button
+                key={`${trip.departure_ts}-${trip.arrival_ts}`}
+                type="button"
+                onClick={() => onTripClick(trip)}
+                aria-label={`View inferred trip departing at ${formatClockTime(trip.departure_ts, timezone)}`}
+                css={(t) => ({
+                  all: 'unset',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: t.spacing.s,
+                  padding: `${t.spacing.xs}px ${t.spacing.s}px`,
+                  borderRadius: t.cornerRadius.s,
+                  border: `1px solid ${t.color.border.default}`,
+                  background: t.color.background.surface1,
+                  fontSize: 12,
+                  color: t.color.text.default,
+                  transition: `background ${t.motion.quick}`,
+                  '&:hover': { background: t.color.background.white },
+                  '&:focus-visible': { outline: `2px solid ${t.color.focus.default}`, outlineOffset: 1 },
+                })}
+              >
+                <span>{formatClockTime(trip.departure_ts, timezone)} → {formatClockTime(trip.arrival_ts, timezone)}</span>
+                <span>
+                  <strong>{minutes} min</strong>
+                  {exp !== null && diff !== null && diff !== 0 && (
+                    <span css={(t) => ({ marginLeft: t.spacing.xs, color: diff > 0 ? t.color.text.warning : t.color.text.accent })}>
+                      ({diff > 0 ? '+' : ''}{diff} vs typical)
+                    </span>
+                  )}
+                </span>
+              </button>
+            )
+          })}
+        </Flex>
+      )}
+    </Paper>
+  )
+}
+
 function formatClockTime(tsSec: number, tz?: string): string {
   return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
     hour: 'numeric',
@@ -89,10 +171,12 @@ export default function RouteCheck() {
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const routeCache = useRouteCache(R2_BASE, SYSTEM_ID)
+  const activity = useActivity(SYSTEM_ID)
   const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   const range = useMemo(() => resolveRange(preset, now), [preset, now])
   const [hover, setHover] = useState<HoverState | null>(null)
+  const [openTripFromHistory, setOpenTripFromHistory] = useState<Trip | null>(null)
 
   const [nowTick, setNowTick] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
@@ -301,6 +385,17 @@ export default function RouteCheck() {
         meanSec={lookupPairStat(popularity.data, startId, endId)?.mean_sec ?? null}
       />
 
+      {startId && endId && (
+        <RouteHistorySection
+          activity={activity.data}
+          fromId={startId}
+          toId={endId}
+          matrix={matrix.data}
+          timezone={timezone}
+          onTripClick={setOpenTripFromHistory}
+        />
+      )}
+
       <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
         <Text variant="title" size="s" strength="strong" color="heading">
           Destination: {destStation?.name ?? <Text tag="span" color="subdued">(no station selected)</Text>}
@@ -339,6 +434,16 @@ export default function RouteCheck() {
         }}>/route/&lt;start&gt;/&lt;destination&gt;</code>{' '}
         to come back to a specific pair.
       </Text>
+      {openTripFromHistory && (
+        <TripRouteModal
+          trip={openTripFromHistory}
+          stations={stations}
+          matrix={matrix.data}
+          routes={routeCache.data}
+          systemTz={timezone ?? 'UTC'}
+          onClose={() => setOpenTripFromHistory(null)}
+        />
+      )}
     </Flex>
   )
 }
