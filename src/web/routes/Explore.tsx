@@ -12,7 +12,6 @@ import {
 } from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
-import DateRangePicker from '../components/DateRangePicker'
 import ActiveRidersOverTime from '../components/ActiveRidersOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
 import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
@@ -29,7 +28,7 @@ import { useActivity } from '../hooks/useActivity'
 import { useRoutePopularity } from '../hooks/useRoutePopularity'
 import PopularStationsTile from '../components/PopularStationsTile'
 import PopularRoutesTile from '../components/PopularRoutesTile'
-import { resolveRange, type Preset } from '../lib/date-range'
+import { resolveRange } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
 import type { Trip } from '@shared/types'
 
@@ -64,6 +63,21 @@ function Section({
   )
 }
 
+function HeatmapComingSoon({ cellsCovered }: { cellsCovered: number }) {
+  return (
+    <div className="relative w-full rounded-md border border-dashed border-line-strong bg-surface-2 flex items-center justify-center" css={{ minHeight: 200 }}>
+      <div className="text-center px-6 py-8">
+        <div className="text-sm font-semibold text-ink">Coming soon</div>
+        <div className="text-xs text-ink-subdued mt-1">
+          Hour-of-week patterns need at least 8 days of polling so every day × hour cell has data.
+          {' '}
+          Currently filled: <strong>{cellsCovered}</strong> of 168 cells.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ErrorBox({ message }: { message: string }) {
   const theme = useTheme()
   return (
@@ -88,10 +102,12 @@ export default function Explore() {
   const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
-  const [preset, setPreset] = useState<Preset>('24h')
   const [openTrip, setOpenTrip] = useState<Trip | null>(null)
   const [now] = useState(() => Math.floor(Date.now() / 1000))
-  const range = useMemo(() => resolveRange(preset, now), [preset, now])
+  // Hour-of-week heatmaps read all history — they're a typical-pattern lens,
+  // not a "last N days" snapshot, so a date-range picker added noise without
+  // changing the visible bucket fills much.
+  const range = useMemo(() => resolveRange('all', now), [now])
   const [routeStart, setRouteStart] = useState<string | null>(null)
   const [routeEnd, setRouteEnd] = useState<string | null>(null)
   const routeEdge = lookupTravelTime(matrix.data, routeStart, routeEnd)
@@ -116,6 +132,12 @@ export default function Explore() {
   const ridersHeatmapData = riders.data?.map(r => ({
     dow: r.dow, hod: r.hod, value: r.avg_active_riders, samples: r.samples,
   })) ?? []
+  // Hour-of-week heatmaps need every (dow, hod) cell populated to read
+  // sensibly. After ~7 days of continuous polling every cell has at least
+  // one sample. Hide the chart with a "coming soon" placeholder until then.
+  const HEATMAP_MIN_CELLS = 168
+  const bikesHeatmapReady = hourly.data && bikesHeatmapData.length >= HEATMAP_MIN_CELLS
+  const ridersHeatmapReady = riders.data && ridersHeatmapData.length >= HEATMAP_MIN_CELLS
 
   return (
     <Flex
@@ -146,7 +168,6 @@ export default function Explore() {
             Historical patterns for the Santa Barbara BCycle system.
           </Text>
         </Flex>
-        <DateRangePicker value={preset} onChange={setPreset} />
       </Flex>
 
       {live && (
@@ -233,7 +254,10 @@ export default function Explore() {
         {riders.enabled && !riders.error && (riders.loading || !riders.data) && (
           <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={riders.phase} />
         )}
-        {riders.enabled && !riders.loading && !riders.error && riders.data && (
+        {riders.enabled && !riders.loading && !riders.error && riders.data && !ridersHeatmapReady && (
+          <HeatmapComingSoon cellsCovered={ridersHeatmapData.length} />
+        )}
+        {riders.enabled && !riders.loading && !riders.error && riders.data && ridersHeatmapReady && (
           <HourOfWeekHeatmap data={ridersHeatmapData} scheme="riders" unit="riders" />
         )}
       </Section>
@@ -246,7 +270,10 @@ export default function Explore() {
         {!hourly.error && (hourly.loading || !hourly.data) && (
           <ChartSkeleton aspectRatio={(32 + 22 * 24) / (16 + 22 * 7)} phase={hourly.phase} />
         )}
-        {!hourly.loading && !hourly.error && hourly.data && (
+        {!hourly.loading && !hourly.error && hourly.data && !bikesHeatmapReady && (
+          <HeatmapComingSoon cellsCovered={bikesHeatmapData.length} />
+        )}
+        {!hourly.loading && !hourly.error && hourly.data && bikesHeatmapReady && (
           <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
         )}
       </Section>
