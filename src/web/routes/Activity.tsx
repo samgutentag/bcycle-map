@@ -27,7 +27,14 @@ export default function Activity() {
     <Flex
       direction="column"
       gap="l"
-      css={{ maxWidth: 1280, margin: '0 auto', padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px` }}
+      css={{
+        maxWidth: 1280,
+        margin: '0 auto',
+        padding: `${theme.spacing.l}px ${theme.spacing.l}px ${theme.spacing['3xl']}px`,
+        '@media (max-width: 600px)': {
+          padding: `${theme.spacing.m}px ${theme.spacing.s}px ${theme.spacing.xl}px`,
+        },
+      }}
     >
       <Link
         to="/explore"
@@ -46,7 +53,13 @@ export default function Activity() {
       </Link>
 
       <Flex direction="column" gap="xs">
-        <Text variant="display" size="s" strength="strong" color="heading">
+        <Text
+          variant="display"
+          size="s"
+          strength="strong"
+          color="heading"
+          css={{ '@media (max-width: 600px)': { fontSize: 24, lineHeight: '1.2' } }}
+        >
           Activity log
         </Text>
         <Text variant="body" size="s" color="subdued">
