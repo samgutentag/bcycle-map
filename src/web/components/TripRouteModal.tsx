@@ -1,8 +1,11 @@
 import { useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import type { Trip, StationSnapshot } from '@shared/types'
 import { lookupRoute, type RouteCache } from '@shared/route-cache'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
 import TripRouteMap from './TripRouteMap'
+
+const METERS_PER_MILE = 1609.344
 
 type TripRouteModalProps = {
   trip: Trip
@@ -36,7 +39,10 @@ function formatMinutes(seconds: number): string {
 }
 
 function formatDistance(meters: number): string {
-  return `${(meters / 1000).toFixed(1)} km`
+  const mi = meters / METERS_PER_MILE
+  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
+  if (mi < 10) return `${mi.toFixed(1)} mi`
+  return `${Math.round(mi)} mi`
 }
 
 export default function TripRouteModal({ trip, stations, matrix, routes, systemTz, onClose }: TripRouteModalProps) {
@@ -139,6 +145,16 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
               Approximate route — bike directions not yet cached for this pair.
             </p>
           )}
+          <div className="mt-4 flex justify-center">
+            <Link
+              to={`/route/${trip.from_station_id}/${trip.to_station_id}`}
+              onClick={onClose}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-md border border-sky-200 bg-sky-50 text-sm font-medium text-sky-800 hover:bg-sky-100 hover:border-sky-300 transition-colors"
+            >
+              Check live status of these stations
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>
