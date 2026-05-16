@@ -53,6 +53,18 @@ function expectedFor(trip: Trip, matrix: TravelMatrix | null): { minutes: number
 export default function ActivityLog({ log, stations, matrix, timezone, maxEvents = 20, maxTrips = 20, stationFilter, unbounded = false, onTripClick }: Props) {
   const columnScrollClass = unbounded ? '' : 'max-h-72 overflow-y-auto pr-1'
   const namesById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
+  // Cross-reference: each event row can look up "is this event the departure
+  // or arrival side of an inferred trip?" — if yes, the in/out badge becomes
+  // a button that opens the trip modal.
+  const tripByEventKey = useMemo(() => {
+    const m = new Map<string, Trip>()
+    if (!log) return m
+    for (const trip of log.trips) {
+      m.set(`${trip.departure_ts}|${trip.from_station_id}|departure`, trip)
+      m.set(`${trip.arrival_ts}|${trip.to_station_id}|arrival`, trip)
+    }
+    return m
+  }, [log])
   const verb = useStableVerb()
   const nowSec = Math.floor(Date.now() / 1000)
 
@@ -91,12 +103,28 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
           {events.map((e, i) => {
             const name = namesById.get(e.station_id) ?? e.station_id
             const isDep = e.type === 'departure'
+            const matchingTrip = tripByEventKey.get(`${e.ts}|${e.station_id}|${e.type}`)
+            const badgeBase = `inline-flex items-center px-1.5 py-0.5 rounded border ${isDep ? DEPARTURE_COLOR : ARRIVAL_COLOR}`
+            const badge = matchingTrip && onTripClick ? (
+              <button
+                type="button"
+                onClick={() => onTripClick(matchingTrip)}
+                aria-label={`View inferred trip for this ${e.type}`}
+                title="View inferred trip"
+                className={`${badgeBase} hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer`}
+              >
+                {isDep ? '↑ out' : '↓ in'}
+                {e.delta > 1 && <span className="ml-1 opacity-70">×{e.delta}</span>}
+              </button>
+            ) : (
+              <span className={badgeBase}>
+                {isDep ? '↑ out' : '↓ in'}
+                {e.delta > 1 && <span className="ml-1 opacity-70">×{e.delta}</span>}
+              </span>
+            )
             return (
               <li key={`${e.ts}-${e.station_id}-${i}`} className="flex items-start gap-2 text-xs">
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded border ${isDep ? DEPARTURE_COLOR : ARRIVAL_COLOR}`}>
-                  {isDep ? '↑ out' : '↓ in'}
-                  {e.delta > 1 && <span className="ml-1 opacity-70">×{e.delta}</span>}
-                </span>
+                {badge}
                 <Link
                   to={`/station/${e.station_id}/details`}
                   className="flex-1 text-ink truncate hover:text-sky-700 hover:underline"
