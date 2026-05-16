@@ -7,7 +7,7 @@ const POP: Popularity = {
   computedAt: 1_700_000_000,
   windowStartTs: 1_697_400_000,
   windowEndTs: 1_700_000_000,
-  topStations: [{ station_id: 's1', count: 50 }],
+  topStations: [{ station_id: 's1', count: 50, departures: 23, arrivals: 27 }],
   topRoutes: [{ from_station_id: 's1', to_station_id: 's2', count: 7 }],
   pairStats: { s1: { s2: STAT_A_B } },
 }

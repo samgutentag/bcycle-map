@@ -9,7 +9,15 @@ export type Popularity = {
   computedAt: number
   windowStartTs: number
   windowEndTs: number
-  topStations: Array<{ station_id: string; count: number }>
+  topStations: Array<{
+    station_id: string
+    /** departures + arrivals in the window (kept for backwards compat with older rollup files) */
+    count: number
+    /** Bikes that left this station (sum of departure deltas) */
+    departures: number
+    /** Bikes that arrived at this station (sum of arrival deltas) */
+    arrivals: number
+  }>
   topRoutes: Array<{ from_station_id: string; to_station_id: string; count: number }>
   pairStats: Record<string, Record<string, PairStat>>
 }

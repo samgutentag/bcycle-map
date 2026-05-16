@@ -18,9 +18,9 @@ describe('PopularStationsTile', () => {
   it('renders the top stations with ranks, names, and counts', () => {
     renderTile({
       top: [
-        { station_id: 's1', count: 412 },
-        { station_id: 's2', count: 388 },
-        { station_id: 's3', count: 301 },
+        { station_id: 's1', count: 412, departures: 200, arrivals: 212 },
+        { station_id: 's2', count: 388, departures: 190, arrivals: 198 },
+        { station_id: 's3', count: 301, departures: 150, arrivals: 151 },
       ],
       stations: STATIONS,
       loading: false,
@@ -31,6 +31,27 @@ describe('PopularStationsTile', () => {
     expect(screen.getByText('412')).toBeInTheDocument()
     expect(screen.getByText('388')).toBeInTheDocument()
     expect(screen.getByText('301')).toBeInTheDocument()
+  })
+
+  it('renders the in/out breakdown when departures + arrivals are present', () => {
+    renderTile({
+      top: [{ station_id: 's1', count: 412, departures: 200, arrivals: 212 }],
+      stations: STATIONS,
+      loading: false,
+    })
+    expect(screen.getByText(/↑\s*200/)).toBeInTheDocument()
+    expect(screen.getByText(/↓\s*212/)).toBeInTheDocument()
+  })
+
+  it('omits the in/out breakdown when only total count is present (old rollup file)', () => {
+    renderTile({
+      top: [{ station_id: 's1', count: 412 }],
+      stations: STATIONS,
+      loading: false,
+    })
+    expect(screen.queryByText(/↑/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/↓/)).not.toBeInTheDocument()
+    expect(screen.getByText('412')).toBeInTheDocument()
   })
 
   it('renders loading state when loading is true', () => {
