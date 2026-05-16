@@ -1,0 +1,145 @@
+name: deploy-workers
+
+# Auto-deploy the three Cloudflare Workers on push to main. Before this
+# action existed, PR merges silently shipped client code (web bundle) but
+# left worker code stale until someone remembered to `wrangler deploy`
+# locally. PR #22's greedy-inference worker change is what surfaced the gap.
+#
+# Each job is conditional on the relevant files actually changing so we
+# don't redeploy all three workers when only the web app changes. Falls
+# back to deploying everything on workflow_dispatch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/workers/**'
+      - 'src/shared/**'
+      - 'wrangler.toml'
+      - 'wrangler.*.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-workers.yml'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which worker to deploy'
+        type: choice
+        options:
+          - all
+          - poller
+          - read-api
+          - smoke
+        default: all
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: deploy-workers
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      poller: ${{ steps.filter.outputs.poller }}
+      read_api: ${{ steps.filter.outputs.read_api }}
+      smoke: ${{ steps.filter.outputs.smoke }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect which worker bundles need redeploy
+        id: filter
+        run: |
+          # On manual dispatch, honor the `target` input.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            t="${{ github.event.inputs.target }}"
+            echo "poller=$([ "$t" = all ] || [ "$t" = poller ] && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "read_api=$([ "$t" = all ] || [ "$t" = read-api ] && echo true || echo false)" >> $GITHUB_OUTPUT
+            echo "smoke=$([ "$t" = all ] || [ "$t" = smoke ] && echo true || echo false)" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # On push: diff against the previous commit. Shared code or deps
+          # touch all three; specific worker files touch only one.
+          changed=$(git diff --name-only HEAD^ HEAD)
+          echo "Changed files:"
+          echo "$changed"
+          shared=$(echo "$changed" | grep -E '^(src/shared/|package(-lock)?\.json$|\.github/workflows/deploy-workers\.yml$)' | head -1)
+          if [ -n "$shared" ]; then
+            echo "poller=true"   >> $GITHUB_OUTPUT
+            echo "read_api=true" >> $GITHUB_OUTPUT
+            echo "smoke=true"    >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Per-worker file checks
+          if echo "$changed" | grep -qE '^(src/workers/poller\.ts|wrangler\.toml)$'; then
+            echo "poller=true" >> $GITHUB_OUTPUT
+          else
+            echo "poller=false" >> $GITHUB_OUTPUT
+          fi
+          if echo "$changed" | grep -qE '^(src/workers/read-api\.ts|wrangler\.read-api\.toml)$'; then
+            echo "read_api=true" >> $GITHUB_OUTPUT
+          else
+            echo "read_api=false" >> $GITHUB_OUTPUT
+          fi
+          if echo "$changed" | grep -qE '^(src/workers/smoke\.ts|wrangler\.smoke\.toml)$'; then
+            echo "smoke=true" >> $GITHUB_OUTPUT
+          else
+            echo "smoke=false" >> $GITHUB_OUTPUT
+          fi
+
+  deploy-poller:
+    needs: changes
+    if: needs.changes.outputs.poller == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: wrangler deploy (poller)
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+  deploy-read-api:
+    needs: changes
+    if: needs.changes.outputs.read_api == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: wrangler deploy (read-api)
+        run: npx wrangler deploy --config wrangler.read-api.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+  deploy-smoke:
+    needs: changes
+    if: needs.changes.outputs.smoke == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: wrangler deploy (smoke)
+        run: npx wrangler deploy --config wrangler.smoke.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
