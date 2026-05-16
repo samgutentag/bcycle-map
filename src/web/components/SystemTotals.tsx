@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Flex, Paper, Text, useTheme } from '@audius/harmony'
 import type { HourBikeStats, StationSnapshot } from '@shared/types'
 import MiniLine from './MiniLine'
+import LiveDot from './LiveDot'
 import { formatRelative } from '../lib/relative-time'
 
 type Props = {
@@ -95,22 +96,7 @@ export default function SystemTotals({
       css={overlayCss}
     >
       <Flex alignItems="center" gap="xs">
-        <span
-          aria-hidden
-          css={{
-            display: 'inline-block',
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: theme.color.status.success,
-            boxShadow: `0 0 0 2px color-mix(in srgb, ${theme.color.status.success} 30%, transparent)`,
-            animation: 'pulseDot 2s ease-out infinite',
-            '@keyframes pulseDot': {
-              '0%, 100%': { opacity: 1 },
-              '50%': { opacity: 0.4 },
-            },
-          }}
-        />
+        <LiveDot />
         <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
           Right now
         </Text>
