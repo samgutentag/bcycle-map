@@ -1,8 +1,54 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { ActivityLog as ActivityLogData, StationSnapshot, Trip } from '@shared/types'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
 import { useStableVerb } from '../lib/spinner-verbs'
+
+function InferredTripsInfoButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="inline-flex relative ml-1">
+      <button
+        type="button"
+        aria-label="How are inferred trips calculated?"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-line text-[10px] text-ink-subdued hover:text-ink hover:border-line-strong focus:outline-none focus:ring-2 focus:ring-sky-300"
+      >
+        i
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="How inferred trips are calculated"
+          className="absolute z-30 top-6 left-0 w-72 rounded-md border border-line bg-surface shadow-xl p-3 text-xs text-ink-subdued normal-case font-normal tracking-normal"
+        >
+          <div className="font-semibold text-ink mb-1">Not directly sourced</div>
+          <p>
+            GBFS doesn't publish ride events. Trips here are <em>inferred</em> from the
+            station-count diff the poller sees every two minutes.
+          </p>
+          <p className="mt-2">
+            When a bike disappears from one station and reappears at another within a
+            plausible window, the algorithm pairs them — scored against the travel-time
+            matrix so the most likely match wins. Quiet periods (one rider in flight) yield
+            unambiguous pairs; busy periods are best-guesses.
+          </p>
+          <p className="mt-2">
+            So: think of these as <em>probable</em> trips, not a tracked ride log.
+          </p>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="mt-2 text-[11px] underline text-ink-subdued hover:text-ink"
+          >
+            close
+          </button>
+        </div>
+      )}
+    </span>
+  )
+}
 
 type Props = {
   log: ActivityLogData | null
@@ -118,8 +164,9 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
 
       {/* Inferred trips column */}
       <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subdued mb-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subdued mb-2 inline-flex items-center">
           {stationFilter ? 'Inferred trips touching this station' : 'Inferred trips'}
+          <InferredTripsInfoButton />
         </div>
         {trips.length === 0 ? (
           <div className="text-xs text-ink-subdued py-2">
