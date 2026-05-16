@@ -87,7 +87,8 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
         role="dialog"
         aria-modal="true"
         aria-labelledby="trip-route-modal-title"
-        className="bg-surface rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        css={{ background: 'var(--app-bg-surface)' }}
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between p-4 border-b border-line">
