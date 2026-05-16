@@ -64,9 +64,10 @@ export default function Activity() {
         </Text>
         <Text variant="body" size="s" color="subdued">
           The poller diffs per-station bike counts every two minutes and emits a departure (count down) or arrival
-          (count up) event for any station that changed. Trips are paired only when the system passes cleanly through
-          a single active rider, so they're rare during busy hours and clump up overnight. Capped to the most recent
-          200 events and 50 trips in storage.
+          (count up) event for any station that changed. Trips on the right are paired greedily — each arrival is
+          matched to the unpaired departure whose duration best fits the travel-time matrix for that station pair,
+          with an explicit "quiet-period" pass first for the unambiguous cases. Capped to the most recent 200 events
+          and 50 trips in storage.
         </Text>
         <Text variant="body" size="xs" color="subdued">
           {eventCount} {eventCount === 1 ? 'event' : 'events'} · {tripCount} inferred {tripCount === 1 ? 'trip' : 'trips'}

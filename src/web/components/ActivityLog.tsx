@@ -120,11 +120,10 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
       <div>
         <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-subdued mb-2">
           {stationFilter ? 'Inferred trips touching this station' : 'Inferred trips'}
-          <span className="ml-1 normal-case text-ink-subdued font-normal">(quiet-period only)</span>
         </div>
         {trips.length === 0 ? (
           <div className="text-xs text-ink-subdued py-2">
-            None yet. Trips are paired only when the system transitions cleanly through a single active rider — typically overnight.
+            None yet. Trips appear here as the poller pairs departures with arrivals; expect more as the day progresses.
           </div>
         ) : (
           <ul className={`space-y-2 ${columnScrollClass}`}>
