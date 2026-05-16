@@ -234,6 +234,19 @@ export default function Explore() {
       </Section>
 
       <Section
+        title="Active riders over time · 7 days"
+        description={`Bikes not parked at any station, sampled every two minutes. active_riders = max(0, peak_observed_bikes − parked_bikes), where peak_observed_bikes ≈ fleet size.${maxBikesEver ? ` Current fleet baseline: ${maxBikesEver}.` : ''}`}
+      >
+        {totals.error && <ErrorBox message={totals.error.message} />}
+        {!totals.error && (totals.loading || !totals.data) && (
+          <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />
+        )}
+        {!totals.loading && !totals.error && totals.data && (
+          <ActiveRidersOverTime data={totals.data} maxBikesEver={maxBikesEver} />
+        )}
+      </Section>
+
+      <Section
         title="Active riders — hour of week"
         description={`Estimated bikes in use system-wide (max bikes observed minus bikes parked) per day-of-week and hour-of-day. Darker cells = more riders out at that time.${riders.enabled ? '' : ' Available once the poller has captured a peak bikes-parked value to compare against.'}`}
       >
@@ -275,19 +288,6 @@ export default function Explore() {
         )}
         {!hourly.loading && !hourly.error && hourly.data && bikesHeatmapReady && (
           <HourOfWeekHeatmap data={bikesHeatmapData} scheme="bikes" unit="bikes" />
-        )}
-      </Section>
-
-      <Section
-        title="Active riders over time · 7 days"
-        description={`Bikes not parked at any station, sampled every two minutes. active_riders = max(0, peak_observed_bikes − parked_bikes), where peak_observed_bikes ≈ fleet size.${maxBikesEver ? ` Current fleet baseline: ${maxBikesEver}.` : ''}`}
-      >
-        {totals.error && <ErrorBox message={totals.error.message} />}
-        {!totals.error && (totals.loading || !totals.data) && (
-          <ChartSkeleton aspectRatio={600 / 220} phase={totals.phase} />
-        )}
-        {!totals.loading && !totals.error && totals.data && (
-          <ActiveRidersOverTime data={totals.data} maxBikesEver={maxBikesEver} />
         )}
       </Section>
 
