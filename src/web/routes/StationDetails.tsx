@@ -26,6 +26,7 @@ import ActivityLog from '../components/ActivityLog'
 import { useActivity } from '../hooks/useActivity'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import { useRouteCache } from '../hooks/useRouteCache'
+import { useRoutePopularity } from '../hooks/useRoutePopularity'
 import { resolveRange } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
 import type { Trip } from '@shared/types'
@@ -253,6 +254,130 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
   )
 }
 
+type StationTopRoute = { otherId: string; count: number; meanSec: number }
+
+function pickTopRoutes(
+  pairStats: import('@shared/popularity').Popularity['pairStats'] | undefined,
+  stationId: string,
+  direction: 'from' | 'to',
+  limit = 5,
+): StationTopRoute[] {
+  if (!pairStats) return []
+  const out: StationTopRoute[] = []
+  if (direction === 'from') {
+    const row = pairStats[stationId]
+    if (!row) return []
+    for (const [otherId, stat] of Object.entries(row)) {
+      out.push({ otherId, count: stat.count, meanSec: stat.mean_sec })
+    }
+  } else {
+    for (const [fromId, row] of Object.entries(pairStats)) {
+      const stat = row[stationId]
+      if (stat) out.push({ otherId: fromId, count: stat.count, meanSec: stat.mean_sec })
+    }
+  }
+  out.sort((a, b) => b.count - a.count)
+  return out.slice(0, limit)
+}
+
+function TopRoutesSection({
+  stationId,
+  pairStats,
+  stations,
+  loading,
+}: {
+  stationId: string
+  pairStats: import('@shared/popularity').Popularity['pairStats'] | undefined
+  stations: StationSnapshot[]
+  loading: boolean
+}) {
+  const topFrom = useMemo(() => pickTopRoutes(pairStats, stationId, 'from'), [pairStats, stationId])
+  const topTo = useMemo(() => pickTopRoutes(pairStats, stationId, 'to'), [pairStats, stationId])
+  const nameById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
+
+  const renderList = (rows: StationTopRoute[], direction: 'from' | 'to') => {
+    if (loading) {
+      return <Text variant="body" size="xs" color="subdued">Loading…</Text>
+    }
+    if (rows.length === 0) {
+      return (
+        <Text variant="body" size="xs" color="subdued">
+          No observed trips {direction === 'from' ? 'leaving' : 'arriving at'} this station in the rollup yet.
+        </Text>
+      )
+    }
+    return (
+      <Flex direction="column" gap="2xs">
+        {rows.map((row, i) => {
+          const name = nameById.get(row.otherId) ?? row.otherId
+          const minutes = Math.round(row.meanSec / 60)
+          const routeUrl = direction === 'from'
+            ? `/route/${stationId}/${row.otherId}`
+            : `/route/${row.otherId}/${stationId}`
+          return (
+            <Link
+              key={row.otherId}
+              to={routeUrl}
+              css={(t) => ({
+                display: 'flex',
+                alignItems: 'baseline',
+                justifyContent: 'space-between',
+                gap: t.spacing.s,
+                padding: `${t.spacing.xs}px ${t.spacing.s}px`,
+                borderRadius: t.cornerRadius.s,
+                border: `1px solid ${t.color.border.default}`,
+                background: t.color.background.surface1,
+                fontSize: 13,
+                color: t.color.text.default,
+                textDecoration: 'none',
+                transition: `background ${t.motion.quick}`,
+                '&:hover': { background: t.color.background.white },
+              })}
+            >
+              <Flex alignItems="baseline" gap="xs" css={{ minWidth: 0, flex: 1 }}>
+                <Text variant="body" size="xs" color="subdued" css={{ width: 16, flexShrink: 0 }}>{i + 1}.</Text>
+                <Text variant="body" size="s" color="default" ellipses>{name}</Text>
+              </Flex>
+              <Flex alignItems="baseline" gap="s" css={{ flexShrink: 0 }}>
+                <Text variant="label" size="xs" color="subdued">{minutes} min</Text>
+                <Text variant="body" size="s" strength="strong" color="heading">{row.count}</Text>
+              </Flex>
+            </Link>
+          )
+        })}
+      </Flex>
+    )
+  }
+
+  return (
+    <Flex direction="column" gap="s">
+      <Text variant="title" size="m" strength="strong" color="heading">Top routes · 30 days</Text>
+      <Text variant="body" size="xs" color="subdued">
+        From the popularity rollup. Click any row to open the route planner for that pair.
+      </Text>
+      <Box css={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 16,
+        '@media (max-width: 600px)': { gridTemplateColumns: '1fr' },
+      }}>
+        <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+          <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">
+            Top destinations from here
+          </Text>
+          {renderList(topFrom, 'from')}
+        </Paper>
+        <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
+          <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">
+            Top origins arriving here
+          </Text>
+          {renderList(topTo, 'to')}
+        </Paper>
+      </Box>
+    </Flex>
+  )
+}
+
 export default function StationDetails() {
   const theme = useTheme()
   const { stationId } = useParams<{ stationId: string }>()
@@ -260,6 +385,7 @@ export default function StationDetails() {
   const activity = useActivity(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
+  const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const [openTrip, setOpenTrip] = useState<Trip | null>(null)
   const [now] = useState(() => Math.floor(Date.now() / 1000))
   // Last 24 hours is enough cushion to always contain "today since midnight"
@@ -556,6 +682,16 @@ export default function StationDetails() {
             />
           )}
         </Paper>
+      )}
+
+      {/* Top routes to/from this station (from the 30-day popularity rollup) */}
+      {stationId && (
+        <TopRoutesSection
+          stationId={stationId}
+          pairStats={popularity.data?.pairStats}
+          stations={live?.stations ?? []}
+          loading={popularity.loading}
+        />
       )}
 
       {/* Nearby stations */}
