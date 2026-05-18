@@ -11,11 +11,6 @@ on:
 permissions:
   contents: read
 
-# Opt the action runtimes (checkout, setup-node) into Node 24 to silence the
-# Node 20 deprecation warning. Drop this when those actions ship v5.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 concurrency:
   group: parquet-compact
   cancel-in-progress: false
@@ -30,7 +25,7 @@ jobs:
           fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
