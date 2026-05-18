@@ -10,7 +10,8 @@ type Props = {
 
 /**
  * Overlay control toggling the CyclOSM bike-route basemap on/off. Anchored
- * top-right on the live map; matches the SystemTotals overlay's framing.
+ * bottom-right on the live map alongside the "Near me" trigger; top-right
+ * is reserved for the SystemTotals card.
  */
 export default function BasemapToggle({ value, onChange }: Props) {
   const theme = useTheme()
@@ -25,7 +26,7 @@ export default function BasemapToggle({ value, onChange }: Props) {
         all: 'unset',
         cursor: 'pointer',
         position: 'absolute',
-        top: 16,
+        bottom: 16,
         right: 16,
         zIndex: 10,
         padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,

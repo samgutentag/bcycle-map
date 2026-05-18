@@ -4,12 +4,12 @@ import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { latLngToCell, cellToBoundary } from 'h3-js'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
+import { useActivity } from '../hooks/useActivity'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
-import ActivityDrawer from '../components/ActivityDrawer'
 import PollPinger from '../components/PollPinger'
 import NearbyStationsSheet from '../components/NearbyStationsSheet'
 import { IconLocationPin } from '../components/icons'
@@ -141,6 +141,7 @@ export default function LiveMap() {
   // queued direction so we only run one pulse at a time but never drop a tick.
   const pulseStateRef = useRef<Map<string, { timer: number; queued: PulseDirection | null }>>(new Map())
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
+  const { data: activity } = useActivity(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -450,9 +451,10 @@ export default function LiveMap() {
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
       <PollPinger data={data} />
-      {/* Nearby-stations trigger — clusters with the basemap toggle so both
-         live in the top-right control strip. Active state mirrors the
-         cycling-routes button so the two pair visually. */}
+      {/* Nearby-stations trigger sits in the bottom-right control strip
+         alongside the basemap toggle. Top-right is now reserved for the
+         SystemTotals card; secondary controls cluster at the opposite
+         corner. Active state mirrors the cycling-routes button. */}
       <button
         type="button"
         onClick={() => setNearbyOpen(!nearbyOpen)}
@@ -464,7 +466,7 @@ export default function LiveMap() {
           all: 'unset',
           cursor: 'pointer',
           position: 'absolute',
-          top: 16,
+          bottom: 16,
           right: 168,
           zIndex: 10,
           padding: '6px 10px',
@@ -486,13 +488,23 @@ export default function LiveMap() {
         </span>
       </button>
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
-      {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} recent24h={data.recent24h} timezone={data.system.timezone} snapshotTs={data.snapshot_ts} lastChangedTs={data.last_total_changed_ts} variant="overlay" />}
+      {data && (
+        <SystemTotals
+          stations={data.stations}
+          maxBikesEver={data.max_bikes_ever}
+          recent24h={data.recent24h}
+          timezone={data.system.timezone}
+          snapshotTs={data.snapshot_ts}
+          lastChangedTs={data.last_total_changed_ts}
+          variant="overlay"
+          recentEvents={activity?.events ?? []}
+        />
+      )}
       <NearbyStationsSheet
         stations={data?.stations ?? []}
         open={nearbyOpen}
         onOpenChange={setNearbyOpen}
       />
-      <ActivityDrawer stations={data?.stations ?? []} timezone={data?.system.timezone} />
     </div>
   )
 }
