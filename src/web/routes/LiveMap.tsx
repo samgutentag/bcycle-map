@@ -9,6 +9,7 @@ import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
+import ActivityDrawer from '../components/ActivityDrawer'
 import { renderSparkline } from '../lib/sparkline'
 import type { StationSnapshot } from '@shared/types'
 
@@ -351,6 +352,7 @@ export default function LiveMap() {
       <BasemapToggle value={basemap} onChange={setBasemap} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} recent24h={data.recent24h} timezone={data.system.timezone} snapshotTs={data.snapshot_ts} lastChangedTs={data.last_total_changed_ts} variant="overlay" />}
+      <ActivityDrawer stations={data?.stations ?? []} timezone={data?.system.timezone} />
     </div>
   )
 }
