@@ -2,12 +2,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { renderWithTheme } from '../test-utils'
 import MapFilterChips from './MapFilterChips'
+import type { CorridorId } from '../config/corridors'
 
 afterEach(() => cleanup())
 
 type Overrides = {
   minBikes?: number
   offlineOnly?: boolean
+  corridor?: CorridorId | null
   filteredCount?: number
   totalCount?: number
 }
@@ -15,19 +17,22 @@ type Overrides = {
 function renderChips(overrides: Overrides = {}) {
   const onMinBikesChange = vi.fn()
   const onOfflineOnlyChange = vi.fn()
+  const onCorridorChange = vi.fn()
   const onReset = vi.fn()
   renderWithTheme(
     <MapFilterChips
       minBikes={overrides.minBikes ?? 0}
       offlineOnly={overrides.offlineOnly ?? false}
+      corridor={overrides.corridor ?? null}
       filteredCount={overrides.filteredCount ?? 26}
       totalCount={overrides.totalCount ?? 26}
       onMinBikesChange={onMinBikesChange}
       onOfflineOnlyChange={onOfflineOnlyChange}
+      onCorridorChange={onCorridorChange}
       onReset={onReset}
     />,
   )
-  return { onMinBikesChange, onOfflineOnlyChange, onReset }
+  return { onMinBikesChange, onOfflineOnlyChange, onCorridorChange, onReset }
 }
 
 describe('MapFilterChips', () => {
@@ -108,6 +113,46 @@ describe('MapFilterChips', () => {
     fireEvent.click(screen.getByTestId('filter-chip-min-bikes-clear'))
     expect(onMinBikesChange).toHaveBeenCalledTimes(1)
     expect(onMinBikesChange).toHaveBeenCalledWith(0)
+  })
+
+  describe('corridor chip', () => {
+    it('renders "Corridor: All" by default with no clear button', () => {
+      renderChips()
+      const select = screen.getByTestId('filter-chip-corridor') as HTMLSelectElement
+      expect(select).toBeInTheDocument()
+      expect(select.value).toBe('')
+      expect(screen.queryByTestId('filter-chip-corridor-clear')).toBeNull()
+    })
+
+    it('renders the corridor label and × clear button when active', () => {
+      renderChips({ corridor: 'waterfront' })
+      // Label rendered inline as "Corridor: Waterfront"
+      expect(screen.getByText(/Corridor: Waterfront/)).toBeInTheDocument()
+      expect(screen.getByTestId('filter-chip-corridor-clear')).toBeInTheDocument()
+    })
+
+    it('calls onCorridorChange with the selected id when a corridor is picked', () => {
+      const { onCorridorChange } = renderChips()
+      fireEvent.change(screen.getByTestId('filter-chip-corridor'), { target: { value: 'mesa' } })
+      expect(onCorridorChange).toHaveBeenCalledWith('mesa')
+    })
+
+    it('calls onCorridorChange(null) when "All corridors" is picked', () => {
+      const { onCorridorChange } = renderChips({ corridor: 'waterfront' })
+      fireEvent.change(screen.getByTestId('filter-chip-corridor'), { target: { value: '' } })
+      expect(onCorridorChange).toHaveBeenCalledWith(null)
+    })
+
+    it('clicking the × clears the corridor without stepping through the dropdown', () => {
+      const { onCorridorChange } = renderChips({ corridor: 'mesa' })
+      fireEvent.click(screen.getByTestId('filter-chip-corridor-clear'))
+      expect(onCorridorChange).toHaveBeenCalledWith(null)
+    })
+
+    it('Reset link appears when only the corridor filter is active', () => {
+      renderChips({ corridor: 'waterfront' })
+      expect(screen.getByTestId('filter-chip-reset')).toBeInTheDocument()
+    })
   })
 })
 

@@ -1,11 +1,14 @@
 import { Flex, Text, useTheme } from '@audius/harmony'
 import { MIN_BIKES_CYCLE, nextMinBikes } from '../lib/map-filters'
+import { CORRIDOR_LABELS, CORRIDOR_ORDER, type CorridorId, isCorridorId } from '../config/corridors'
 
 type Props = {
   minBikes: number
   offlineOnly: boolean
+  corridor: CorridorId | null
   onMinBikesChange: (value: number) => void
   onOfflineOnlyChange: (value: boolean) => void
+  onCorridorChange: (value: CorridorId | null) => void
   onReset: () => void
   filteredCount: number
   totalCount: number
@@ -28,15 +31,18 @@ function minBikesLabel(value: number): string {
 export default function MapFilterChips({
   minBikes,
   offlineOnly,
+  corridor,
   onMinBikesChange,
   onOfflineOnlyChange,
+  onCorridorChange,
   onReset,
   filteredCount,
   totalCount,
 }: Props) {
   const theme = useTheme()
   const minBikesActive = minBikes > 0
-  const anyActive = minBikesActive || offlineOnly
+  const corridorActive = corridor !== null
+  const anyActive = minBikesActive || offlineOnly || corridorActive
 
   const baseChip = {
     all: 'unset' as const,
@@ -91,6 +97,98 @@ export default function MapFilterChips({
           justifyContent: 'center',
         }}
       >
+        {/* Corridor chip — native <select> styled to match the chip row.
+            Native is the right call here: 11+ options, keyboard accessibility
+            for free, no custom popover machinery. */}
+        <div
+          css={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            ...baseChip,
+            ...(corridorActive ? activeChip : null),
+            padding: 0,
+            cursor: 'pointer',
+          }}
+        >
+          <Text
+            variant="label"
+            size="s"
+            strength="strong"
+            color="inherit"
+            css={{
+              paddingLeft: theme.spacing.s,
+              paddingRight: corridorActive ? theme.spacing.xs : theme.spacing.s,
+              paddingTop: theme.spacing.xs,
+              paddingBottom: theme.spacing.xs,
+              pointerEvents: 'none',
+            }}
+          >
+            {corridor === null ? 'Corridor: All' : `Corridor: ${CORRIDOR_LABELS[corridor]}`}
+          </Text>
+          {corridorActive && (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Clear corridor filter"
+              data-testid="filter-chip-corridor-clear"
+              onClick={ev => {
+                ev.stopPropagation()
+                onCorridorChange(null)
+              }}
+              onKeyDown={ev => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.stopPropagation()
+                  ev.preventDefault()
+                  onCorridorChange(null)
+                }
+              }}
+              css={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 14,
+                height: 14,
+                borderRadius: '50%',
+                fontSize: 12,
+                lineHeight: 1,
+                cursor: 'pointer',
+                marginRight: theme.spacing.xs,
+                opacity: 0.85,
+                pointerEvents: 'auto',
+                zIndex: 2,
+                '&:hover': { opacity: 1 },
+              }}
+            >
+              ×
+            </span>
+          )}
+          <select
+            data-testid="filter-chip-corridor"
+            aria-label="Filter by corridor"
+            value={corridor ?? ''}
+            onChange={ev => {
+              const v = ev.target.value
+              if (v === '') onCorridorChange(null)
+              else if (isCorridorId(v)) onCorridorChange(v)
+            }}
+            css={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0,
+              cursor: 'pointer',
+              border: 'none',
+              background: 'transparent',
+              '&:focus-visible + *': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 2 },
+            }}
+          >
+            <option value="">All corridors</option>
+            {CORRIDOR_ORDER.map(id => (
+              <option key={id} value={id}>{CORRIDOR_LABELS[id]}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Min bikes chip */}
         <Flex alignItems="center" gap="xs">
           <button
