@@ -11,7 +11,10 @@ import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import ActivityDrawer from '../components/ActivityDrawer'
 import { renderSparkline } from '../lib/sparkline'
+import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import type { StationSnapshot } from '@shared/types'
+
+const PULSE_DURATION_MS = 800
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -128,11 +131,52 @@ export default function LiveMap() {
   const markersRef = useRef<Map<string, Marker>>(new Map())
   const popupRef = useRef<maplibregl.Popup | null>(null)
   const boundsSetRef = useRef(false)
+  // Previous snapshot's stations — used to diff against the next tick so we can
+  // pulse just the pins whose bike count actually moved.
+  const prevStationsRef = useRef<StationSnapshot[] | null>(null)
+  // Per-station pulse queue. Each entry tracks the active timeout and the next
+  // queued direction so we only run one pulse at a time but never drop a tick.
+  const pulseStateRef = useRef<Map<string, { timer: number; queued: PulseDirection | null }>>(new Map())
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
   const [view, setView] = useState<MapView>('pins')
   const [basemap, setBasemap] = useState<Basemap>('clean')
+
+  // Trigger a single pulse on a marker. If one is already running for that
+  // station, queue the latest direction instead (we only ever keep the most
+  // recent queued event; older queued events are coalesced away).
+  function triggerPulse(stationId: string, direction: PulseDirection) {
+    const marker = markersRef.current.get(stationId)
+    if (!marker) return
+    const el = marker.getElement()
+    const state = pulseStateRef.current
+    const existing = state.get(stationId)
+    if (existing) {
+      existing.queued = direction
+      return
+    }
+    runPulse(el, stationId, direction)
+  }
+
+  function runPulse(el: HTMLElement, stationId: string, direction: PulseDirection) {
+    // Reset first so back-to-back pulses on the same element actually re-run
+    // the CSS animation rather than silently being a no-op.
+    el.classList.remove('pin-pulse')
+    el.removeAttribute('data-pulse')
+    // Force layout flush so the next class add restarts the keyframe cleanly.
+    void el.offsetWidth
+    el.dataset.pulse = direction
+    el.classList.add('pin-pulse')
+    const timer = window.setTimeout(() => {
+      el.classList.remove('pin-pulse')
+      el.removeAttribute('data-pulse')
+      const next = pulseStateRef.current.get(stationId)?.queued ?? null
+      pulseStateRef.current.delete(stationId)
+      if (next) runPulse(el, stationId, next)
+    }, PULSE_DURATION_MS)
+    pulseStateRef.current.set(stationId, { timer, queued: null })
+  }
 
   function openStationPopup(s: StationSnapshot, map: MlMap, fly: boolean) {
     // Clear ref BEFORE removing the old popup so its close event doesn't
@@ -342,6 +386,46 @@ export default function LiveMap() {
       if (!seen.has(id)) { marker.remove(); markersRef.current.delete(id) }
     }
   }, [data, view])
+
+  // Diff successive snapshots and pulse each pin whose bike count changed.
+  // Runs after the marker-sync effect, so markers for new stations exist by
+  // the time we look them up. Reduced-motion users get no animation at all.
+  useEffect(() => {
+    if (!data) return
+    if (view !== 'pins') {
+      // Heatmap views have no pins to pulse; reset baseline so we don't fire
+      // a flurry when the user switches back.
+      prevStationsRef.current = data.stations
+      return
+    }
+    const prev = prevStationsRef.current
+    prevStationsRef.current = data.stations
+    if (!prev) return  // first tick: just record baseline
+    const reduceMotion = typeof window !== 'undefined'
+      && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) return
+    const events = diffSnapshots(prev, data.stations)
+    if (events.length === 0) return
+    // Batch via a single rAF so 50+ pulses on one tick coalesce into one
+    // paint rather than queuing N separate style writes.
+    const raf = window.requestAnimationFrame(() => {
+      for (const ev of events) triggerPulse(ev.stationId, ev.direction)
+    })
+    return () => window.cancelAnimationFrame(raf)
+    // triggerPulse is stable via refs; data is the only meaningful dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, view])
+
+  // Clear any pending pulse timers on unmount so we don't poke a detached DOM.
+  useEffect(() => {
+    return () => {
+      for (const { timer } of pulseStateRef.current.values()) {
+        window.clearTimeout(timer)
+      }
+      pulseStateRef.current.clear()
+    }
+  }, [])
 
   return (
     <div className="relative w-full h-[calc(100vh-49px)]">
