@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -12,9 +12,16 @@ import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import PollPinger from '../components/PollPinger'
 import NearbyStationsSheet from '../components/NearbyStationsSheet'
+import MapFilterChips from '../components/MapFilterChips'
 import { IconLocationPin } from '../components/icons'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
+import {
+  applyMapFilters,
+  DEFAULT_FILTERS,
+  readFiltersFromSearch,
+  writeFiltersToSearch,
+} from '../lib/map-filters'
 import type { StationSnapshot } from '@shared/types'
 
 const PULSE_DURATION_MS = 800
@@ -158,6 +165,26 @@ export default function LiveMap() {
       return updated
     }, { replace: true })
   }, [setSearchParams])
+
+  // Filter chips. URL-driven (`?bikes=N&offline=1`) so links are shareable
+  // and round-trip safely across reloads.
+  const filters = useMemo(() => readFiltersFromSearch(searchParams), [searchParams])
+  const setMinBikes = useCallback((value: number) => {
+    setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), minBikes: value }), { replace: true })
+  }, [setSearchParams])
+  const setOfflineOnly = useCallback((value: boolean) => {
+    setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), offlineOnly: value }), { replace: true })
+  }, [setSearchParams])
+  const resetFilters = useCallback(() => {
+    setSearchParams(prev => writeFiltersToSearch(prev, DEFAULT_FILTERS), { replace: true })
+  }, [setSearchParams])
+
+  // Filter the station list driving the markers. SystemTotals always sees the
+  // full snapshot — totals are system-wide by design (per the spec).
+  const visibleStations = useMemo<StationSnapshot[]>(() => {
+    if (!data) return []
+    return applyMapFilters(data.stations, filters)
+  }, [data, filters])
 
   // Trigger a single pulse on a marker. If one is already running for that
   // station, queue the latest direction instead (we only ever keep the most
@@ -335,7 +362,10 @@ export default function LiveMap() {
     }
     const map = mapRef.current
 
-    // First data load: clamp pan + zoom to 1.5x the stations' bbox.
+    // First data load: clamp pan + zoom to 1.5x the stations' bbox. Fit to
+    // the FULL station set (not the filtered one) so the camera stays put
+    // when the user toggles chips — otherwise the visible area would jitter
+    // as filters narrow the bbox.
     if (!boundsSetRef.current && data.stations.length > 0) {
       const valid = data.stations.filter(s =>
         Number.isFinite(s.lat) && Number.isFinite(s.lon) && s.lat !== 0 && s.lon !== 0,
@@ -366,7 +396,11 @@ export default function LiveMap() {
 
     const seen = new Set<string>()
 
-    for (const s of data.stations) {
+    // visibleStations already has the filter applied; stations not in this
+    // list won't be added to `seen`, so the sweep at the bottom of this
+    // effect removes their markers — exactly the hide-not-grey behavior the
+    // spec calls for.
+    for (const s of visibleStations) {
       seen.add(s.station_id)
       const total = s.num_bikes_available + s.num_docks_available
       const offline = !s.is_installed || !s.is_renting
@@ -401,7 +435,7 @@ export default function LiveMap() {
     for (const [id, marker] of markersRef.current) {
       if (!seen.has(id)) { marker.remove(); markersRef.current.delete(id) }
     }
-  }, [data, view])
+  }, [data, view, visibleStations])
 
   // Diff successive snapshots and pulse each pin whose bike count changed.
   // Runs after the marker-sync effect, so markers for new stations exist by
@@ -451,6 +485,15 @@ export default function LiveMap() {
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
       <PollPinger data={data} />
+      <MapFilterChips
+        minBikes={filters.minBikes}
+        offlineOnly={filters.offlineOnly}
+        onMinBikesChange={setMinBikes}
+        onOfflineOnlyChange={setOfflineOnly}
+        onReset={resetFilters}
+        filteredCount={visibleStations.length}
+        totalCount={data?.stations.length ?? 0}
+      />
       {/* Nearby-stations trigger sits in the bottom-right control strip
          alongside the basemap toggle. Top-right is now reserved for the
          SystemTotals card; secondary controls cluster at the opposite
