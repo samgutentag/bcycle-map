@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Flex, Paper, Text, useTheme } from '@audius/harmony'
-import type { HourBikeStats, StationSnapshot } from '@shared/types'
+import type { ActivityEvent, HourBikeStats, StationSnapshot } from '@shared/types'
 import MiniLine from './MiniLine'
 import LiveDot from './LiveDot'
 import { formatRelative } from '../lib/relative-time'
@@ -18,6 +19,15 @@ type Props = {
   /** Unix seconds of the most recent system-wide bike count change. */
   lastChangedTs?: number
   variant?: 'overlay' | 'inline'
+  /**
+   * Recent activity events to render as a compact list inside the card.
+   * When provided, the latest `recentActivityLimit` events render below the
+   * snapshot timestamps with a "view more →" link to /activity. Pass the
+   * full event list here; the component slices to its own limit.
+   */
+  recentEvents?: ActivityEvent[]
+  /** Cap on how many events to render in the inline activity section. */
+  recentActivityLimit?: number
 }
 
 const BIKES_COLOR = '#0d6cb0'
@@ -51,11 +61,31 @@ export default function SystemTotals({
   snapshotTs,
   lastChangedTs,
   variant = 'overlay',
+  recentEvents,
+  recentActivityLimit = 5,
 }: Props) {
   const theme = useTheme()
   const totals = computeTotals(stations)
   const showBikeMax = typeof maxBikesEver === 'number' && maxBikesEver > 0
   const activeRiders = showBikeMax ? Math.max(0, (maxBikesEver as number) - totals.bikes) : null
+
+  // Pre-sliced event list — most recent first, capped at the limit. Events are
+  // already stored newest-first by the poller, but we sort defensively in case
+  // a future caller passes them in a different order.
+  const visibleEvents = useMemo(() => {
+    if (!recentEvents || recentEvents.length === 0) return []
+    return [...recentEvents].sort((a, b) => b.ts - a.ts).slice(0, recentActivityLimit)
+  }, [recentEvents, recentActivityLimit])
+
+  // Resolve station ids to display names so the inline activity rows don't
+  // surface raw ids. Falls back to the id if the station isn't in the
+  // current snapshot (rare — happens if a station drops out between the
+  // event landing and the snapshot refresh).
+  const stationNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const s of stations) m.set(s.station_id, s.name)
+    return m
+  }, [stations])
 
   const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
@@ -77,9 +107,16 @@ export default function SystemTotals({
     variant === 'overlay'
       ? {
           position: 'absolute' as const,
-          bottom: 56,
+          top: 16,
           right: 16,
           minWidth: 280,
+          maxWidth: 340,
+          // The card now hosts the recent-activity list, so it can grow tall.
+          // Cap its max height so it doesn't dominate the whole right side on
+          // shorter viewports; the activity section scrolls internally if it
+          // overflows.
+          maxHeight: 'calc(100vh - 80px)',
+          overflow: 'auto',
           backdropFilter: 'saturate(160%) blur(8px)',
           background: `color-mix(in srgb, ${theme.color.background.white} 92%, transparent)`,
         }
@@ -199,6 +236,92 @@ export default function SystemTotals({
           </Text>
         )}
       </Flex>
+
+      {visibleEvents.length > 0 && (
+        <Flex
+          direction="column"
+          gap="xs"
+          css={{
+            paddingTop: theme.spacing.xs,
+            borderTop: `1px solid ${theme.color.border.default}`,
+          }}
+          data-testid="system-totals-recent-activity"
+        >
+          <Flex alignItems="center" justifyContent="space-between">
+            <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">
+              Recent activity
+            </Text>
+            <Link
+              to="/activity"
+              css={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+                textTransform: 'uppercase',
+                color: theme.color.text.subdued,
+                textDecoration: 'none',
+                '&:hover': { color: theme.color.text.default, textDecoration: 'underline' },
+              }}
+            >
+              View more →
+            </Link>
+          </Flex>
+          <Flex direction="column" gap="2xs" as="ul" css={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {visibleEvents.map(ev => {
+              const isOut = ev.type === 'departure'
+              const name = stationNameById.get(ev.station_id) ?? ev.station_id
+              const deltaSuffix = ev.delta > 1 ? ` ×${ev.delta}` : ''
+              return (
+                <Flex
+                  as="li"
+                  key={`${ev.ts}|${ev.station_id}|${ev.type}`}
+                  alignItems="center"
+                  gap="xs"
+                  css={{ fontSize: 12, lineHeight: 1.3 }}
+                >
+                  <Text
+                    variant="label"
+                    size="xs"
+                    strength="strong"
+                    css={{
+                      color: isOut ? ACTIVE_COLOR : '#059669',
+                      width: 12,
+                      flexShrink: 0,
+                    }}
+                    aria-label={isOut ? 'departure' : 'arrival'}
+                  >
+                    {isOut ? '↑' : '↓'}
+                  </Text>
+                  <Link
+                    to={`/station/${ev.station_id}/details`}
+                    css={{
+                      flex: 1,
+                      minWidth: 0,
+                      color: theme.color.text.default,
+                      textDecoration: 'none',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      '&:hover': { textDecoration: 'underline' },
+                    }}
+                    title={name + deltaSuffix}
+                  >
+                    {name}{deltaSuffix}
+                  </Link>
+                  <Text
+                    variant="body"
+                    size="xs"
+                    color="subdued"
+                    css={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {formatRelative(ev.ts, nowSec)}
+                  </Text>
+                </Flex>
+              )
+            })}
+          </Flex>
+        </Flex>
+      )}
     </Paper>
   )
 }
