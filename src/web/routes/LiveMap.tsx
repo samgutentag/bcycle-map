@@ -10,6 +10,7 @@ import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import ActivityDrawer from '../components/ActivityDrawer'
+import PollPinger from '../components/PollPinger'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import type { StationSnapshot } from '@shared/types'
@@ -434,6 +435,7 @@ export default function LiveMap() {
          now; bring back once we revisit the heatmap UI direction. */}
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
+      <PollPinger data={data} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} recent24h={data.recent24h} timezone={data.system.timezone} snapshotTs={data.snapshot_ts} lastChangedTs={data.last_total_changed_ts} variant="overlay" />}
       <ActivityDrawer stations={data?.stations ?? []} timezone={data?.system.timezone} />
