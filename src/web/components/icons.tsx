@@ -122,4 +122,32 @@ export function IconLocationPin({ size = 'm', color, className, ...rest }: IconP
   )
 }
 
+/**
+ * Stylized "flow" glyph for the /flow nav entry — a wavy arrow that suggests
+ * motion across the city. Custom because Harmony doesn't ship a "flow" icon.
+ */
+export function IconFlow({ size = 'm', color, className, ...rest }: IconProps) {
+  const px = ICON_PX[size]
+  const stroke = useIconColor(color)
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden={rest['aria-label'] ? undefined : true}
+      role={rest['aria-label'] ? 'img' : undefined}
+      {...rest}
+    >
+      <path d="M3 8c3 0 3 4 6 4s3-4 6-4 3 4 6 4" />
+      <path d="M3 16c3 0 3 4 6 4s3-4 6-4 3 4 6 4" />
+    </svg>
+  )
+}
+
 export type CustomIconComponent = typeof IconBike

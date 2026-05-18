@@ -15,7 +15,7 @@ import { useBeaconReporter } from './hooks/useBeaconReporter'
 import AboutModal from './components/AboutModal'
 import BrandMark from './components/BrandMark'
 import ThemeToggle from './components/ThemeToggle'
-import { IconBike } from './components/icons'
+import { IconBike, IconFlow } from './components/icons'
 import type { ComponentType } from 'react'
 import { useStableVerb } from './lib/spinner-verbs'
 
@@ -29,6 +29,7 @@ const RouteCheck = lazy(() => import('./routes/RouteCheck'))
 const StationDetails = lazy(() => import('./routes/StationDetails'))
 const Activity = lazy(() => import('./routes/Activity'))
 const Insights = lazy(() => import('./routes/Insights'))
+const FlowMap = lazy(() => import('./routes/FlowMap'))
 
 // Accepts either a Harmony IconComponent or a local custom icon (see icons.tsx).
 // Loose typing because both icon families have slightly different props but
@@ -40,6 +41,7 @@ type NavSpec = { to: string; label: string; Icon: NavIcon; matchPrefix?: string 
 const PRIMARY_NAV: NavSpec[] = [
   { to: '/', label: 'Live', Icon: IconRadar, matchPrefix: '/station' },
   { to: '/route', label: 'Route', Icon: IconBike },
+  { to: '/flow', label: 'Flow', Icon: IconFlow },
   { to: '/explore', label: 'Explore', Icon: IconExplore, matchPrefix: '/activity' },
 ]
 
@@ -224,6 +226,14 @@ export default function App() {
             element={
               <Suspense fallback={<RouteFallback />}>
                 <RouteCheck />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/flow"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <FlowMap />
               </Suspense>
             }
           />

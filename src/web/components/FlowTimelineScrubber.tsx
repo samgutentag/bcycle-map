@@ -1,0 +1,253 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Flex, Text, useTheme } from '@audius/harmony'
+
+/**
+ * 24-hour timeline scrubber for the flow map.
+ *
+ * Input is a Unix-second cursor between `windowStart` and `windowEnd`. The
+ * underlying control is an <input type="range"> for native a11y + keyboard
+ * support (arrow keys = ±60s, home/end = jump). Tick marks every 3 hours are
+ * positioned absolutely on top of the track.
+ *
+ * Play/pause is exposed via a button; the spacebar handler lives in the parent
+ * (FlowMap) so it doesn't need keyboard focus on the scrubber itself.
+ */
+
+type Props = {
+  cursorTs: number
+  windowStart: number
+  windowEnd: number
+  playing: boolean
+  onCursorChange: (ts: number) => void
+  onPlayToggle: () => void
+  /** Optional caption rendered on the right side, e.g. "showing 80 of 134 trips" */
+  caption?: string | null
+  /** IANA timezone for clock labels (e.g. "America/Los_Angeles"). UTC fallback. */
+  timezone?: string
+}
+
+const HOUR_SEC = 3600
+const TICK_INTERVAL_SEC = 3 * HOUR_SEC
+
+function formatClock(tsSec: number, timezone: string | undefined): string {
+  return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: timezone,
+  })
+}
+
+function formatTick(tsSec: number, timezone: string | undefined): string {
+  // Compact hour-only label for tick marks ("3 PM"). Minutes are always :00
+  // for ticks since we space them on 3-hour boundaries from windowStart.
+  return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    timeZone: timezone,
+  })
+}
+
+export default function FlowTimelineScrubber({
+  cursorTs,
+  windowStart,
+  windowEnd,
+  playing,
+  onCursorChange,
+  onPlayToggle,
+  caption,
+  timezone,
+}: Props) {
+  const theme = useTheme()
+  const trackRef = useRef<HTMLDivElement | null>(null)
+
+  // Floor windowStart to the nearest 3-hour boundary in local time so ticks
+  // land on familiar clock hours (12 / 3 / 6 / 9) rather than arbitrary offsets.
+  // We do this against the *absolute* timestamp space — ticks every 3 hours
+  // from the first such boundary that falls inside the window.
+  const ticks = useMemo(() => {
+    const offsets: { ts: number; pctLeft: number; label: string }[] = []
+    // Start one tick before windowStart and step forward; first tick inside
+    // the window is the one we render.
+    const firstTickTs = Math.ceil(windowStart / TICK_INTERVAL_SEC) * TICK_INTERVAL_SEC
+    const span = Math.max(1, windowEnd - windowStart)
+    for (let ts = firstTickTs; ts <= windowEnd; ts += TICK_INTERVAL_SEC) {
+      const pct = ((ts - windowStart) / span) * 100
+      offsets.push({ ts, pctLeft: pct, label: formatTick(ts, timezone) })
+    }
+    return offsets
+  }, [windowStart, windowEnd, timezone])
+
+  const onSliderInput = useCallback(
+    (ev: React.ChangeEvent<HTMLInputElement>) => {
+      const next = Number(ev.target.value)
+      if (Number.isFinite(next)) onCursorChange(next)
+    },
+    [onCursorChange],
+  )
+
+  // Jump to "now" (windowEnd). Useful after manually scrubbing back.
+  const onJumpToNow = useCallback(() => onCursorChange(windowEnd), [onCursorChange, windowEnd])
+
+  // Click on the track moves the cursor to the clicked position. Lets users
+  // scrub to a rough timestamp without dragging the handle precisely.
+  const onTrackClick = useCallback(
+    (ev: React.MouseEvent<HTMLDivElement>) => {
+      const el = trackRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const pct = (ev.clientX - rect.left) / rect.width
+      const clamped = Math.max(0, Math.min(1, pct))
+      onCursorChange(windowStart + clamped * (windowEnd - windowStart))
+    },
+    [onCursorChange, windowStart, windowEnd],
+  )
+
+  return (
+    <Flex
+      direction="column"
+      gap="xs"
+      css={{
+        padding: `${theme.spacing.s}px ${theme.spacing.l}px`,
+        background: theme.color.background.surface1,
+        borderTop: `1px solid ${theme.color.border.default}`,
+        '@media (max-width: 600px)': {
+          padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+        },
+      }}
+    >
+      <Flex alignItems="center" justifyContent="space-between" gap="m" wrap="wrap">
+        <Flex alignItems="center" gap="s">
+          <button
+            type="button"
+            onClick={onPlayToggle}
+            aria-label={playing ? 'Pause playback' : 'Play playback'}
+            aria-pressed={playing}
+            title={`${playing ? 'Pause' : 'Play'} (Space)`}
+            data-testid="flow-play-toggle"
+            css={{
+              all: 'unset',
+              cursor: 'pointer',
+              width: 36,
+              height: 36,
+              borderRadius: theme.cornerRadius.s,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: playing ? theme.color.text.heading : theme.color.background.white,
+              color: playing ? theme.color.background.surface1 : theme.color.text.heading,
+              border: `1px solid ${theme.color.border.default}`,
+              transition: `background ${theme.motion.quick}, color ${theme.motion.quick}`,
+              '&:hover': { background: theme.color.text.heading, color: theme.color.background.surface1 },
+              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+            }}
+          >
+            {playing ? (
+              // Pause glyph
+              <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden>
+                <rect x={2} y={2} width={3} height={8} fill="currentColor" />
+                <rect x={7} y={2} width={3} height={8} fill="currentColor" />
+              </svg>
+            ) : (
+              // Play glyph
+              <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden>
+                <path d="M3 2 L10 6 L3 10 Z" fill="currentColor" />
+              </svg>
+            )}
+          </button>
+          <Text variant="title" size="s" strength="strong" color="heading">
+            {formatClock(cursorTs, timezone)}
+          </Text>
+          <button
+            type="button"
+            onClick={onJumpToNow}
+            aria-label="Jump to now"
+            title="Jump to now"
+            data-testid="flow-jump-now"
+            css={{
+              all: 'unset',
+              cursor: 'pointer',
+              padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+              borderRadius: theme.cornerRadius.s,
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: theme.color.text.subdued,
+              border: `1px solid ${theme.color.border.default}`,
+              background: 'transparent',
+              transition: `color ${theme.motion.quick}, background ${theme.motion.quick}`,
+              '&:hover': { color: theme.color.text.default, background: theme.color.background.white },
+              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+            }}
+          >
+            Now
+          </button>
+        </Flex>
+        {caption && (
+          <Text variant="body" size="xs" color="subdued">{caption}</Text>
+        )}
+      </Flex>
+
+      <div
+        ref={trackRef}
+        onClick={onTrackClick}
+        css={{ position: 'relative', height: 32, cursor: 'pointer' }}
+      >
+        {/* Tick row sits above the slider track */}
+        <div css={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {ticks.map(tick => (
+            <div
+              key={tick.ts}
+              css={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: `${tick.pctLeft}%`,
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+              }}
+            >
+              <div css={{
+                width: 1,
+                height: 6,
+                background: theme.color.border.default,
+              }} />
+              <div css={{
+                fontSize: 10,
+                color: theme.color.text.subdued,
+                whiteSpace: 'nowrap',
+              }}>{tick.label}</div>
+            </div>
+          ))}
+        </div>
+        <input
+          type="range"
+          min={windowStart}
+          max={windowEnd}
+          step={60}
+          value={cursorTs}
+          onChange={onSliderInput}
+          aria-label="Timeline scrubber"
+          aria-valuemin={windowStart}
+          aria-valuemax={windowEnd}
+          aria-valuenow={cursorTs}
+          aria-valuetext={formatClock(cursorTs, timezone)}
+          data-testid="flow-scrubber"
+          css={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 4,
+            width: '100%',
+            margin: 0,
+            // Native range styling is intentionally minimal — the tick row
+            // above carries most of the visual weight.
+            accentColor: theme.color.text.heading,
+          }}
+        />
+      </div>
+    </Flex>
+  )
+}
