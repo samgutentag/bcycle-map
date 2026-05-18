@@ -16,6 +16,7 @@ import MapFilterChips from '../components/MapFilterChips'
 import { IconLocationPin } from '../components/icons'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
+import { buildCorridorMap, type CorridorId } from '../config/corridors'
 import {
   applyMapFilters,
   DEFAULT_FILTERS,
@@ -175,16 +176,27 @@ export default function LiveMap() {
   const setOfflineOnly = useCallback((value: boolean) => {
     setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), offlineOnly: value }), { replace: true })
   }, [setSearchParams])
+  const setCorridor = useCallback((value: CorridorId | null) => {
+    setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), corridor: value }), { replace: true })
+  }, [setSearchParams])
   const resetFilters = useCallback(() => {
     setSearchParams(prev => writeFiltersToSearch(prev, DEFAULT_FILTERS), { replace: true })
   }, [setSearchParams])
+
+  // Memoize the station → corridor lookup; iterates every station each
+  // snapshot but identity is stable across renders, so the filter effect
+  // only re-runs when the snapshot itself changes.
+  const corridorByStation = useMemo(
+    () => buildCorridorMap(data?.stations ?? []),
+    [data?.stations],
+  )
 
   // Filter the station list driving the markers. SystemTotals always sees the
   // full snapshot — totals are system-wide by design (per the spec).
   const visibleStations = useMemo<StationSnapshot[]>(() => {
     if (!data) return []
-    return applyMapFilters(data.stations, filters)
-  }, [data, filters])
+    return applyMapFilters(data.stations, filters, corridorByStation)
+  }, [data, filters, corridorByStation])
 
   // Trigger a single pulse on a marker. If one is already running for that
   // station, queue the latest direction instead (we only ever keep the most
@@ -488,6 +500,8 @@ export default function LiveMap() {
       <MapFilterChips
         minBikes={filters.minBikes}
         offlineOnly={filters.offlineOnly}
+        corridor={filters.corridor}
+        onCorridorChange={setCorridor}
         onMinBikesChange={setMinBikes}
         onOfflineOnlyChange={setOfflineOnly}
         onReset={resetFilters}

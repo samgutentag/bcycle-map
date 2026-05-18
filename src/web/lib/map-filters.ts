@@ -1,4 +1,5 @@
 import type { StationSnapshot } from '@shared/types'
+import { type CorridorId, isCorridorId } from '../config/corridors'
 
 /**
  * Filter values for the `/live` chip row. All defaults represent "no filter".
@@ -8,10 +9,13 @@ import type { StationSnapshot } from '@shared/types'
  * - `offlineOnly`: when true, only show stations that are offline in some
  *   way — `is_renting === false`, `is_returning === false`, or
  *   `is_installed === false`. False means no offline filtering.
+ * - `corridor`: when set, only show stations in the named corridor.
+ *   `null` means no corridor filter (the "All corridors" option).
  */
 export type MapFilters = {
   minBikes: number
   offlineOnly: boolean
+  corridor: CorridorId | null
 }
 
 /** The cycle that the Min Bikes chip steps through on each click. */
@@ -20,6 +24,7 @@ export const MIN_BIKES_CYCLE = [0, 1, 3, 5] as const
 export const DEFAULT_FILTERS: MapFilters = {
   minBikes: 0,
   offlineOnly: false,
+  corridor: null,
 }
 
 export function isStationOffline(s: StationSnapshot): boolean {
@@ -31,14 +36,24 @@ export function isStationOffline(s: StationSnapshot): boolean {
  * filter. With default filters this is a shallow copy of the input — safe to
  * hand off without worrying about reference identity with the underlying
  * snapshot.
+ *
+ * The corridor filter requires a `corridorByStation` lookup map (build it
+ * once per snapshot via `buildCorridorMap` and pass it here). Stations
+ * without a corridor assignment are filtered out when any corridor is
+ * selected — they implicitly belong to none.
  */
 export function applyMapFilters(
   stations: StationSnapshot[],
   filters: MapFilters,
+  corridorByStation?: Map<string, CorridorId>,
 ): StationSnapshot[] {
   return stations.filter(s => {
     if (filters.minBikes > 0 && s.num_bikes_available < filters.minBikes) return false
     if (filters.offlineOnly && !isStationOffline(s)) return false
+    if (filters.corridor !== null) {
+      const assigned = corridorByStation?.get(s.station_id)
+      if (assigned !== filters.corridor) return false
+    }
     return true
   })
 }
@@ -61,6 +76,8 @@ export function nextMinBikes(current: number): number {
  *   - `bikes`: integer; coerced into the nearest known step in
  *     `MIN_BIKES_CYCLE` (e.g. `?bikes=2` → 1+). Out-of-range values clamp to 0.
  *   - `offline`: `1` enables the offline-only filter; anything else disables.
+ *   - `corridor`: a known corridor id (e.g. `waterfront`). Unknown values
+ *     are dropped and the filter falls back to `null` (no corridor filter).
  */
 export function readFiltersFromSearch(params: URLSearchParams): MapFilters {
   const rawBikes = params.get('bikes')
@@ -69,7 +86,9 @@ export function readFiltersFromSearch(params: URLSearchParams): MapFilters {
     ? clampMinBikes(parsedBikes)
     : 0
   const offlineOnly = params.get('offline') === '1'
-  return { minBikes, offlineOnly }
+  const rawCorridor = params.get('corridor')
+  const corridor: CorridorId | null = rawCorridor && isCorridorId(rawCorridor) ? rawCorridor : null
+  return { minBikes, offlineOnly, corridor }
 }
 
 /** Round an arbitrary integer to the largest step in MIN_BIKES_CYCLE <= value. */
@@ -95,9 +114,11 @@ export function writeFiltersToSearch(
   else next.delete('bikes')
   if (filters.offlineOnly) next.set('offline', '1')
   else next.delete('offline')
+  if (filters.corridor !== null) next.set('corridor', filters.corridor)
+  else next.delete('corridor')
   return next
 }
 
 export function hasActiveFilter(filters: MapFilters): boolean {
-  return filters.minBikes > 0 || filters.offlineOnly
+  return filters.minBikes > 0 || filters.offlineOnly || filters.corridor !== null
 }
