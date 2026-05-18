@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import maplibregl, { Map as MlMap, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { latLngToCell, cellToBoundary } from 'h3-js'
@@ -11,6 +11,8 @@ import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import ActivityDrawer from '../components/ActivityDrawer'
 import PollPinger from '../components/PollPinger'
+import NearbyStationsSheet from '../components/NearbyStationsSheet'
+import { IconLocationPin } from '../components/icons'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import type { StationSnapshot } from '@shared/types'
@@ -141,8 +143,20 @@ export default function LiveMap() {
   const { data, ageSec } = useLiveSnapshot(SYSTEM_ID)
   const { stationId: urlStationId } = useParams<{ stationId: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState<MapView>('pins')
   const [basemap, setBasemap] = useState<Basemap>('clean')
+  // Nearby-stations sheet toggle. URL-driven (`?nearby=open`) to mirror the
+  // ActivityDrawer pattern so the state survives reload/share.
+  const nearbyOpen = searchParams.get('nearby') === 'open'
+  const setNearbyOpen = useCallback((next: boolean) => {
+    setSearchParams(prev => {
+      const updated = new URLSearchParams(prev)
+      if (next) updated.set('nearby', 'open')
+      else updated.delete('nearby')
+      return updated
+    }, { replace: true })
+  }, [setSearchParams])
 
   // Trigger a single pulse on a marker. If one is already running for that
   // station, queue the latest direction instead (we only ever keep the most
@@ -436,8 +450,48 @@ export default function LiveMap() {
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
       <PollPinger data={data} />
+      {/* Nearby-stations trigger — clusters with the basemap toggle so both
+         live in the top-right control strip. Active state mirrors the
+         cycling-routes button so the two pair visually. */}
+      <button
+        type="button"
+        onClick={() => setNearbyOpen(!nearbyOpen)}
+        aria-pressed={nearbyOpen}
+        aria-label={nearbyOpen ? 'Close nearby stations' : 'Find stations near me'}
+        title={nearbyOpen ? 'Close nearby stations' : 'Find stations near me'}
+        data-testid="nearby-trigger"
+        css={{
+          all: 'unset',
+          cursor: 'pointer',
+          position: 'absolute',
+          top: 16,
+          right: 168,
+          zIndex: 10,
+          padding: '6px 10px',
+          borderRadius: 6,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+          border: `1px solid ${nearbyOpen ? '#0d6cb0' : 'rgba(0,0,0,0.08)'}`,
+          background: nearbyOpen ? '#0d6cb0' : 'var(--app-bg-surface, white)',
+          color: nearbyOpen ? 'white' : 'var(--app-text-default, #222)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          transition: 'background 120ms, color 120ms, box-shadow 120ms',
+          '&:hover': { boxShadow: '0 2px 6px rgba(0,0,0,0.18)' },
+        }}
+      >
+        <IconLocationPin size="s" color="inherit" />
+        <span css={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.02em' }}>
+          Near me
+        </span>
+      </button>
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && <SystemTotals stations={data.stations} maxBikesEver={data.max_bikes_ever} recent24h={data.recent24h} timezone={data.system.timezone} snapshotTs={data.snapshot_ts} lastChangedTs={data.last_total_changed_ts} variant="overlay" />}
+      <NearbyStationsSheet
+        stations={data?.stations ?? []}
+        open={nearbyOpen}
+        onOpenChange={setNearbyOpen}
+      />
       <ActivityDrawer stations={data?.stations ?? []} timezone={data?.system.timezone} />
     </div>
   )

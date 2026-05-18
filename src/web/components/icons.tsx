@@ -98,4 +98,28 @@ export function IconMoon({ size = 'm', color, className, ...rest }: IconProps) {
   )
 }
 
+export function IconLocationPin({ size = 'm', color, className, ...rest }: IconProps) {
+  const px = ICON_PX[size]
+  const stroke = useIconColor(color)
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden={rest['aria-label'] ? undefined : true}
+      role={rest['aria-label'] ? 'img' : undefined}
+      {...rest}
+    >
+      <path d="M12 22s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z" />
+      <circle cx={12} cy={10} r={2.6} />
+    </svg>
+  )
+}
+
 export type CustomIconComponent = typeof IconBike
