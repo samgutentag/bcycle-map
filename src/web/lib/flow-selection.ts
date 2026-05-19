@@ -1,11 +1,17 @@
 import type { Trip } from '@shared/types'
 
 /**
- * Trips visible at a given cursor time: any trip whose [departure_ts, arrival_ts]
- * window covers the cursor. Trips at the exact boundary are considered visible.
+ * Trips visible at a given cursor time: any trip whose [departure_ts,
+ * arrival_ts + ghostSec] window covers the cursor. Trips at the exact
+ * boundary are considered visible.
+ *
+ * `ghostSec` (default 0) extends the visible window past arrival so the
+ * caller can render a fading "trail lingers" effect after the ride ends.
+ * The caller is responsible for distinguishing alive trips
+ * (cursor <= arrival_ts) from ghost trips (cursor > arrival_ts).
  */
-export function selectVisibleTrips(trips: Trip[], cursorTs: number): Trip[] {
-  return trips.filter(t => t.departure_ts <= cursorTs && cursorTs <= t.arrival_ts)
+export function selectVisibleTrips(trips: Trip[], cursorTs: number, ghostSec = 0): Trip[] {
+  return trips.filter(t => t.departure_ts <= cursorTs && cursorTs <= t.arrival_ts + ghostSec)
 }
 
 /**

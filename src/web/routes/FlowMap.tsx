@@ -7,7 +7,7 @@ import { useFlowTrips } from '../hooks/useFlowTrips'
 import { useRouteCache } from '../hooks/useRouteCache'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
-import BikeAnimationLayer from '../components/BikeAnimationLayer'
+import BikeAnimationLayer, { TRAIL_GHOST_FADE_SEC } from '../components/BikeAnimationLayer'
 import { selectVisibleTrips, capTripsForRender } from '../lib/flow-selection'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
@@ -123,12 +123,22 @@ export default function FlowMap() {
     }
   }, [map, live])
 
-  // Visible-window selection. Pure function, easy to test in isolation.
-  const visible = useMemo(() => selectVisibleTrips(trips, cursorTs), [trips, cursorTs])
-  const { rendered, totalCount } = useMemo(
-    () => capTripsForRender(visible, MAX_BIKES_PER_FRAME),
-    [visible],
+  // Visible-window selection. Two passes: `alive` is strict (drives the
+  // "N trips active at cursor" caption), `renderable` extends the window
+  // by TRAIL_GHOST_FADE_SEC so the trail can linger + fade for a moment
+  // after the bike arrives instead of popping out of existence.
+  const alive = useMemo(() => selectVisibleTrips(trips, cursorTs), [trips, cursorTs])
+  const renderable = useMemo(
+    () => selectVisibleTrips(trips, cursorTs, TRAIL_GHOST_FADE_SEC),
+    [trips, cursorTs],
   )
+  const { rendered, totalCount } = useMemo(
+    () => capTripsForRender(renderable, MAX_BIKES_PER_FRAME),
+    [renderable],
+  )
+  // Caption count reflects ALIVE trips only — ghosts are visual lingerers,
+  // not "active" rides.
+  const aliveCount = alive.length
 
   // Departure timestamps for the scrubber's density markers + prev/next trip
   // buttons. Memoized so a 4Hz cursor update during playback doesn't keep
@@ -179,9 +189,9 @@ export default function FlowMap() {
     if (totalCount > rendered.length) {
       return `Showing ${rendered.length} of ${totalCount} trips at cursor (capped for performance)`
     }
-    if (totalCount === 0) return 'No trips active at this moment — scrub elsewhere.'
-    return `${totalCount} trip${totalCount === 1 ? '' : 's'} active at cursor`
-  }, [tripsLoading, routes.loading, trips.length, totalCount, rendered.length])
+    if (aliveCount === 0) return 'No trips active at this moment — scrub elsewhere.'
+    return `${aliveCount} trip${aliveCount === 1 ? '' : 's'} active at cursor`
+  }, [tripsLoading, routes.loading, trips.length, totalCount, rendered.length, aliveCount])
 
   return (
     <Flex direction="column" css={{ height: 'calc(100vh - 49px)' }}>

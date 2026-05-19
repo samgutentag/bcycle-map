@@ -8,14 +8,9 @@ import {
   buildCumulativeDistance,
   interpolatePolyline,
   tripFraction,
-  classifyDuration,
-  type DurationClass,
   type LngLat,
 } from '../lib/flow-interpolate'
-import {
-  lookupTravelTime,
-  type TravelMatrix,
-} from '../hooks/useTravelMatrix'
+import { type TravelMatrix } from '../hooks/useTravelMatrix'
 
 /**
  * Canvas overlay that draws one animated dot per visible trip along its cached
@@ -39,16 +34,19 @@ import {
  */
 
 const DOT_RADIUS = 4
-const BIKE_EMOJI_PX = 18  // glyph size for the 🚴 head-of-trail marker
-const TRAIL_STEPS = 3
-const TRAIL_GAP_SEC = 20  // ~20s behind the bike, fading
-
-const COLORS: Record<DurationClass, string> = {
-  fast: '#0d6cb0',     // blue — same as live-map "typical" indicator
-  slow: '#dc2626',     // red — matches the "+/- vs typical" warning hue
-  typical: '#525252',  // neutral mid-gray, visible on both basemaps
-  unknown: '#94a3b8',  // muted slate — flat tone for "no matrix data"
-}
+const BIKE_EMOJI_PX = 18    // glyph size for the 🚴 head-of-trail marker
+const TRAIL_WIDTH_PX = 2.5  // stroke width of the growing route trail
+const TRAIL_ALPHA = 0.55    // opacity of the route trail while bike is alive
+const TRAIL_COLOR = '#0d6cb0'  // single brand-accent color (sky blue) for every trail
+/**
+ * Seconds the trail lingers + fades after the bike arrives. During this
+ * window the trail still draws at the full polyline length but at
+ * monotonically decreasing alpha; the bike emoji is dropped immediately
+ * on arrival because the ride is over. Re-exported so FlowMap can extend
+ * `selectVisibleTrips` to include trips up to this many seconds past
+ * their arrival_ts.
+ */
+export const TRAIL_GHOST_FADE_SEC = 30
 
 type PreparedTrip = {
   trip: Trip
@@ -96,7 +94,10 @@ type Props = {
 function prepareTrips(
   trips: Trip[],
   routes: RouteCache | null,
-  matrix: TravelMatrix | null,
+  // matrix kept on the signature for future use (e.g. a re-introduced
+  // speed signal). Currently unused — trail color is a single brand
+  // accent so the canvas stays readable when many bikes overlap.
+  _matrix: TravelMatrix | null,
 ): PreparedTrip[] {
   if (!routes) return []
   const out: PreparedTrip[] = []
@@ -106,9 +107,7 @@ function prepareTrips(
     const poly = decodePolyline(edge.polyline)
     if (poly.length < 2) continue
     const cum = buildCumulativeDistance(poly)
-    const typical = lookupTravelTime(matrix, trip.from_station_id, trip.to_station_id)
-    const cls = classifyDuration(trip.duration_sec, typical ? typical.minutes * 60 : null)
-    out.push({ trip, poly, cum, color: COLORS[cls] })
+    out.push({ trip, poly, cum, color: TRAIL_COLOR })
   }
   return out
 }
@@ -255,30 +254,58 @@ export default function BikeAnimationLayer({
       for (const p of renderable) {
         const { trip, poly, cum, color } = p
         if (trip.departure_ts > activeCursor) continue
-        if (trip.arrival_ts < activeCursor) continue
+
+        // "Ghost" mode: trip already arrived but we keep the trail visible
+        // for a short fade-out window so completed rides don't pop out of
+        // existence. The bike emoji is dropped on arrival (ride's over),
+        // and trail alpha decays linearly across the ghost window.
+        const ghostElapsed = activeCursor - trip.arrival_ts
+        if (ghostElapsed > TRAIL_GHOST_FADE_SEC) continue
+        const isGhost = ghostElapsed > 0
+        const ghostAlphaMul = isGhost ? Math.max(0, 1 - ghostElapsed / TRAIL_GHOST_FADE_SEC) : 1
+
         const f = tripFraction(activeCursor, trip.departure_ts, trip.arrival_ts)
 
         // Trail: draw a few dots at slightly earlier cursor times, fading.
-        for (let i = TRAIL_STEPS; i > 0; i--) {
-          const trailCursor = activeCursor - i * TRAIL_GAP_SEC
-          if (trailCursor < trip.departure_ts) continue
-          const tf = tripFraction(trailCursor, trip.departure_ts, trip.arrival_ts)
-          const tll = interpolatePolyline(poly, cum, tf)
-          const tpx = map.project(tll)
-          ctx.globalAlpha = (1 - i / (TRAIL_STEPS + 1)) * 0.4
-          ctx.fillStyle = color
-          ctx.beginPath()
-          ctx.arc(tpx.x, tpx.y, DOT_RADIUS * 0.7, 0, Math.PI * 2)
-          ctx.fill()
-        }
-
+        // Growing trail: solid polyline from the departure point along the
+        // route up to the bike's current position. Replaces the older fading
+        // dot trail — easier to read at a glance, especially when several
+        // overlapping trips share a corridor. Stroke color carries the
+        // duration-vs-typical signal.
         const ll = interpolatePolyline(poly, cum, f)
         const px = map.project(ll)
+        const total = cum[cum.length - 1] ?? 0
+        if (total > 0 && f > 0) {
+          const target = f * total
+          ctx.globalAlpha = TRAIL_ALPHA * ghostAlphaMul
+          ctx.strokeStyle = color
+          ctx.lineWidth = TRAIL_WIDTH_PX
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.beginPath()
+          const p0 = map.project(poly[0] as [number, number])
+          ctx.moveTo(p0.x, p0.y)
+          // Walk forward through vertices, drawing each segment fully until
+          // the cumulative distance crosses `target`. The last segment ends
+          // at the bike's exact interpolated position so the trail tip
+          // visually meets the emoji.
+          for (let i = 1; i < poly.length; i++) {
+            if (cum[i]! >= target) {
+              ctx.lineTo(px.x, px.y)
+              break
+            }
+            const pPx = map.project(poly[i] as [number, number])
+            ctx.lineTo(pPx.x, pPx.y)
+          }
+          ctx.stroke()
+        }
+        // Ride's over — trail keeps fading but no bike on the canvas.
+        if (isGhost) continue
+
         ctx.globalAlpha = 1
-        // White disc behind the emoji — pure legibility halo, no color
-        // signal. (The duration-vs-typical color still rides the trail dots
-        // behind the bike, so the signal isn't lost.) A faint stroke keeps
-        // the disc visible against light basemaps too.
+        // White disc behind the emoji — pure legibility halo against
+        // dark base layers and the colored trail. Faint stroke keeps the
+        // disc visible against light basemaps too.
         ctx.fillStyle = '#ffffff'
         ctx.beginPath()
         ctx.arc(px.x, px.y, BIKE_EMOJI_PX * 0.65, 0, Math.PI * 2)
