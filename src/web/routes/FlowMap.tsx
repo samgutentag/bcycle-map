@@ -135,6 +135,26 @@ export default function FlowMap() {
   // remapping the same 50-trip list.
   const tripTimestamps = useMemo(() => trips.map(t => t.departure_ts), [trips])
 
+  // Playback-loop bounds tight to the active trip cluster. Without this
+  // the cursor wraps through the full 24h on every loop, which on quiet
+  // days is mostly dead air. With it, ▶ Play loops the busy window
+  // forever while manual scrubbing still walks the full window for
+  // history. Falls back to undefined (= use windowStart/windowEnd) when
+  // there are no trips at all.
+  const { playbackLoopStart, playbackLoopEnd } = useMemo(() => {
+    if (trips.length === 0) return { playbackLoopStart: undefined, playbackLoopEnd: undefined }
+    let minDep = Infinity
+    let maxArr = -Infinity
+    for (const t of trips) {
+      if (t.departure_ts < minDep) minDep = t.departure_ts
+      if (t.arrival_ts > maxArr) maxArr = t.arrival_ts
+    }
+    // 60s of lead-in lets the first bike "appear" rather than already
+    // being mid-trip on the first frame; 60s of lead-out gives a brief
+    // settle before the loop restarts.
+    return { playbackLoopStart: minDep - 60, playbackLoopEnd: maxArr + 60 }
+  }, [trips])
+
   // Spacebar play/pause. Bound at document level so the user doesn't need
   // to keyboard-focus the button to use it. Skip if the user is typing into
   // an input/textarea elsewhere on the page.
@@ -182,6 +202,8 @@ export default function FlowMap() {
           playing={playing}
           windowStart={windowStart}
           windowEnd={windowEnd}
+          playbackLoopStart={playbackLoopStart}
+          playbackLoopEnd={playbackLoopEnd}
           onCursorAdvance={setCursorTs}
         />
         <div

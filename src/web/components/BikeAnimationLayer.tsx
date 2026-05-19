@@ -74,10 +74,19 @@ type Props = {
   /** Hard cap on bikes drawn per frame. Parent has already trimmed `trips`
    * but we re-clamp defensively to keep the canvas budget honest. */
   maxBikes?: number
-  /** Window end — playback wraps back to windowStart on reaching this. */
+  /** Window end — outer bound of the scrubber (typically "now"). */
   windowEnd: number
-  /** Window start — playback wrap target. */
+  /** Window start — outer bound of the scrubber (typically now − 24h). */
   windowStart: number
+  /**
+   * Playback loop bounds. When set, the rAF wrap math uses these instead
+   * of [windowStart, windowEnd] so playback can loop tight to the active
+   * trip cluster rather than wrap through hours of dead air. Manual
+   * scrubbing still walks the full window — these bounds only affect the
+   * cursor advance during playback. Defaults to [windowStart, windowEnd].
+   */
+  playbackLoopStart?: number
+  playbackLoopEnd?: number
   /** Called with the cursor's new value during playback so the parent can keep
    * its state in rough sync (we throttle internally to ~4Hz to avoid React
    * re-render storms; full smoothness is provided by the canvas itself). */
@@ -115,6 +124,8 @@ export default function BikeAnimationLayer({
   maxBikes = 80,
   windowStart,
   windowEnd,
+  playbackLoopStart,
+  playbackLoopEnd,
   onCursorAdvance,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -132,12 +143,16 @@ export default function BikeAnimationLayer({
   const playbackRateRef = useRef(playbackRate)
   const windowStartRef = useRef(windowStart)
   const windowEndRef = useRef(windowEnd)
+  const playbackLoopStartRef = useRef<number | undefined>(playbackLoopStart)
+  const playbackLoopEndRef = useRef<number | undefined>(playbackLoopEnd)
   const onCursorAdvanceRef = useRef(onCursorAdvance)
   cursorTsRef.current = cursorTs
   playingRef.current = playing
   playbackRateRef.current = playbackRate
   windowStartRef.current = windowStart
   windowEndRef.current = windowEnd
+  playbackLoopStartRef.current = playbackLoopStart
+  playbackLoopEndRef.current = playbackLoopEnd
   onCursorAdvanceRef.current = onCursorAdvance
 
   // Prepare polylines once per trips/routes/matrix change. Each prepared trip
@@ -199,13 +214,24 @@ export default function BikeAnimationLayer({
         const last = lastFrameMsRef.current
         if (last !== null) {
           const dtSec = (timeMs - last) / 1000
-          const wStart = windowStartRef.current
-          const wEnd = windowEndRef.current
+          // Playback loop bounds — tight to the active trip cluster when
+          // the parent supplies them, otherwise fall back to the full
+          // window. This is the "always animating" optimization: skip the
+          // hours of dead air on quiet days while still letting manual
+          // scrubbing walk the full 24h window.
+          const loopStart = playbackLoopStartRef.current ?? windowStartRef.current
+          const loopEnd = playbackLoopEndRef.current ?? windowEndRef.current
           let next = playingCursorRef.current + dtSec * playbackRateRef.current
-          if (next >= wEnd) {
-            // Wrap to windowStart for an endless loop. This is the
-            // satisfying "watch the day cycle" behavior the spec wants.
-            next = wStart + ((next - wStart) % Math.max(1, wEnd - wStart))
+          if (next < loopStart) {
+            // Cursor was outside the playback loop (user scrubbed to a dead
+            // gap then hit play). Snap into the loop so the next frame
+            // shows action immediately.
+            next = loopStart
+          } else if (next >= loopEnd) {
+            // Wrap to loopStart. Stays in the busy window forever, which
+            // is the satisfying "watch the day cycle" behavior on quiet
+            // days when most of the 24h would otherwise be empty.
+            next = loopStart + ((next - loopStart) % Math.max(1, loopEnd - loopStart))
           }
           playingCursorRef.current = next
           activeCursor = next
