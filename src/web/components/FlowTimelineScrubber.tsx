@@ -24,6 +24,12 @@ type Props = {
   caption?: string | null
   /** IANA timezone for clock labels (e.g. "America/Los_Angeles"). UTC fallback. */
   timezone?: string
+  /**
+   * Departure timestamps of all known trips in the window. Drives the small
+   * density bars on the track + the Prev/Next-trip jump buttons. Sparse on
+   * quiet days; the markers make it obvious where the trips cluster.
+   */
+  tripTimestamps?: number[]
 }
 
 const HOUR_SEC = 3600
@@ -55,9 +61,46 @@ export default function FlowTimelineScrubber({
   onPlayToggle,
   caption,
   timezone,
+  tripTimestamps,
 }: Props) {
   const theme = useTheme()
   const trackRef = useRef<HTMLDivElement | null>(null)
+
+  // Sorted copy of trip departure timestamps for prev/next jumping +
+  // density-marker rendering. Memoized so repeated sorts don't happen on
+  // every parent render.
+  const sortedTrips = useMemo(() => {
+    if (!tripTimestamps || tripTimestamps.length === 0) return []
+    return [...tripTimestamps].sort((a, b) => a - b)
+  }, [tripTimestamps])
+
+  const span = Math.max(1, windowEnd - windowStart)
+  const tripMarkers = useMemo(
+    () => sortedTrips.map(ts => ({ ts, pctLeft: ((ts - windowStart) / span) * 100 })),
+    [sortedTrips, windowStart, span],
+  )
+
+  // Skip to the trip immediately before / after the cursor. If no trip in
+  // that direction, no-op (button auto-disables via the `disabled` attr).
+  const prevTripTs = useMemo(() => {
+    for (let i = sortedTrips.length - 1; i >= 0; i--) {
+      if (sortedTrips[i] < cursorTs) return sortedTrips[i]
+    }
+    return null
+  }, [sortedTrips, cursorTs])
+  const nextTripTs = useMemo(() => {
+    for (const ts of sortedTrips) {
+      if (ts > cursorTs) return ts
+    }
+    return null
+  }, [sortedTrips, cursorTs])
+
+  const onPrevTrip = useCallback(() => {
+    if (prevTripTs !== null) onCursorChange(prevTripTs)
+  }, [prevTripTs, onCursorChange])
+  const onNextTrip = useCallback(() => {
+    if (nextTripTs !== null) onCursorChange(nextTripTs)
+  }, [nextTripTs, onCursorChange])
 
   // Floor windowStart to the nearest 3-hour boundary in local time so ticks
   // land on familiar clock hours (12 / 3 / 6 / 9) rather than arbitrary offsets.
@@ -153,9 +196,67 @@ export default function FlowTimelineScrubber({
               </svg>
             )}
           </button>
+          <button
+            type="button"
+            onClick={onPrevTrip}
+            disabled={prevTripTs === null}
+            aria-label="Skip to previous trip"
+            title="Previous trip"
+            data-testid="flow-prev-trip"
+            css={{
+              all: 'unset',
+              cursor: prevTripTs === null ? 'not-allowed' : 'pointer',
+              opacity: prevTripTs === null ? 0.35 : 1,
+              width: 28,
+              height: 28,
+              borderRadius: theme.cornerRadius.s,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `1px solid ${theme.color.border.default}`,
+              background: theme.color.background.white,
+              color: theme.color.text.default,
+              transition: `background ${theme.motion.quick}`,
+              '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+            }}
+          >
+            <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+              <path d="M3 2 L3 8 M7 1 L3 5 L7 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <Text variant="title" size="s" strength="strong" color="heading">
             {formatClock(cursorTs, timezone)}
           </Text>
+          <button
+            type="button"
+            onClick={onNextTrip}
+            disabled={nextTripTs === null}
+            aria-label="Skip to next trip"
+            title="Next trip"
+            data-testid="flow-next-trip"
+            css={{
+              all: 'unset',
+              cursor: nextTripTs === null ? 'not-allowed' : 'pointer',
+              opacity: nextTripTs === null ? 0.35 : 1,
+              width: 28,
+              height: 28,
+              borderRadius: theme.cornerRadius.s,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: `1px solid ${theme.color.border.default}`,
+              background: theme.color.background.white,
+              color: theme.color.text.default,
+              transition: `background ${theme.motion.quick}`,
+              '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+            }}
+          >
+            <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+              <path d="M7 2 L7 8 M3 1 L7 5 L3 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <button
             type="button"
             onClick={onJumpToNow}
@@ -192,7 +293,34 @@ export default function FlowTimelineScrubber({
         onClick={onTrackClick}
         css={{ position: 'relative', height: 32, cursor: 'pointer' }}
       >
-        {/* Tick row sits above the slider track */}
+        {/* Trip-density markers sit just above the slider — one bright tick
+            per trip departure_ts, so the eye can immediately see where the
+            trips cluster (often a 2h window of the 24h scrubber on quiet
+            days). pointer-events:none so clicks pass through to the track. */}
+        {tripMarkers.length > 0 && (
+          <div css={{ position: 'absolute', left: 0, right: 0, bottom: 16, height: 8, pointerEvents: 'none' }}>
+            {tripMarkers.map((m, i) => (
+              <div
+                // ts isn't unique — multiple trips can depart in the same
+                // integer-second bucket (poller granularity), so suffix with i.
+                key={`${m.ts}-${i}`}
+                css={{
+                  position: 'absolute',
+                  left: `${m.pctLeft}%`,
+                  transform: 'translateX(-50%)',
+                  top: 0,
+                  bottom: 0,
+                  width: 2,
+                  background: theme.color.text.heading,
+                  opacity: 0.55,
+                  borderRadius: 1,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Hour tick row sits above the slider track */}
         <div css={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           {ticks.map(tick => (
             <div

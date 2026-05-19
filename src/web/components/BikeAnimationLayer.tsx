@@ -39,6 +39,7 @@ import {
  */
 
 const DOT_RADIUS = 4
+const BIKE_EMOJI_PX = 18  // glyph size for the 🚴 head-of-trail marker
 const TRAIL_STEPS = 3
 const TRAIL_GAP_SEC = 20  // ~20s behind the bike, fading
 
@@ -248,16 +249,23 @@ export default function BikeAnimationLayer({
         const ll = interpolatePolyline(poly, cum, f)
         const px = map.project(ll)
         ctx.globalAlpha = 1
-        // White halo so dots stay legible on dark base layers and over
-        // overlapping polylines.
-        ctx.fillStyle = 'rgba(255,255,255,0.85)'
+        // White disc behind the emoji — pure legibility halo, no color
+        // signal. (The duration-vs-typical color still rides the trail dots
+        // behind the bike, so the signal isn't lost.) A faint stroke keeps
+        // the disc visible against light basemaps too.
+        ctx.fillStyle = '#ffffff'
         ctx.beginPath()
-        ctx.arc(px.x, px.y, DOT_RADIUS + 1.5, 0, Math.PI * 2)
+        ctx.arc(px.x, px.y, BIKE_EMOJI_PX * 0.65, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = color
-        ctx.beginPath()
-        ctx.arc(px.x, px.y, DOT_RADIUS, 0, Math.PI * 2)
-        ctx.fill()
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+        // Bike emoji. textAlign/textBaseline center the glyph on (px.x, px.y);
+        // font set per-frame because the canvas context resets after a resize.
+        ctx.font = `${BIKE_EMOJI_PX}px -apple-system, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('🚴', px.x, px.y)
       }
 
       rafRef.current = window.requestAnimationFrame(draw)
@@ -288,6 +296,10 @@ export default function BikeAnimationLayer({
       css={{
         position: 'absolute',
         inset: 0,
+        // MapLibre imperatively appends its tile canvas to the same container
+        // AFTER React mounts our canvas, so without z-index its paint sits on
+        // top of ours and bikes are invisible. Stack above the map.
+        zIndex: 5,
         pointerEvents: 'none',  // map keeps all interactions
       }}
     />

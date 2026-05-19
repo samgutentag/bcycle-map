@@ -9,7 +9,6 @@ import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
 import BikeAnimationLayer from '../components/BikeAnimationLayer'
 import { selectVisibleTrips, capTripsForRender } from '../lib/flow-selection'
-import { buildPinSVG, pinSize } from '../lib/pin-svg'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
@@ -82,20 +81,22 @@ export default function FlowMap() {
     fitBoundsAppliedRef.current = true
   }, [map, live])
 
-  // Render the static station pins, sized by capacity, no popups bound.
-  // Live counts here represent "now" — see the snapshot-rewind caveat in the
-  // header note below. The spec wants historical snapshots; v1 ships with
-  // live pins and a clear caption explaining the limitation.
+  // Render station markers as tiny static dots — no count text, no
+  // capacity-scaled pin. The flow page's hero is the animated bikes; pins
+  // are scenery to anchor the eye. Offline stations render dimmer but still
+  // visible so the user knows they exist.
+  //
+  // The full /live pin treatment (count text, capacity-scaled teardrop)
+  // would dominate the canvas and bury the moving bikes. Live counts are
+  // also "now" only here — showing them implies time-machine state we
+  // don't yet have (deferred to #52).
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   useEffect(() => {
     if (!map || !live) return
     const seen = new Set<string>()
     for (const s of live.stations) {
       seen.add(s.station_id)
-      const total = s.num_bikes_available + s.num_docks_available
       const offline = !s.is_installed || !s.is_renting
-      const { width, height } = pinSize(total)
-      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline })
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
       if (marker) {
@@ -103,17 +104,19 @@ export default function FlowMap() {
       } else {
         el = document.createElement('div')
         el.style.pointerEvents = 'none'
-        // Pins on the flow page are non-interactive; let the bike dots be the
-        // visual focus. (Spec: no popups, no clickable pins by default.)
-        marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        // Pins on the flow page are non-interactive; let the bike dots be
+        // the visual focus. (Spec: no popups, no clickable pins by default.)
+        marker = new maplibregl.Marker({ element: el, anchor: 'center' })
           .setLngLat([s.lon, s.lat])
           .addTo(map)
         markersRef.current.set(s.station_id, marker)
       }
-      el.style.width = `${width}px`
-      el.style.height = `${height}px`
-      el.style.opacity = '0.55'  // mute pins so animated bikes pop
-      el.innerHTML = svg
+      el.style.width = '8px'
+      el.style.height = '8px'
+      el.style.borderRadius = '50%'
+      el.style.background = offline ? 'rgba(120, 120, 120, 0.35)' : 'rgba(80, 80, 80, 0.6)'
+      el.style.border = '1px solid rgba(255, 255, 255, 0.8)'
+      el.style.boxShadow = '0 0 1px rgba(0, 0, 0, 0.3)'
     }
     for (const [id, m] of markersRef.current) {
       if (!seen.has(id)) { m.remove(); markersRef.current.delete(id) }
@@ -126,6 +129,11 @@ export default function FlowMap() {
     () => capTripsForRender(visible, MAX_BIKES_PER_FRAME),
     [visible],
   )
+
+  // Departure timestamps for the scrubber's density markers + prev/next trip
+  // buttons. Memoized so a 4Hz cursor update during playback doesn't keep
+  // remapping the same 50-trip list.
+  const tripTimestamps = useMemo(() => trips.map(t => t.departure_ts), [trips])
 
   // Spacebar play/pause. Bound at document level so the user doesn't need
   // to keyboard-focus the button to use it. Skip if the user is typing into
@@ -207,6 +215,7 @@ export default function FlowMap() {
         onPlayToggle={togglePlay}
         caption={caption}
         timezone={timezone}
+        tripTimestamps={tripTimestamps}
       />
       {!live && (
         <Text variant="body" size="xs" color="subdued" css={{ padding: theme.spacing.s }}>
