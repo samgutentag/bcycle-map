@@ -91,6 +91,17 @@ export type Trip = {
   from_station_id: string
   to_station_id: string
   duration_sec: number   // arrival_ts - departure_ts
+  /**
+   * How the trip was paired:
+   * - 'high' — conservative `applyTripTransition` matched a clean 0→1→0
+   *   single-rider transition. Unambiguous.
+   * - 'low'  — greedy `inferTrips` best-fit match against the travel-time
+   *   matrix while multiple bikes were in flight. Probable, not certain.
+   *
+   * Optional for backward-compat: trips persisted before this field
+   * existed render as high-confidence (= no qualifier) in the UI.
+   */
+  confidence?: 'high' | 'low'
 }
 
 /**

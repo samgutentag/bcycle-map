@@ -92,6 +92,7 @@ export function applyTripTransition(
       from_station_id: log.inFlightFromStationId!,
       to_station_id: events[0]!.station_id,
       duration_sec: ts - log.inFlightDepartureTs!,
+      confidence: 'high',
     }
     return {
       inFlightFromStationId: null,
