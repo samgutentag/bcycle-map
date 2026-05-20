@@ -13,6 +13,7 @@ const STATION_RECENT_RE = /^\/api\/systems\/([^/]+)\/stations\/([^/]+)\/recent$/
 const ACTIVITY_RE = /^\/api\/systems\/([^/]+)\/activity$/
 const BEACON_RE = /^\/api\/beacon$/
 const INSIGHTS_RE = /^\/api\/insights$/
+const GEOCODE_RE = /^\/api\/geocode$/
 
 const ANALYTICS_KEY_PREFIX = 'analytics/'
 const ANALYTICS_RETENTION_DAYS = 90
@@ -245,6 +246,91 @@ async function handleStationTypical(env: Env, systemId: string, stationId: strin
   )
 }
 
+// ─── Geocoding proxy ──────────────────────────────────────────────────
+//
+// The NearbyStationsSheet falls back to an address input when browser
+// geolocation is denied or unavailable (issue #47). We proxy the typed
+// query through this worker so the same GOOGLE_MAPS_API_KEY that powers
+// the travel-times pipeline (scripts/compute-travel-times.ts) stays
+// server-side — the web bundle never sees it.
+//
+// Successful response: { lat, lng, formatted }
+// Error response: { error: 'ZERO_RESULTS' | 'OVER_QUOTA' | 'INVALID' }
+//
+// Quota note: the same key powers the gated travel-times pipeline, so the
+// client-side debounce (~400ms, in-flight cancellation) is load-bearing.
+
+type GeocodeOk = { lat: number; lng: number; formatted: string }
+type GeocodeErr = { error: 'ZERO_RESULTS' | 'OVER_QUOTA' | 'INVALID' }
+
+async function handleGeocode(url: URL, env: Env): Promise<Response> {
+  const q = (url.searchParams.get('q') ?? '').trim()
+  if (q.length === 0 || q.length > 200) {
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 400)
+  }
+  if (!env.GOOGLE_MAPS_API_KEY) {
+    // Misconfiguration: surface as a generic invalid error rather than 500
+    // so the client UI degrades to the existing "manual retry" copy.
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 500)
+  }
+
+  const apiUrl = new URL('https://maps.googleapis.com/maps/api/geocode/json')
+  apiUrl.searchParams.set('address', q)
+  apiUrl.searchParams.set('key', env.GOOGLE_MAPS_API_KEY)
+
+  let upstream: Response
+  try {
+    upstream = await fetch(apiUrl.toString())
+  } catch (err) {
+    console.error('geocode upstream fetch failed:', err)
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 502)
+  }
+
+  if (!upstream.ok) {
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 502)
+  }
+
+  let body: any
+  try {
+    body = await upstream.json()
+  } catch {
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 502)
+  }
+
+  const status: string = body?.status ?? 'UNKNOWN_ERROR'
+  if (status === 'ZERO_RESULTS') {
+    return jsonResponse<GeocodeErr>({ error: 'ZERO_RESULTS' }, 200)
+  }
+  if (status === 'OVER_QUERY_LIMIT' || status === 'OVER_DAILY_LIMIT') {
+    return jsonResponse<GeocodeErr>({ error: 'OVER_QUOTA' }, 429)
+  }
+  if (status !== 'OK') {
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 502)
+  }
+
+  const first = Array.isArray(body.results) ? body.results[0] : null
+  const loc = first?.geometry?.location
+  if (!first || typeof loc?.lat !== 'number' || typeof loc?.lng !== 'number') {
+    return jsonResponse<GeocodeErr>({ error: 'INVALID' }, 502)
+  }
+
+  const ok: GeocodeOk = {
+    lat: loc.lat,
+    lng: loc.lng,
+    formatted: typeof first.formatted_address === 'string' ? first.formatted_address : q,
+  }
+  return jsonResponse(ok, 200, 'max-age=300')
+}
+
+function jsonResponse<T>(body: T, status: number, cacheControl?: string): Response {
+  const headers: Record<string, string> = {
+    ...CORS_HEADERS,
+    'content-type': 'application/json',
+  }
+  if (cacheControl) headers['cache-control'] = cacheControl
+  return new Response(JSON.stringify(body), { status, headers })
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url)
@@ -278,6 +364,10 @@ export default {
 
     if (url.pathname.match(INSIGHTS_RE)) {
       return handleInsights(url, env)
+    }
+
+    if (url.pathname.match(GEOCODE_RE)) {
+      return handleGeocode(url, env)
     }
 
     const activity = url.pathname.match(ACTIVITY_RE)
