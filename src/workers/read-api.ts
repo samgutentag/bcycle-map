@@ -1,6 +1,8 @@
 import type { Env } from '../../worker-configuration'
 import { latestKey } from './poller'
 import { activityKey, activityR2Key } from '../shared/activity'
+import { readSnapshotsForRange, tripsFromSnapshots } from './lib/trips-from-parquet'
+import type { Trip } from '../shared/types'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -11,6 +13,7 @@ const CURRENT_RE = /^\/api\/systems\/([^/]+)\/current$/
 const PARTITIONS_RE = /^\/api\/systems\/([^/]+)\/partitions$/
 const STATION_RECENT_RE = /^\/api\/systems\/([^/]+)\/stations\/([^/]+)\/recent$/
 const ACTIVITY_RE = /^\/api\/systems\/([^/]+)\/activity$/
+const TRIPS_RE = /^\/api\/systems\/([^/]+)\/trips$/
 const BEACON_RE = /^\/api\/beacon$/
 const INSIGHTS_RE = /^\/api\/insights$/
 const GEOCODE_RE = /^\/api\/geocode$/
@@ -322,6 +325,69 @@ async function handleGeocode(url: URL, env: Env): Promise<Response> {
   return jsonResponse(ok, 200, 'max-age=300')
 }
 
+// ─── Bulk trips endpoint (#53) ────────────────────────────────────────
+//
+// /flow's default window is 24h, which the rolling activity log usually
+// covers — but only "usually". On a busy day the 50-trip cap can leave
+// the last few hours; on a 7d window (a spec'd follow-up) it covers
+// nowhere near enough. This endpoint re-derives trips from the snapshot
+// parquet archive over an arbitrary [since, until] window so the hook
+// can transparently fall back to it whenever the activity-log path
+// isn't enough.
+//
+// Trips are stored implicitly: the canonical archive is the same
+// station_status partitions used by /partitions, replayed through the
+// poller's detectEvents/applyTripTransition primitives. That's why
+// readSnapshotsForRange + tripsFromSnapshots mirror what
+// scripts/backfill-activity.ts does for KV backfills.
+
+const TRIPS_MAX_WINDOW_SEC = 7 * 86400
+
+type TripsResponse = { trips: Trip[]; since: number; until: number }
+type TripsError = { error: string }
+
+async function handleTrips(env: Env, systemId: string, sinceTs: number, untilTs: number): Promise<Response> {
+  if (!Number.isFinite(sinceTs) || !Number.isFinite(untilTs)) {
+    return jsonResponse<TripsError>({ error: 'since and until must be unix-second integers' }, 400)
+  }
+  if (untilTs <= sinceTs) {
+    return jsonResponse<TripsError>({ error: 'until must be greater than since' }, 400)
+  }
+  if (untilTs - sinceTs > TRIPS_MAX_WINDOW_SEC) {
+    return jsonResponse<TripsError>({ error: `window must be <= ${TRIPS_MAX_WINDOW_SEC} seconds (7 days)` }, 400)
+  }
+
+  // Trip pairing needs maxBikesEver to compute active-rider counts.
+  // Same value the live poller maintains in the KV `latest` blob.
+  const latestRaw = await env.GBFS_KV.get(latestKey(systemId))
+  let maxBikesEver = 0
+  if (latestRaw) {
+    try {
+      const obj = JSON.parse(latestRaw)
+      if (typeof obj?.max_bikes_ever === 'number') maxBikesEver = obj.max_bikes_ever
+    } catch {
+      // tolerate a malformed KV blob — pairing will identify nothing,
+      // which is the same behavior as a fresh system before the poller
+      // has seen a full fleet.
+    }
+  }
+
+  let snaps
+  try {
+    snaps = await readSnapshotsForRange(env.GBFS_R2, systemId, sinceTs, untilTs)
+  } catch (err) {
+    console.error(`trips: R2/parquet read failed for ${systemId}:`, err)
+    return jsonResponse<TripsError>({ error: 'failed to read trip archive' }, 502)
+  }
+
+  const allTrips = tripsFromSnapshots(snaps, maxBikesEver)
+  // Snapshots include a 1h pad on each side so trips straddling a
+  // partition boundary still pair. Clip back to the exact requested window.
+  const trips = allTrips.filter(t => t.departure_ts >= sinceTs && t.departure_ts <= untilTs)
+
+  return jsonResponse<TripsResponse>({ trips, since: sinceTs, until: untilTs }, 200, 'max-age=60')
+}
+
 function jsonResponse<T>(body: T, status: number, cacheControl?: string): Response {
   const headers: Record<string, string> = {
     ...CORS_HEADERS,
@@ -384,6 +450,14 @@ export default {
           'cache-control': 'max-age=20',
         },
       })
+    }
+
+    const trips = url.pathname.match(TRIPS_RE)
+    if (trips) {
+      const systemId = trips[1]!
+      const sinceTs = Number(url.searchParams.get('since') ?? 'NaN')
+      const untilTs = Number(url.searchParams.get('until') ?? 'NaN')
+      return handleTrips(env, systemId, sinceTs, untilTs)
     }
 
     const recent = url.pathname.match(STATION_RECENT_RE)
