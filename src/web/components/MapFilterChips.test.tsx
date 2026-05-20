@@ -8,7 +8,6 @@ afterEach(() => cleanup())
 
 type Overrides = {
   minBikes?: number
-  offlineOnly?: boolean
   corridor?: CorridorId | null
   filteredCount?: number
   totalCount?: number
@@ -16,30 +15,31 @@ type Overrides = {
 
 function renderChips(overrides: Overrides = {}) {
   const onMinBikesChange = vi.fn()
-  const onOfflineOnlyChange = vi.fn()
   const onCorridorChange = vi.fn()
   const onReset = vi.fn()
   renderWithTheme(
     <MapFilterChips
       minBikes={overrides.minBikes ?? 0}
-      offlineOnly={overrides.offlineOnly ?? false}
       corridor={overrides.corridor ?? null}
       filteredCount={overrides.filteredCount ?? 26}
       totalCount={overrides.totalCount ?? 26}
       onMinBikesChange={onMinBikesChange}
-      onOfflineOnlyChange={onOfflineOnlyChange}
       onCorridorChange={onCorridorChange}
       onReset={onReset}
     />,
   )
-  return { onMinBikesChange, onOfflineOnlyChange, onCorridorChange, onReset }
+  return { onMinBikesChange, onCorridorChange, onReset }
 }
 
 describe('MapFilterChips', () => {
-  it('renders both chips with default labels when no filters are active', () => {
+  it('renders the min-bikes chip with its default label when no filter is active', () => {
     renderChips()
     expect(screen.getByTestId('filter-chip-min-bikes')).toHaveTextContent('Min bikes: Any')
-    expect(screen.getByTestId('filter-chip-offline')).toHaveTextContent('Offline only')
+  })
+
+  it('does not render the legacy offline-only chip', () => {
+    renderChips()
+    expect(screen.queryByTestId('filter-chip-offline')).toBeNull()
   })
 
   it('hides Reset and station-count subline when no filter is active', () => {
@@ -69,23 +69,10 @@ describe('MapFilterChips', () => {
     expect(onMinBikesChange).toHaveBeenCalledWith(0)
   })
 
-  it('toggles offlineOnly when its chip is clicked', () => {
-    const { onOfflineOnlyChange } = renderChips({ offlineOnly: false })
-    fireEvent.click(screen.getByTestId('filter-chip-offline'))
-    expect(onOfflineOnlyChange).toHaveBeenCalledWith(true)
-  })
-
   it('shows a per-chip × button when active that clears that filter only', () => {
-    const { onMinBikesChange, onOfflineOnlyChange } = renderChips({
-      minBikes: 3,
-      offlineOnly: true,
-    })
+    const { onMinBikesChange } = renderChips({ minBikes: 3 })
     fireEvent.click(screen.getByTestId('filter-chip-min-bikes-clear'))
     expect(onMinBikesChange).toHaveBeenLastCalledWith(0)
-    expect(onOfflineOnlyChange).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByTestId('filter-chip-offline-clear'))
-    expect(onOfflineOnlyChange).toHaveBeenLastCalledWith(false)
   })
 
   it('renders Reset link and station count when any filter is active', () => {
@@ -95,15 +82,14 @@ describe('MapFilterChips', () => {
   })
 
   it('calls onReset when Reset link is clicked', () => {
-    const { onReset } = renderChips({ offlineOnly: true })
+    const { onReset } = renderChips({ minBikes: 3 })
     fireEvent.click(screen.getByTestId('filter-chip-reset'))
     expect(onReset).toHaveBeenCalledTimes(1)
   })
 
-  it('sets aria-pressed on each chip', () => {
-    renderChips({ minBikes: 3, offlineOnly: false })
+  it('sets aria-pressed on the min-bikes chip', () => {
+    renderChips({ minBikes: 3 })
     expect(screen.getByTestId('filter-chip-min-bikes')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('filter-chip-offline')).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('clicking the × does NOT also cycle minBikes', () => {

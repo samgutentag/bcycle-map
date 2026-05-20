@@ -167,14 +167,11 @@ export default function LiveMap() {
     }, { replace: true })
   }, [setSearchParams])
 
-  // Filter chips. URL-driven (`?bikes=N&offline=1`) so links are shareable
+  // Filter chips. URL-driven (`?bikes=N&corridor=…`) so links are shareable
   // and round-trip safely across reloads.
   const filters = useMemo(() => readFiltersFromSearch(searchParams), [searchParams])
   const setMinBikes = useCallback((value: number) => {
     setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), minBikes: value }), { replace: true })
-  }, [setSearchParams])
-  const setOfflineOnly = useCallback((value: boolean) => {
-    setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), offlineOnly: value }), { replace: true })
   }, [setSearchParams])
   const setCorridor = useCallback((value: CorridorId | null) => {
     setSearchParams(prev => writeFiltersToSearch(prev, { ...readFiltersFromSearch(prev), corridor: value }), { replace: true })
@@ -499,11 +496,9 @@ export default function LiveMap() {
       <PollPinger data={data} />
       <MapFilterChips
         minBikes={filters.minBikes}
-        offlineOnly={filters.offlineOnly}
         corridor={filters.corridor}
         onCorridorChange={setCorridor}
         onMinBikesChange={setMinBikes}
-        onOfflineOnlyChange={setOfflineOnly}
         onReset={resetFilters}
         filteredCount={visibleStations.length}
         totalCount={data?.stations.length ?? 0}
