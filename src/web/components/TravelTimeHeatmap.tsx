@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useAppTheme } from '../theme'
 import type { StationSnapshot } from '@shared/types'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
+import { useUnitSystem } from '../hooks/useUnitSystem'
+import { formatDistance } from '../lib/units'
 
 type Props = {
   matrix: TravelMatrix
@@ -38,18 +40,10 @@ function lerpColor(t: number, dark: boolean): string {
   return `rgb(${r}, ${g}, ${b})`
 }
 
-const METERS_PER_MILE = 1609.344
-
-function formatMiles(meters: number): string {
-  const mi = meters / METERS_PER_MILE
-  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
-  if (mi < 10) return `${mi.toFixed(1)} mi`
-  return `${Math.round(mi)} mi`
-}
-
 export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, selectedEndId, onPickPair }: Props) {
   const [hover, setHover] = useState<{ row: number; col: number } | null>(null)
   const { resolved } = useAppTheme()
+  const { unitSystem } = useUnitSystem()
   const dark = resolved === 'dark'
   const palette = dark ? PALETTE_DARK : PALETTE_LIGHT
 
@@ -118,7 +112,7 @@ export default function TravelTimeHeatmap({ matrix, stations, selectedStartId, s
           {hoverFrom.station_id === hoverTo.station_id
             ? hoverFrom.name
             : hoverEdge
-              ? `${hoverFrom.name} → ${hoverTo.name} · ${Math.round(hoverEdge.minutes)} min · ${formatMiles(hoverEdge.meters)}`
+              ? `${hoverFrom.name} → ${hoverTo.name} · ${Math.round(hoverEdge.minutes)} min · ${formatDistance(hoverEdge.meters, unitSystem)}`
               : `${hoverFrom.name} → ${hoverTo.name} · no data`}
         </text>
       )}

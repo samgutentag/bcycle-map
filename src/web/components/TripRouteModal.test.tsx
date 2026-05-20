@@ -5,6 +5,8 @@ import TripRouteModal from './TripRouteModal'
 import type { Trip, StationSnapshot } from '@shared/types'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 import type { RouteCache } from '@shared/route-cache'
+import { UnitSystemProvider } from '../hooks/useUnitSystem'
+import type { UnitSystem } from '../lib/units'
 
 // Module-level MapLibre mock so the modal never tries to render a real WebGL canvas
 vi.mock('maplibre-gl', () => {
@@ -51,20 +53,25 @@ const ROUTES: RouteCache = {
   edges: { s1: { s2: { polyline: '??', meters: 1400, seconds: 420, via_station_ids: [] } } },
 }
 
-function renderModal(overrides: Partial<React.ComponentProps<typeof TripRouteModal>> = {}) {
+function renderModal(
+  overrides: Partial<React.ComponentProps<typeof TripRouteModal>> = {},
+  unitSystem: UnitSystem = 'imperial',
+) {
   const onClose = vi.fn()
   const utils = render(
-    <MemoryRouter>
-      <TripRouteModal
-        trip={TRIP}
-        stations={STATIONS}
-        matrix={MATRIX}
-        routes={ROUTES}
-        systemTz="America/Los_Angeles"
-        onClose={onClose}
-        {...overrides}
-      />
-    </MemoryRouter>
+    <UnitSystemProvider initialValue={unitSystem}>
+      <MemoryRouter>
+        <TripRouteModal
+          trip={TRIP}
+          stations={STATIONS}
+          matrix={MATRIX}
+          routes={ROUTES}
+          systemTz="America/Los_Angeles"
+          onClose={onClose}
+          {...overrides}
+        />
+      </MemoryRouter>
+    </UnitSystemProvider>
   )
   return { ...utils, onClose }
 }
@@ -86,6 +93,12 @@ describe('TripRouteModal', () => {
     expect(screen.getByText(/7 min/)).toBeInTheDocument()    // typical
     // 1400 m ≈ 0.87 mi → renders as "0.9 mi"
     expect(screen.getByText(/0\.9\s*mi/)).toBeInTheDocument()
+  })
+
+  it('renders the distance in km when metric is selected', () => {
+    renderModal({}, 'metric')
+    // 1400 m → 1.4 km
+    expect(screen.getByText(/1\.4\s*km/)).toBeInTheDocument()
   })
 
   it('renders the approximate-route note when the route is missing', () => {

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { fireEvent } from '@testing-library/react'
 import { renderWithTheme as render } from '../test-utils'
 import TravelTimeHeatmap from './TravelTimeHeatmap'
 import type { TravelMatrix } from '../hooks/useTravelMatrix'
 import type { StationSnapshot } from '@shared/types'
+import { UnitSystemProvider } from '../hooks/useUnitSystem'
 
 const station = (id: string, name: string): StationSnapshot => ({
   station_id: id,
@@ -75,4 +77,34 @@ describe('TravelTimeHeatmap', () => {
     )
     expect(container.textContent).toMatch(/no overlapping stations/i)
   })
+
+  it('formats hover-tooltip distance in miles by default (imperial)', () => {
+    const { container } = render(
+      <TravelTimeHeatmap matrix={MATRIX} stations={STATIONS} selectedStartId={null} selectedEndId={null} />,
+    )
+    // Hover the [0,1] cell: row=Anacapa, col=Bath, edge a→b = 4 min / 1000 m
+    const rects = Array.from(container.querySelectorAll('rect'))
+    // Grid is 3×3, drawn in row-major order at fixed positions
+    const cell01 = rects.find(r => r.getAttribute('x') === '8' && r.getAttribute('y') === '0')
+    expect(cell01).toBeTruthy()
+    fireEvent.mouseEnter(cell01!)
+    // 1000 m ≈ 0.62 mi → "0.6 mi"
+    expect(container.textContent).toMatch(/0\.6 mi/)
+  })
+
+  it('formats hover-tooltip distance in km when metric is selected', () => {
+    const { container } = render(
+      <UnitSystemProvider initialValue="metric">
+        <TravelTimeHeatmap matrix={MATRIX} stations={STATIONS} selectedStartId={null} selectedEndId={null} />
+      </UnitSystemProvider>,
+    )
+    const rects = Array.from(container.querySelectorAll('rect'))
+    const cell01 = rects.find(r => r.getAttribute('x') === '8' && r.getAttribute('y') === '0')
+    expect(cell01).toBeTruthy()
+    fireEvent.mouseEnter(cell01!)
+    // 1000 m → "1.0 km" (boundary case)
+    expect(container.textContent).toMatch(/1\.0 km/)
+  })
 })
+
+

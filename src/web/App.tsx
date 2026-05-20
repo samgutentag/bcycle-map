@@ -12,6 +12,7 @@ import {
 } from '@audius/harmony'
 import LiveMap from './routes/LiveMap'
 import { useBeaconReporter } from './hooks/useBeaconReporter'
+import { UnitSystemProvider } from './hooks/useUnitSystem'
 import AboutModal from './components/AboutModal'
 import BrandMark from './components/BrandMark'
 import ThemeToggle from './components/ThemeToggle'
@@ -189,11 +190,12 @@ function RouteFallback() {
 export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   return (
-    <Flex direction="column" css={{ minHeight: '100vh', background: 'var(--app-bg)' }}>
-      <BeaconReporter />
-      <AppHeader onOpenAbout={() => setAboutOpen(true)} />
-      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
-      <Box as="main" css={{ flex: 1 }}>
+    <UnitSystemProvider>
+      <Flex direction="column" css={{ minHeight: '100vh', background: 'var(--app-bg)' }}>
+        <BeaconReporter />
+        <AppHeader onOpenAbout={() => setAboutOpen(true)} />
+        <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+        <Box as="main" css={{ flex: 1 }}>
         <Routes>
           <Route path="/" element={<LiveMap />} />
           <Route path="/station/:stationId" element={<LiveMap />} />
@@ -262,7 +264,8 @@ export default function App() {
             }
           />
         </Routes>
-      </Box>
-    </Flex>
+        </Box>
+      </Flex>
+    </UnitSystemProvider>
   )
 }

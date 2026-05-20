@@ -1,3 +1,6 @@
+import { formatDistance } from '../lib/units'
+import { useUnitSystem } from '../hooks/useUnitSystem'
+
 type Props = {
   loading?: boolean
   minutes?: number | null
@@ -6,15 +9,6 @@ type Props = {
   departureTimeSec?: number | null
   /** IANA timezone for the displayed clock times. Falls back to browser local. */
   timezone?: string
-}
-
-const METERS_PER_MILE = 1609.344
-
-function formatMiles(meters: number): string {
-  const mi = meters / METERS_PER_MILE
-  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
-  if (mi < 10) return `${mi.toFixed(1)} mi`
-  return `${Math.round(mi)} mi`
 }
 
 function formatClockTime(tsSec: number, tz?: string): string {
@@ -26,12 +20,13 @@ function formatClockTime(tsSec: number, tz?: string): string {
 }
 
 export default function TravelTimeBadge({ loading, minutes, meters, departureTimeSec, timezone }: Props) {
+  const { unitSystem } = useUnitSystem()
   let content: React.ReactNode
   if (loading) {
     content = <span className="text-neutral-500">Estimating bike time…</span>
   } else if (minutes != null && meters != null) {
     const minLabel = minutes < 1 ? '<1' : Math.round(minutes)
-    const distance = formatMiles(meters)
+    const distance = formatDistance(meters, unitSystem)
     if (departureTimeSec != null) {
       const arriveTs = departureTimeSec + minutes * 60
       content = (

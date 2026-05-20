@@ -10,6 +10,7 @@ import {
   useTheme,
 } from '@audius/harmony'
 import { BikeGlyph } from './BrandMark'
+import UnitSystemToggle from './UnitSystemToggle'
 
 type Props = {
   open: boolean
@@ -122,6 +123,18 @@ export default function AboutModal({ open, onClose }: Props) {
             {LINKS.map((l) => (
               <LinkTile key={l.href} link={l} onClose={onClose} />
             ))}
+          </Flex>
+
+          <Flex
+            justifyContent="space-between"
+            alignItems="center"
+            gap="m"
+            css={{
+              paddingTop: theme.spacing.m,
+              borderTop: `1px solid ${theme.color.border.default}`,
+            }}
+          >
+            <UnitSystemToggle />
           </Flex>
 
           <Flex
