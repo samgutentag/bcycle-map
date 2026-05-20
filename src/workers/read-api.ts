@@ -1,7 +1,12 @@
 import type { Env } from '../../worker-configuration'
 import { latestKey } from './poller'
 import { activityKey, activityR2Key } from '../shared/activity'
-import { readSnapshotsForRange, tripsFromSnapshots } from './lib/trips-from-parquet'
+import {
+  readSnapshotsForRange,
+  readDockSnapshotsForRange,
+  downsampleSnapshots,
+  tripsFromSnapshots,
+} from './lib/trips-from-parquet'
 import type { Trip } from '../shared/types'
 
 const CORS_HEADERS = {
@@ -14,6 +19,7 @@ const PARTITIONS_RE = /^\/api\/systems\/([^/]+)\/partitions$/
 const STATION_RECENT_RE = /^\/api\/systems\/([^/]+)\/stations\/([^/]+)\/recent$/
 const ACTIVITY_RE = /^\/api\/systems\/([^/]+)\/activity$/
 const TRIPS_RE = /^\/api\/systems\/([^/]+)\/trips$/
+const SNAPSHOTS_RE = /^\/api\/systems\/([^/]+)\/snapshots$/
 const BEACON_RE = /^\/api\/beacon$/
 const INSIGHTS_RE = /^\/api\/insights$/
 const GEOCODE_RE = /^\/api\/geocode$/
@@ -388,6 +394,91 @@ async function handleTrips(env: Env, systemId: string, sinceTs: number, untilTs:
   return jsonResponse<TripsResponse>({ trips, since: sinceTs, until: untilTs }, 200, 'max-age=60')
 }
 
+// ─── Historical pin rewind (#52) ──────────────────────────────────────
+//
+// /flow's v1 ships animated bikes, but pin counts always reflect "now"
+// rather than the scrubbed cursor — a visible caveat in the caption.
+// This endpoint returns station-by-station bike/dock counts at ~2 min
+// cadence over [since, until], pulled from the same R2 parquet archive
+// the trips endpoint reads. Frontend bisects the resulting array on
+// every cursor change to refresh pin rendering.
+//
+// Data is immutable once written (poller → compaction → R2 parquet),
+// so the worker caches aggressively (max-age=600).
+//
+// Downsampling happens here, not client-side, so we don't ship the
+// full ~30s-cadence archive over the wire. step=120 (2 min) is the
+// default — fine enough that pin counts feel responsive to the
+// 30s/min ticks the user scrubs through.
+
+const SNAPSHOTS_MAX_WINDOW_SEC = 7 * 86400
+const SNAPSHOTS_DEFAULT_STEP_SEC = 120
+const SNAPSHOTS_MIN_STEP_SEC = 60
+const SNAPSHOTS_MAX_STEP_SEC = 3600
+
+type SnapshotsResponse = {
+  snapshots: Array<{
+    ts: number
+    stations: Array<{
+      station_id: string
+      num_bikes_available: number
+      num_docks_available: number
+    }>
+  }>
+  since: number
+  until: number
+  step: number
+}
+type SnapshotsError = { error: string }
+
+async function handleSnapshots(
+  env: Env,
+  systemId: string,
+  sinceTs: number,
+  untilTs: number,
+  stepSec: number,
+): Promise<Response> {
+  if (!Number.isFinite(sinceTs) || !Number.isFinite(untilTs)) {
+    return jsonResponse<SnapshotsError>({ error: 'since and until must be unix-second integers' }, 400)
+  }
+  if (untilTs <= sinceTs) {
+    return jsonResponse<SnapshotsError>({ error: 'until must be greater than since' }, 400)
+  }
+  if (untilTs - sinceTs > SNAPSHOTS_MAX_WINDOW_SEC) {
+    return jsonResponse<SnapshotsError>(
+      { error: `window must be <= ${SNAPSHOTS_MAX_WINDOW_SEC} seconds (7 days)` },
+      400,
+    )
+  }
+  if (!Number.isFinite(stepSec) || stepSec < SNAPSHOTS_MIN_STEP_SEC || stepSec > SNAPSHOTS_MAX_STEP_SEC) {
+    return jsonResponse<SnapshotsError>(
+      { error: `step must be between ${SNAPSHOTS_MIN_STEP_SEC} and ${SNAPSHOTS_MAX_STEP_SEC} seconds` },
+      400,
+    )
+  }
+
+  let snaps
+  try {
+    snaps = await readDockSnapshotsForRange(env.GBFS_R2, systemId, sinceTs, untilTs)
+  } catch (err) {
+    console.error(`snapshots: R2/parquet read failed for ${systemId}:`, err)
+    return jsonResponse<SnapshotsError>({ error: 'failed to read snapshot archive' }, 502)
+  }
+
+  // The R2 reader pads by 1h on each side (same as the trips path) so we
+  // see snapshots straddling partition boundaries. Clip back to the exact
+  // requested window before downsampling so the caller's bisect stays in
+  // bounds.
+  const inWindow = snaps.filter(s => s.ts >= sinceTs && s.ts <= untilTs)
+  const sampled = downsampleSnapshots(inWindow, stepSec)
+
+  return jsonResponse<SnapshotsResponse>(
+    { snapshots: sampled, since: sinceTs, until: untilTs, step: stepSec },
+    200,
+    'max-age=600',
+  )
+}
+
 function jsonResponse<T>(body: T, status: number, cacheControl?: string): Response {
   const headers: Record<string, string> = {
     ...CORS_HEADERS,
@@ -458,6 +549,16 @@ export default {
       const sinceTs = Number(url.searchParams.get('since') ?? 'NaN')
       const untilTs = Number(url.searchParams.get('until') ?? 'NaN')
       return handleTrips(env, systemId, sinceTs, untilTs)
+    }
+
+    const snapshots = url.pathname.match(SNAPSHOTS_RE)
+    if (snapshots) {
+      const systemId = snapshots[1]!
+      const sinceTs = Number(url.searchParams.get('since') ?? 'NaN')
+      const untilTs = Number(url.searchParams.get('until') ?? 'NaN')
+      const stepRaw = url.searchParams.get('step')
+      const stepSec = stepRaw === null ? SNAPSHOTS_DEFAULT_STEP_SEC : Number(stepRaw)
+      return handleSnapshots(env, systemId, sinceTs, untilTs, stepSec)
     }
 
     const recent = url.pathname.match(STATION_RECENT_RE)

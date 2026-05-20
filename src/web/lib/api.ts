@@ -28,6 +28,36 @@ export async function fetchTrips(systemId: string, sinceTs: number, untilTs: num
   return body.trips
 }
 
+/**
+ * Per-station historical bike/dock counts at a configurable cadence
+ * (issue #52). Backs the /flow page's pin-rewind so the pins reflect
+ * the scrubbed cursor instead of "now". Data is immutable once written
+ * (poller → compaction → R2 parquet) and the worker sets max-age=600,
+ * so a single fetch per page load + a binary-search selector is enough.
+ */
+export type StationSnapshotCount = {
+  station_id: string
+  num_bikes_available: number
+  num_docks_available: number
+}
+export type HistoricalSnapshot = {
+  ts: number
+  stations: StationSnapshotCount[]
+}
+
+export async function fetchHistoricalSnapshots(
+  systemId: string,
+  sinceTs: number,
+  untilTs: number,
+  stepSec = 120,
+): Promise<HistoricalSnapshot[]> {
+  const url = `${API_BASE}/api/systems/${systemId}/snapshots?since=${sinceTs}&until=${untilTs}&step=${stepSec}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`snapshots fetch failed: ${res.status}`)
+  const body = await res.json() as { snapshots: HistoricalSnapshot[] }
+  return body.snapshots
+}
+
 export type GeocodeResult = { lat: number; lng: number; formatted: string }
 export type GeocodeErrorCode = 'ZERO_RESULTS' | 'OVER_QUOTA' | 'INVALID'
 

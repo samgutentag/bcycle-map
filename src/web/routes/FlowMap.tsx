@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { Flex, Text, useTheme } from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useFlowTrips } from '../hooks/useFlowTrips'
+import { useHistoricalSnapshots } from '../hooks/useHistoricalSnapshots'
 import { useRouteCache } from '../hooks/useRouteCache'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
@@ -24,6 +25,7 @@ export default function FlowMap() {
 
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const { trips, windowStart, windowEnd, loading: tripsLoading } = useFlowTrips(SYSTEM_ID)
+  const { getSnapshotAt } = useHistoricalSnapshots(SYSTEM_ID, windowStart, windowEnd)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
 
@@ -87,16 +89,36 @@ export default function FlowMap() {
   // visible so the user knows they exist.
   //
   // The full /live pin treatment (count text, capacity-scaled teardrop)
-  // would dominate the canvas and bury the moving bikes. Live counts are
-  // also "now" only here — showing them implies time-machine state we
-  // don't yet have (deferred to #52).
+  // would dominate the canvas and bury the moving bikes.
+  //
+  // Pin counts (#52): we read each station's bike/dock counts from the
+  // historical snapshot at the cursor — `getSnapshotAt(cursorTs)`. While
+  // the historical fetch is in flight (or for stations that didn't exist
+  // at the cursor's ts) we fall back to live counts. `is_installed` /
+  // `is_renting` stay sourced from `live` either way — the parquet
+  // archive doesn't carry the install/rent flags.
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
+  const historicalStations = useMemo(() => getSnapshotAt(cursorTs), [getSnapshotAt, cursorTs])
+  const historicalById = useMemo(() => {
+    if (!historicalStations) return null
+    const m = new Map<string, { num_bikes_available: number; num_docks_available: number }>()
+    for (const s of historicalStations) m.set(s.station_id, s)
+    return m
+  }, [historicalStations])
   useEffect(() => {
     if (!map || !live) return
     const seen = new Set<string>()
     for (const s of live.stations) {
       seen.add(s.station_id)
       const offline = !s.is_installed || !s.is_renting
+      // Historical-or-live count source per the spec: getSnapshotAt(ts) ??
+      // live.stations. While the historical fetch is in flight (or for a
+      // station that didn't exist at the cursor's ts) we fall through to
+      // live. The dim treatment now reflects bike availability at the
+      // cursor — a station empty *now* but stocked 4 hours ago renders
+      // bright when the user scrubs back.
+      const counts = historicalById?.get(s.station_id) ?? s
+      const empty = !offline && counts.num_bikes_available === 0
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
       if (marker) {
@@ -114,14 +136,21 @@ export default function FlowMap() {
       el.style.width = '8px'
       el.style.height = '8px'
       el.style.borderRadius = '50%'
-      el.style.background = offline ? 'rgba(120, 120, 120, 0.35)' : 'rgba(80, 80, 80, 0.6)'
+      // Offline > empty > stocked. The empty tier matches /live's "dim pin"
+      // idiom — a pin without bikes is visually backgrounded so the eye
+      // lands on stocked pins.
+      el.style.background = offline
+        ? 'rgba(120, 120, 120, 0.35)'
+        : empty
+          ? 'rgba(80, 80, 80, 0.35)'
+          : 'rgba(80, 80, 80, 0.6)'
       el.style.border = '1px solid rgba(255, 255, 255, 0.8)'
       el.style.boxShadow = '0 0 1px rgba(0, 0, 0, 0.3)'
     }
     for (const [id, m] of markersRef.current) {
       if (!seen.has(id)) { m.remove(); markersRef.current.delete(id) }
     }
-  }, [map, live])
+  }, [map, live, historicalById])
 
   // Visible-window selection. Two passes: `alive` is strict (drives the
   // "N trips active at cursor" caption), `renderable` extends the window
@@ -234,7 +263,7 @@ export default function FlowMap() {
           }}
         >
           <strong css={{ color: theme.color.text.heading }}>Flow</strong> — animated bikes follow
-          cached routes for trips in the past 24 hours. Pin counts are live, not the scrubbed timestamp.
+          cached routes for trips in the past 24 hours.
         </div>
       </div>
       <FlowTimelineScrubber
