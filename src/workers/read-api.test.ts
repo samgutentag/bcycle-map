@@ -378,4 +378,169 @@ describe('read-api', () => {
       expect(res.headers.get('cache-control')).toBe('max-age=60')
     })
   })
+
+  // ─── Historical snapshots endpoint (#52) ─────────────────────────────
+  describe('historical snapshots endpoint', () => {
+    beforeEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    const sampleSnap = (ts: number) => ({
+      ts,
+      stations: [
+        { station_id: 'a', num_bikes_available: 3, num_docks_available: 7 },
+        { station_id: 'b', num_bikes_available: 1, num_docks_available: 9 },
+      ],
+    })
+
+    it('returns downsampled snapshots from the parquet archive', async () => {
+      const dockSpy = vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockResolvedValue([
+        sampleSnap(1000),
+        sampleSnap(1060),  // dropped by 120s step
+        sampleSnap(1120),  // kept (≥ 120 past 1000)
+        sampleSnap(1800),  // kept (last, always bookend)
+      ])
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=1000&until=1800&step=120'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(res.headers.get('cache-control')).toBe('max-age=600')
+      expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
+      const body = await res.json() as {
+        snapshots: Array<{ ts: number; stations: unknown[] }>
+        since: number
+        until: number
+        step: number
+      }
+      expect(body.since).toBe(1000)
+      expect(body.until).toBe(1800)
+      expect(body.step).toBe(120)
+      expect(body.snapshots.map(s => s.ts)).toEqual([1000, 1120, 1800])
+      expect(dockSpy).toHaveBeenCalledWith(env.GBFS_R2, 'bcycle_santabarbara', 1000, 1800)
+    })
+
+    it('preserves num_bikes_available + num_docks_available per station', async () => {
+      vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockResolvedValue([sampleSnap(1000)])
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=900&until=2000&step=120'),
+        env,
+      )
+      const body = await res.json() as {
+        snapshots: Array<{ stations: Array<{ station_id: string; num_bikes_available: number; num_docks_available: number }> }>
+      }
+      const a = body.snapshots[0]!.stations.find(s => s.station_id === 'a')!
+      expect(a.num_bikes_available).toBe(3)
+      expect(a.num_docks_available).toBe(7)
+    })
+
+    it('defaults step to 120s when omitted', async () => {
+      vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockResolvedValue([sampleSnap(1000)])
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=1000&until=2000'),
+        env,
+      )
+      const body = await res.json() as { step: number }
+      expect(body.step).toBe(120)
+    })
+
+    it('clips snapshots whose ts falls outside the requested window', async () => {
+      vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockResolvedValue([
+        sampleSnap(400),    // before window — partition pad
+        sampleSnap(1000),   // in
+        sampleSnap(2000),   // in (bookend)
+        sampleSnap(3000),   // after — partition pad
+      ])
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=1000&until=2000&step=120'),
+        env,
+      )
+      const body = await res.json() as { snapshots: Array<{ ts: number }> }
+      expect(body.snapshots.map(s => s.ts)).toEqual([1000, 2000])
+    })
+
+    it('rejects until <= since', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=2000&until=1000&step=120'),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'until must be greater than since' })
+    })
+
+    it('rejects a window > 7 days', async () => {
+      const env = makeEnv()
+      const sevenDays = 7 * 86400
+      const res = await worker.fetch(
+        new Request(`https://example/api/systems/bcycle_santabarbara/snapshots?since=0&until=${sevenDays + 1}&step=120`),
+        env,
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toMatch(/<= 604800/)
+    })
+
+    it('rejects step < 60', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=1000&until=2000&step=30'),
+        env,
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toMatch(/step must be between 60 and 3600/)
+    })
+
+    it('rejects step > 3600', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=1000&until=2000&step=9999'),
+        env,
+      )
+      expect(res.status).toBe(400)
+    })
+
+    it('rejects missing/non-numeric since or until', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots'),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'since and until must be unix-second integers' })
+    })
+
+    it('returns 502 when the R2 parquet read throws', async () => {
+      vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockRejectedValue(new Error('R2 down'))
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=500&until=2000&step=120'),
+        env,
+      )
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'failed to read snapshot archive' })
+    })
+
+    it('exposes a cache-control header for aggressive CDN caching (~600s)', async () => {
+      vi.spyOn(tripsLib, 'readDockSnapshotsForRange').mockResolvedValue([])
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/snapshots?since=500&until=2000&step=120'),
+        env,
+      )
+      // Data is immutable once written, so we cache more aggressively than
+      // the trips endpoint (which re-derives every minute as new snapshots
+      // land).
+      expect(res.headers.get('cache-control')).toBe('max-age=600')
+    })
+  })
 })

@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest'
 import {
   partitionKeysForRange,
   snapshotsFromRows,
+  snapshotsWithDocksFromRows,
+  downsampleSnapshots,
   tripsFromSnapshots,
   type Snap,
+  type SnapWithDocks,
 } from './trips-from-parquet'
 
 describe('partitionKeysForRange', () => {
@@ -92,5 +95,63 @@ describe('tripsFromSnapshots', () => {
     ]
     const trips = tripsFromSnapshots(snaps, 0)
     expect(trips).toEqual([])
+  })
+})
+
+describe('snapshotsWithDocksFromRows', () => {
+  it('preserves num_docks_available alongside num_bikes_available', () => {
+    const snaps = snapshotsWithDocksFromRows([
+      { snapshot_ts: 100, station_id: 'a', num_bikes_available: 3, num_docks_available: 7 },
+      { snapshot_ts: 100, station_id: 'b', num_bikes_available: 1, num_docks_available: 9 },
+      { snapshot_ts: 200, station_id: 'a', num_bikes_available: 2, num_docks_available: 8 },
+    ])
+    expect(snaps).toHaveLength(2)
+    expect(snaps[0]!.ts).toBe(100)
+    expect(snaps[0]!.stations).toHaveLength(2)
+    const a100 = snaps[0]!.stations.find(s => s.station_id === 'a')!
+    expect(a100.num_bikes_available).toBe(3)
+    expect(a100.num_docks_available).toBe(7)
+    const a200 = snaps[1]!.stations.find(s => s.station_id === 'a')!
+    expect(a200.num_docks_available).toBe(8)
+  })
+
+  it('coerces bigint snapshot_ts to number', () => {
+    const snaps = snapshotsWithDocksFromRows([
+      { snapshot_ts: BigInt(1778692030), station_id: 'a', num_bikes_available: 1, num_docks_available: 4 },
+    ])
+    expect(snaps[0]!.ts).toBe(1778692030)
+    expect(typeof snaps[0]!.ts).toBe('number')
+  })
+})
+
+describe('downsampleSnapshots', () => {
+  const sample: SnapWithDocks[] = [
+    { ts: 100, stations: [] },
+    { ts: 130, stations: [] },
+    { ts: 160, stations: [] },
+    { ts: 220, stations: [] },
+    { ts: 280, stations: [] },
+    { ts: 400, stations: [] },
+  ]
+
+  it('keeps snapshots at least `stepSec` apart, plus the bookends', () => {
+    const out = downsampleSnapshots(sample, 120)
+    // first = 100; next kept must be ≥ 220 (220 - 100 = 120); then 400 (≥ 220 + 120 = 340)
+    expect(out.map(s => s.ts)).toEqual([100, 220, 400])
+  })
+
+  it('always keeps first and last even when nothing in between qualifies', () => {
+    const out = downsampleSnapshots(sample, 99999)
+    expect(out.map(s => s.ts)).toEqual([100, 400])
+  })
+
+  it('returns input unchanged when stepSec is 0', () => {
+    const out = downsampleSnapshots(sample, 0)
+    expect(out).toEqual(sample)
+  })
+
+  it('returns input unchanged when there are 0 or 1 snapshots', () => {
+    expect(downsampleSnapshots([], 120)).toEqual([])
+    expect(downsampleSnapshots([{ ts: 100, stations: [] }], 120)).toEqual([{ ts: 100, stations: [] }])
   })
 })

@@ -26,9 +26,28 @@ type ParquetRow = {
   num_bikes_available: number
 }
 
+type ParquetRowWithDocks = ParquetRow & {
+  num_docks_available: number
+}
+
 export type Snap = {
   ts: number
   stations: Array<{ station_id: string; num_bikes_available: number }>
+}
+
+/**
+ * Snapshot variant that also carries `num_docks_available`. Used by the
+ * /flow historical pin rewind (#52) — pin counts at the scrubbed cursor
+ * need both sides of the bike/dock ratio, whereas trip pairing only
+ * cares about bikes.
+ */
+export type SnapWithDocks = {
+  ts: number
+  stations: Array<{
+    station_id: string
+    num_bikes_available: number
+    num_docks_available: number
+  }>
 }
 
 /**
@@ -116,6 +135,78 @@ export async function readSnapshotsForRange(
       columns: ['snapshot_ts', 'station_id', 'num_bikes_available'],
     })) as ParquetRow[]
     allSnaps.push(...snapshotsFromRows(rows))
+  }
+  allSnaps.sort((a, b) => a.ts - b.ts)
+  return allSnaps
+}
+
+/**
+ * Group parquet rows that include both bike + dock counts by snapshot_ts.
+ * Mirrors `snapshotsFromRows` but preserves the dock column so the
+ * /flow pin rewind can show both sides of the ratio at the scrubbed
+ * timestamp.
+ */
+export function snapshotsWithDocksFromRows(rows: ParquetRowWithDocks[]): SnapWithDocks[] {
+  const byTs = new Map<number, SnapWithDocks['stations']>()
+  for (const r of rows) {
+    const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
+    if (!byTs.has(ts)) byTs.set(ts, [])
+    byTs.get(ts)!.push({
+      station_id: String(r.station_id),
+      num_bikes_available: Number(r.num_bikes_available),
+      num_docks_available: Number(r.num_docks_available),
+    })
+  }
+  return Array.from(byTs.entries()).sort(([a], [b]) => a - b).map(([ts, stations]) => ({ ts, stations }))
+}
+
+/**
+ * Downsample by keeping only snapshots whose ts is at least `stepSec` past
+ * the previously-kept snapshot. The first and last snapshot are always kept
+ * so the downsampled window still bookends the requested range.
+ */
+export function downsampleSnapshots<T extends { ts: number }>(snaps: T[], stepSec: number): T[] {
+  if (snaps.length === 0) return snaps
+  if (stepSec <= 0) return snaps
+  const out: T[] = [snaps[0]!]
+  let lastKept = snaps[0]!.ts
+  for (let i = 1; i < snaps.length - 1; i++) {
+    const s = snaps[i]!
+    if (s.ts - lastKept >= stepSec) {
+      out.push(s)
+      lastKept = s.ts
+    }
+  }
+  if (snaps.length > 1) {
+    const last = snaps[snaps.length - 1]!
+    if (out[out.length - 1] !== last) out.push(last)
+  }
+  return out
+}
+
+/**
+ * R2-bound reader variant for the /flow pin-rewind endpoint. Same partition
+ * walk + missing-key tolerance as `readSnapshotsForRange`, but pulls the
+ * `num_docks_available` column too. Kept separate from the trip-pairing
+ * reader so we don't pay the dock-column cost on every trips request.
+ */
+export async function readDockSnapshotsForRange(
+  r2: R2Like,
+  systemId: string,
+  sinceTs: number,
+  untilTs: number,
+): Promise<SnapWithDocks[]> {
+  const keys = partitionKeysForRange(systemId, sinceTs, untilTs)
+  const allSnaps: SnapWithDocks[] = []
+  for (const key of keys) {
+    const obj = await r2.get(key)
+    if (!obj) continue
+    const buf = await obj.arrayBuffer()
+    const rows = (await parquetReadObjects({
+      file: buf,
+      columns: ['snapshot_ts', 'station_id', 'num_bikes_available', 'num_docks_available'],
+    })) as ParquetRowWithDocks[]
+    allSnaps.push(...snapshotsWithDocksFromRows(rows))
   }
   allSnaps.sort((a, b) => a.ts - b.ts)
   return allSnaps
