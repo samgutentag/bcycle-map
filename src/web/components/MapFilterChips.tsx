@@ -4,10 +4,8 @@ import { CORRIDOR_LABELS, CORRIDOR_ORDER, type CorridorId, isCorridorId } from '
 
 type Props = {
   minBikes: number
-  offlineOnly: boolean
   corridor: CorridorId | null
   onMinBikesChange: (value: number) => void
-  onOfflineOnlyChange: (value: boolean) => void
   onCorridorChange: (value: CorridorId | null) => void
   onReset: () => void
   filteredCount: number
@@ -30,10 +28,8 @@ function minBikesLabel(value: number): string {
  */
 export default function MapFilterChips({
   minBikes,
-  offlineOnly,
   corridor,
   onMinBikesChange,
-  onOfflineOnlyChange,
   onCorridorChange,
   onReset,
   filteredCount,
@@ -42,7 +38,7 @@ export default function MapFilterChips({
   const theme = useTheme()
   const minBikesActive = minBikes > 0
   const corridorActive = corridor !== null
-  const anyActive = minBikesActive || offlineOnly || corridorActive
+  const anyActive = minBikesActive || corridorActive
 
   const baseChip = {
     all: 'unset' as const,
@@ -242,58 +238,6 @@ export default function MapFilterChips({
             )}
           </button>
         </Flex>
-
-        {/* Offline only chip */}
-        <button
-          type="button"
-          data-testid="filter-chip-offline"
-          aria-label="Offline only"
-          aria-pressed={offlineOnly}
-          onClick={() => onOfflineOnlyChange(!offlineOnly)}
-          css={{
-            ...baseChip,
-            ...(offlineOnly ? activeChip : null),
-          }}
-        >
-          <Text variant="label" size="s" strength="strong" color="inherit">
-            Offline only
-          </Text>
-          {offlineOnly && (
-            <span
-              role="button"
-              tabIndex={0}
-              aria-label="Clear offline filter"
-              data-testid="filter-chip-offline-clear"
-              onClick={ev => {
-                ev.stopPropagation()
-                onOfflineOnlyChange(false)
-              }}
-              onKeyDown={ev => {
-                if (ev.key === 'Enter' || ev.key === ' ') {
-                  ev.stopPropagation()
-                  ev.preventDefault()
-                  onOfflineOnlyChange(false)
-                }
-              }}
-              css={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                fontSize: 12,
-                lineHeight: 1,
-                cursor: 'pointer',
-                marginLeft: 2,
-                opacity: 0.85,
-                '&:hover': { opacity: 1 },
-              }}
-            >
-              ×
-            </span>
-          )}
-        </button>
 
         {anyActive && (
           <button

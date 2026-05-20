@@ -48,24 +48,13 @@ describe('applyMapFilters', () => {
   })
 
   it('filters by minBikes (>= threshold)', () => {
-    const out = applyMapFilters(STATIONS, { minBikes: 3, offlineOnly: false, corridor: null })
+    const out = applyMapFilters(STATIONS, { minBikes: 3, corridor: null })
     expect(out.map(s => s.station_id)).toEqual(['three', 'five', 'ten', 'not-renting'])
   })
 
   it('passes everything when minBikes is 0', () => {
-    const out = applyMapFilters(STATIONS, { minBikes: 0, offlineOnly: false, corridor: null })
+    const out = applyMapFilters(STATIONS, { minBikes: 0, corridor: null })
     expect(out).toHaveLength(STATIONS.length)
-  })
-
-  it('keeps only offline stations when offlineOnly is true', () => {
-    const out = applyMapFilters(STATIONS, { minBikes: 0, offlineOnly: true, corridor: null })
-    expect(out.map(s => s.station_id).sort()).toEqual(['not-installed', 'not-renting', 'not-returning'])
-  })
-
-  it('combines both filters', () => {
-    // minBikes 3 AND offline → 'not-renting' has 4 bikes and is offline
-    const out = applyMapFilters(STATIONS, { minBikes: 3, offlineOnly: true, corridor: null })
-    expect(out.map(s => s.station_id)).toEqual(['not-renting'])
   })
 
   it('filters by corridor using the supplied lookup map', () => {
@@ -76,7 +65,7 @@ describe('applyMapFilters', () => {
     ])
     const out = applyMapFilters(
       STATIONS,
-      { minBikes: 0, offlineOnly: false, corridor: 'eastside' },
+      { minBikes: 0, corridor: 'eastside' },
       corridorMap as Map<string, never>,
     )
     expect(out.map(s => s.station_id)).toEqual(['one', 'three'])
@@ -86,7 +75,7 @@ describe('applyMapFilters', () => {
     const corridorMap = new Map<string, 'eastside'>([['one', 'eastside']])
     const out = applyMapFilters(
       STATIONS,
-      { minBikes: 0, offlineOnly: false, corridor: 'eastside' },
+      { minBikes: 0, corridor: 'eastside' },
       corridorMap as Map<string, never>,
     )
     expect(out.map(s => s.station_id)).toEqual(['one'])
@@ -134,9 +123,9 @@ describe('URL serialization', () => {
     expect(readFiltersFromSearch(new URLSearchParams())).toEqual(DEFAULT_FILTERS)
   })
 
-  it('reads minBikes and offlineOnly', () => {
-    const params = new URLSearchParams('bikes=3&offline=1')
-    expect(readFiltersFromSearch(params)).toEqual({ minBikes: 3, offlineOnly: true, corridor: null })
+  it('reads minBikes', () => {
+    const params = new URLSearchParams('bikes=3')
+    expect(readFiltersFromSearch(params)).toEqual({ minBikes: 3, corridor: null })
   })
 
   it('reads a known corridor id', () => {
@@ -156,18 +145,22 @@ describe('URL serialization', () => {
     expect(readFiltersFromSearch(new URLSearchParams('bikes=abc')).minBikes).toBe(0)
   })
 
-  it('treats offline values other than "1" as off', () => {
-    expect(readFiltersFromSearch(new URLSearchParams('offline=0')).offlineOnly).toBe(false)
-    expect(readFiltersFromSearch(new URLSearchParams('offline=true')).offlineOnly).toBe(false)
+  it('ignores the legacy offline param and visiting /live?offline=1 is a no-op', () => {
+    expect(readFiltersFromSearch(new URLSearchParams('offline=1'))).toEqual(DEFAULT_FILTERS)
+    expect(readFiltersFromSearch(new URLSearchParams('offline=0'))).toEqual(DEFAULT_FILTERS)
+    expect(readFiltersFromSearch(new URLSearchParams('bikes=3&offline=1'))).toEqual({
+      minBikes: 3,
+      corridor: null,
+    })
   })
 
   it('writes filters and omits defaults', () => {
-    const out = writeFiltersToSearch(new URLSearchParams(), { minBikes: 5, offlineOnly: true, corridor: null })
-    expect(out.toString()).toBe('bikes=5&offline=1')
+    const out = writeFiltersToSearch(new URLSearchParams(), { minBikes: 5, corridor: null })
+    expect(out.toString()).toBe('bikes=5')
   })
 
   it('writes the corridor key when a corridor is selected', () => {
-    const out = writeFiltersToSearch(new URLSearchParams(), { minBikes: 0, offlineOnly: false, corridor: 'mesa' })
+    const out = writeFiltersToSearch(new URLSearchParams(), { minBikes: 0, corridor: 'mesa' })
     expect(out.toString()).toBe('corridor=mesa')
   })
 
@@ -184,21 +177,30 @@ describe('URL serialization', () => {
   it('preserves unrelated params', () => {
     const out = writeFiltersToSearch(
       new URLSearchParams('nearby=open'),
-      { minBikes: 1, offlineOnly: false, corridor: null },
+      { minBikes: 1, corridor: null },
     )
     expect(out.get('nearby')).toBe('open')
     expect(out.get('bikes')).toBe('1')
+  })
+
+  it('strips the legacy offline param on write so old links self-heal', () => {
+    const out = writeFiltersToSearch(
+      new URLSearchParams('bikes=3&offline=1&nearby=open'),
+      { minBikes: 3, corridor: null },
+    )
     expect(out.get('offline')).toBeNull()
+    expect(out.get('bikes')).toBe('3')
+    expect(out.get('nearby')).toBe('open')
   })
 
   it('round-trips arbitrary filter values', () => {
     const originals: import('./map-filters').MapFilters[] = [
-      { minBikes: 0, offlineOnly: false, corridor: null },
-      { minBikes: 1, offlineOnly: false, corridor: null },
-      { minBikes: 3, offlineOnly: true,  corridor: null },
-      { minBikes: 5, offlineOnly: true,  corridor: 'waterfront' },
-      { minBikes: 0, offlineOnly: true,  corridor: 'eastside' },
-      { minBikes: 1, offlineOnly: false, corridor: 'state_street' },
+      { minBikes: 0, corridor: null },
+      { minBikes: 1, corridor: null },
+      { minBikes: 3, corridor: null },
+      { minBikes: 5, corridor: 'waterfront' },
+      { minBikes: 0, corridor: 'eastside' },
+      { minBikes: 1, corridor: 'state_street' },
     ]
     for (const f of originals) {
       const written = writeFiltersToSearch(new URLSearchParams(), f)
@@ -207,13 +209,12 @@ describe('URL serialization', () => {
     }
   })
 
-  it('clears bikes/offline keys when written with defaults', () => {
+  it('clears bikes key when written with defaults', () => {
     const out = writeFiltersToSearch(
-      new URLSearchParams('bikes=3&offline=1&nearby=open'),
+      new URLSearchParams('bikes=3&nearby=open'),
       DEFAULT_FILTERS,
     )
     expect(out.get('bikes')).toBeNull()
-    expect(out.get('offline')).toBeNull()
     expect(out.get('nearby')).toBe('open')
   })
 })
@@ -224,9 +225,8 @@ describe('hasActiveFilter', () => {
   })
 
   it('is true when any filter is active', () => {
-    expect(hasActiveFilter({ minBikes: 1, offlineOnly: false, corridor: null })).toBe(true)
-    expect(hasActiveFilter({ minBikes: 0, offlineOnly: true,  corridor: null })).toBe(true)
-    expect(hasActiveFilter({ minBikes: 5, offlineOnly: true,  corridor: null })).toBe(true)
-    expect(hasActiveFilter({ minBikes: 0, offlineOnly: false, corridor: 'waterfront' })).toBe(true)
+    expect(hasActiveFilter({ minBikes: 1, corridor: null })).toBe(true)
+    expect(hasActiveFilter({ minBikes: 5, corridor: null })).toBe(true)
+    expect(hasActiveFilter({ minBikes: 0, corridor: 'waterfront' })).toBe(true)
   })
 })
