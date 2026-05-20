@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { StationSnapshot } from '@shared/types'
 import NearbyStationsSheet from './NearbyStationsSheet'
@@ -205,5 +205,134 @@ describe('NearbyStationsSheet', () => {
     renderSheet({ onOpenChange })
     fireEvent.click(screen.getByTestId('nearby-sheet-close'))
     expect(openState).toBe(false)
+  })
+
+  // ─── Geocoding fallback (issue #47) ──────────────────────────────────
+  describe('geocoding fallback', () => {
+    const realFetch = globalThis.fetch
+
+    function stubGeocode(handler: (url: string) => Response | Promise<Response>) {
+      globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        return handler(url)
+      }) as unknown as typeof globalThis.fetch
+    }
+
+    afterEach(() => {
+      globalThis.fetch = realFetch
+      vi.useRealTimers()
+    })
+
+    it('does not render the address input in the consent-prompt (idle) branch', () => {
+      renderSheet()
+      expect(screen.getByTestId('nearby-sheet-request')).toBeInTheDocument()
+      expect(screen.queryByTestId('nearby-sheet-address-fallback')).not.toBeInTheDocument()
+    })
+
+    it('does not render the address input in the granted (results) branch', () => {
+      window.localStorage.setItem('bcycle-map:geolocation-granted', '1')
+      renderSheet()
+      expect(screen.getByTestId('nearby-sheet-results')).toBeInTheDocument()
+      expect(screen.queryByTestId('nearby-sheet-address-fallback')).not.toBeInTheDocument()
+    })
+
+    it('renders the address input only in the denied branch', () => {
+      installGeolocation((_success, error) => error({ code: 1, message: 'nope' }))
+      renderSheet()
+      act(() => { fireEvent.click(screen.getByTestId('nearby-sheet-request')) })
+      expect(screen.getByTestId('nearby-sheet-denied')).toBeInTheDocument()
+      expect(screen.getByTestId('nearby-sheet-address-fallback')).toBeInTheDocument()
+      expect(screen.getByTestId('nearby-sheet-address-input')).toBeInTheDocument()
+    })
+
+    it('renders the address input only in the unavailable branch', () => {
+      installGeolocation((_success, error) => error({ code: 2, message: 'gps unavailable' }))
+      renderSheet()
+      act(() => { fireEvent.click(screen.getByTestId('nearby-sheet-request')) })
+      expect(screen.getByTestId('nearby-sheet-unavailable')).toBeInTheDocument()
+      expect(screen.getByTestId('nearby-sheet-address-fallback')).toBeInTheDocument()
+    })
+
+    it('debounces typing — multiple keystrokes within the window fire one geocode call', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const fetchSpy = vi.fn(async () => new Response(JSON.stringify({
+        lat: 34.4218, lng: -119.6982, formatted: '111 State St, Santa Barbara, CA',
+      }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch
+
+      installGeolocation((_success, error) => error({ code: 1, message: 'nope' }))
+      renderSheet()
+      act(() => { fireEvent.click(screen.getByTestId('nearby-sheet-request')) })
+
+      const input = screen.getByTestId('nearby-sheet-address-input') as HTMLInputElement
+
+      // Three keystrokes, well inside the 400ms debounce window.
+      act(() => {
+        fireEvent.change(input, { target: { value: '10' } })
+      })
+      act(() => { vi.advanceTimersByTime(100) })
+      act(() => {
+        fireEvent.change(input, { target: { value: '101' } })
+      })
+      act(() => { vi.advanceTimersByTime(100) })
+      act(() => {
+        fireEvent.change(input, { target: { value: '101 state' } })
+      })
+
+      // Before the debounce elapses, no fetch should have fired.
+      expect(fetchSpy).not.toHaveBeenCalled()
+
+      // Cross the debounce threshold.
+      act(() => { vi.advanceTimersByTime(500) })
+      await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+
+      const calls = fetchSpy.mock.calls as unknown as Array<Array<unknown>>
+      const calledWith = String(calls[0]?.[0] ?? '')
+      expect(calledWith).toMatch(/\/api\/geocode\?q=/)
+      expect(calledWith).toMatch(/101%20state/i)
+    })
+
+    it('surfaces a quiet inline error when the geocoder returns ZERO_RESULTS', async () => {
+      stubGeocode(async () => new Response(
+        JSON.stringify({ error: 'ZERO_RESULTS' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ))
+      installGeolocation((_success, error) => error({ code: 1, message: 'nope' }))
+      renderSheet()
+      act(() => { fireEvent.click(screen.getByTestId('nearby-sheet-request')) })
+
+      const input = screen.getByTestId('nearby-sheet-address-input') as HTMLInputElement
+      act(() => { fireEvent.change(input, { target: { value: 'nowheresville' } }) })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('nearby-sheet-address-error')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('nearby-sheet-address-error').textContent).toMatch(/no match/i)
+      // ZERO_RESULTS must NOT leave results on screen.
+      expect(screen.queryByTestId('nearby-sheet-results')).not.toBeInTheDocument()
+    })
+
+    it('uses the geocoded origin to rank nearby stations after a successful lookup', async () => {
+      // Reply with the same lat/lon as ORIGIN so the existing STATIONS fixture
+      // resolves to the familiar near-by ordering.
+      stubGeocode(async () => new Response(
+        JSON.stringify({ lat: 34.4208, lng: -119.6982, formatted: '101 State St, Santa Barbara, CA' }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ))
+      installGeolocation((_success, error) => error({ code: 1, message: 'nope' }))
+      renderSheet()
+      act(() => { fireEvent.click(screen.getByTestId('nearby-sheet-request')) })
+
+      const input = screen.getByTestId('nearby-sheet-address-input') as HTMLInputElement
+      act(() => { fireEvent.change(input, { target: { value: '101 state st' } }) })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('nearby-sheet-results')).toBeInTheDocument()
+      })
+      const rows = screen.getAllByTestId('nearby-sheet-row')
+      expect(rows[0]!.textContent).toMatch(/Close & Stocked/)
+      // The resolved-address indicator should also be visible.
+      expect(screen.getByTestId('nearby-sheet-address-resolved').textContent).toMatch(/Using:/)
+    })
   })
 })

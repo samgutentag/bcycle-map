@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import worker from './read-api'
 import type { Env } from '../../worker-configuration'
 
@@ -6,10 +6,12 @@ function makeEnv({
   latestValue = null,
   r2Objects = [] as Array<{ key: string }>,
   r2Get = null as Record<string, string> | null,
+  googleMapsApiKey,
 }: {
   latestValue?: string | null
   r2Objects?: Array<{ key: string }>
   r2Get?: Record<string, string> | null
+  googleMapsApiKey?: string
 } = {}): Env {
   return {
     GBFS_KV: { get: vi.fn(async (_: string) => latestValue) } as any,
@@ -25,6 +27,7 @@ function makeEnv({
         return { text: async () => val } as any
       }),
     } as any,
+    GOOGLE_MAPS_API_KEY: googleMapsApiKey,
   }
 }
 
@@ -127,5 +130,120 @@ describe('read-api', () => {
     expect(body.trips).toEqual([])
     expect(body.inFlightFromStationId).toBeNull()
     expect(body.inFlightDepartureTs).toBeNull()
+  })
+
+  // ─── Geocoding proxy ────────────────────────────────────────────────
+  describe('geocoding proxy', () => {
+    const realFetch = globalThis.fetch
+
+    afterEach(() => {
+      globalThis.fetch = realFetch
+    })
+
+    function stubGoogleResponse(body: unknown, ok = true) {
+      globalThis.fetch = vi.fn(async () => ({
+        ok,
+        json: async () => body,
+      })) as unknown as typeof globalThis.fetch
+    }
+
+    it('rejects an empty query as INVALID', async () => {
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q='),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
+
+    it('rejects an overlong query as INVALID', async () => {
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const q = 'a'.repeat(201)
+      const res = await worker.fetch(
+        new Request(`https://example/api/geocode?q=${q}`),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
+
+    it('returns INVALID when GOOGLE_MAPS_API_KEY is missing', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=123+main+st'),
+        env,
+      )
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
+
+    it('returns lat/lng/formatted on OK', async () => {
+      stubGoogleResponse({
+        status: 'OK',
+        results: [
+          {
+            geometry: { location: { lat: 34.4208, lng: -119.6982 } },
+            formatted_address: '101 State St, Santa Barbara, CA',
+          },
+        ],
+      })
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=101+state+st'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toMatch(/json/)
+      expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
+      const body = await res.json() as { lat: number; lng: number; formatted: string }
+      expect(body.lat).toBeCloseTo(34.4208, 4)
+      expect(body.lng).toBeCloseTo(-119.6982, 4)
+      expect(body.formatted).toMatch(/State St/)
+    })
+
+    it('surfaces ZERO_RESULTS as a 200 with an error payload', async () => {
+      stubGoogleResponse({ status: 'ZERO_RESULTS', results: [] })
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=nowhere'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(await res.json()).toEqual({ error: 'ZERO_RESULTS' })
+    })
+
+    it('surfaces OVER_QUERY_LIMIT as OVER_QUOTA / 429', async () => {
+      stubGoogleResponse({ status: 'OVER_QUERY_LIMIT' })
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=anywhere'),
+        env,
+      )
+      expect(res.status).toBe(429)
+      expect(await res.json()).toEqual({ error: 'OVER_QUOTA' })
+    })
+
+    it('treats an upstream 5xx as INVALID', async () => {
+      stubGoogleResponse({}, false)
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=anywhere'),
+        env,
+      )
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
+
+    it('treats a missing location field as INVALID', async () => {
+      stubGoogleResponse({ status: 'OK', results: [{ formatted_address: 'no geometry' }] })
+      const env = makeEnv({ googleMapsApiKey: 'test-key' })
+      const res = await worker.fetch(
+        new Request('https://example/api/geocode?q=anywhere'),
+        env,
+      )
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
   })
 })

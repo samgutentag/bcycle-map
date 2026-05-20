@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { StationSnapshot } from '@shared/types'
 import { useGeolocation } from '../hooks/useGeolocation'
 import {
@@ -7,9 +7,12 @@ import {
   haversineMeters,
   ONE_MILE_M,
 } from '../lib/distance'
+import { geocodeAddress, type GeocodeErrorCode } from '../lib/api'
 
 const MOBILE_BREAKPOINT = 640
 const MAX_RESULTS = 3
+const GEOCODE_DEBOUNCE_MS = 400
+const GEOCODE_MIN_LEN = 3
 
 export type NearbyMode = 'bike' | 'dock'
 
@@ -62,9 +65,18 @@ function mapsUrlFor(origin: { lat: number; lon: number } | null, s: StationSnaps
   return `https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}`
 }
 
+type ManualOrigin = {
+  coords: { lat: number; lon: number }
+  formatted: string
+}
+
 export default function NearbyStationsSheet({ stations, open, onOpenChange }: Props) {
   const geo = useGeolocation()
   const [mode, setMode] = useState<NearbyMode>('bike')
+  // Geocoded origin set via the address-input fallback (issue #47). Only
+  // populated when geolocation is denied/unavailable AND the user typed an
+  // address that resolved. Lives in component state only — never localStorage.
+  const [manualOrigin, setManualOrigin] = useState<ManualOrigin | null>(null)
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
@@ -88,16 +100,24 @@ export default function NearbyStationsSheet({ stations, open, onOpenChange }: Pr
     geo.request()
   }, [open, geo])
 
+  // If the user successfully re-tries native geolocation after a manual
+  // geocode, drop the typed-address origin so the live coords win.
+  useEffect(() => {
+    if (geo.status === 'granted' && manualOrigin) setManualOrigin(null)
+  }, [geo.status, manualOrigin])
+
+  const effectiveOrigin = geo.coords ?? manualOrigin?.coords ?? null
+
   const { results, radiusUsed } = useMemo<{
     results: Ranked[]
     radiusUsed: 'half' | 'one' | null
   }>(() => {
-    if (!geo.coords) return { results: [], radiusUsed: null }
-    const half = pickNearby(stations, geo.coords, mode, HALF_MILE_M, MAX_RESULTS)
+    if (!effectiveOrigin) return { results: [], radiusUsed: null }
+    const half = pickNearby(stations, effectiveOrigin, mode, HALF_MILE_M, MAX_RESULTS)
     if (half.length > 0) return { results: half, radiusUsed: 'half' }
-    const wide = pickNearby(stations, geo.coords, mode, ONE_MILE_M, MAX_RESULTS)
+    const wide = pickNearby(stations, effectiveOrigin, mode, ONE_MILE_M, MAX_RESULTS)
     return { results: wide, radiusUsed: wide.length > 0 ? 'one' : null }
-  }, [stations, geo.coords, mode])
+  }, [stations, effectiveOrigin, mode])
 
   if (!open) return null
 
@@ -240,17 +260,26 @@ export default function NearbyStationsSheet({ stations, open, onOpenChange }: Pr
         )}
 
         {geo.status === 'denied' && (
-          <DeniedState onRetry={() => geo.request()} />
+          <DeniedState
+            onRetry={() => geo.request()}
+            manualOrigin={manualOrigin}
+            onManualOrigin={setManualOrigin}
+          />
         )}
 
         {geo.status === 'unavailable' && (
-          <UnavailableState message={geo.error} onRetry={() => geo.request()} />
+          <UnavailableState
+            message={geo.error}
+            onRetry={() => geo.request()}
+            manualOrigin={manualOrigin}
+            onManualOrigin={setManualOrigin}
+          />
         )}
 
-        {geo.status === 'granted' && (
+        {(geo.status === 'granted' || (manualOrigin && (geo.status === 'denied' || geo.status === 'unavailable'))) && effectiveOrigin && (
           <ResultsList
             results={results}
-            origin={geo.coords}
+            origin={effectiveOrigin}
             mode={mode}
             radiusUsed={radiusUsed}
           />
@@ -332,17 +361,23 @@ function PermissionPrompt({
   )
 }
 
-function DeniedState({ onRetry }: { onRetry: () => void }) {
+function DeniedState({
+  onRetry,
+  manualOrigin,
+  onManualOrigin,
+}: {
+  onRetry: () => void
+  manualOrigin: ManualOrigin | null
+  onManualOrigin: (next: ManualOrigin | null) => void
+}) {
   return (
     <div
       data-testid="nearby-sheet-denied"
       css={{ display: 'flex', flexDirection: 'column', gap: 10 }}
     >
       <p css={{ margin: 0, fontSize: 13, color: 'var(--app-text-default, #222)' }}>
-        {/* TODO(#47): swap the "re-enable in browser settings" copy for a
-            geocoded address input once the Google Maps key is wired through. */}
-        Location permission was denied. Re-enable it in your browser settings,
-        then try again. Manual address lookup is coming in a follow-up.
+        Location permission was denied. Re-enable it in your browser settings
+        and try again, or look up a nearby address below.
       </p>
       <button
         type="button"
@@ -362,6 +397,7 @@ function DeniedState({ onRetry }: { onRetry: () => void }) {
       >
         Try again
       </button>
+      <AddressFallback manualOrigin={manualOrigin} onManualOrigin={onManualOrigin} />
     </div>
   )
 }
@@ -369,9 +405,13 @@ function DeniedState({ onRetry }: { onRetry: () => void }) {
 function UnavailableState({
   message,
   onRetry,
+  manualOrigin,
+  onManualOrigin,
 }: {
   message: string | null
   onRetry: () => void
+  manualOrigin: ManualOrigin | null
+  onManualOrigin: (next: ManualOrigin | null) => void
 }) {
   return (
     <div
@@ -399,6 +439,141 @@ function UnavailableState({
       >
         Try again
       </button>
+      <AddressFallback manualOrigin={manualOrigin} onManualOrigin={onManualOrigin} />
+    </div>
+  )
+}
+
+/**
+ * Debounced address-input fallback for the nearby-stations sheet (#47).
+ *
+ * Only mounted inside the denied/unavailable branches — never as a permanent
+ * fixture alongside the consent prompt. The typed query is debounced 400ms
+ * and any in-flight request is aborted when a new keystroke arrives, which
+ * keeps load on the shared Google Maps quota envelope modest. Geocoded
+ * coords live in component state only — nothing is written to localStorage.
+ */
+function AddressFallback({
+  manualOrigin,
+  onManualOrigin,
+}: {
+  manualOrigin: ManualOrigin | null
+  onManualOrigin: (next: ManualOrigin | null) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [errorCode, setErrorCode] = useState<GeocodeErrorCode | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    const trimmed = query.trim()
+    // Reset state for empty / too-short queries; also clear any prior result
+    // so an empty input doesn't keep showing the old "Using: …" line.
+    if (trimmed.length < GEOCODE_MIN_LEN) {
+      abortRef.current?.abort()
+      abortRef.current = null
+      setStatus('idle')
+      setErrorCode(null)
+      if (manualOrigin) onManualOrigin(null)
+      return
+    }
+
+    const handle = setTimeout(() => {
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      setStatus('loading')
+      setErrorCode(null)
+      geocodeAddress(trimmed, controller.signal)
+        .then(res => {
+          if (controller.signal.aborted) return
+          onManualOrigin({
+            coords: { lat: res.lat, lon: res.lng },
+            formatted: res.formatted,
+          })
+          setStatus('idle')
+          setErrorCode(null)
+        })
+        .catch((err: Error & { code?: GeocodeErrorCode; name?: string }) => {
+          if (controller.signal.aborted || err.name === 'AbortError') return
+          setStatus('error')
+          setErrorCode(err.code ?? 'INVALID')
+          onManualOrigin(null)
+        })
+    }, GEOCODE_DEBOUNCE_MS)
+
+    return () => clearTimeout(handle)
+    // `onManualOrigin` is a stable setState setter from the parent; including
+    // it would re-fire the timer on every parent render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
+
+  return (
+    <div
+      data-testid="nearby-sheet-address-fallback"
+      css={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}
+    >
+      <label
+        htmlFor="nearby-sheet-address-input"
+        css={{
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          color: 'var(--app-text-subdued, #666)',
+        }}
+      >
+        Or enter an address
+      </label>
+      <input
+        id="nearby-sheet-address-input"
+        data-testid="nearby-sheet-address-input"
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="e.g. 101 State St, Santa Barbara"
+        autoComplete="off"
+        css={{
+          padding: '6px 8px',
+          borderRadius: 6,
+          border: '1px solid var(--app-border, rgba(0,0,0,0.16))',
+          fontSize: 13,
+          background: 'var(--app-bg-surface, white)',
+          color: 'var(--app-text-default, #222)',
+        }}
+      />
+      {status === 'loading' && (
+        <span
+          data-testid="nearby-sheet-address-loading"
+          css={{ fontSize: 11, color: 'var(--app-text-subdued, #666)' }}
+        >
+          Looking up address…
+        </span>
+      )}
+      {status === 'error' && (
+        <span
+          data-testid="nearby-sheet-address-error"
+          css={{ fontSize: 11, color: '#b00020' }}
+        >
+          {errorCode === 'ZERO_RESULTS'
+            ? 'No match for that address.'
+            : errorCode === 'OVER_QUOTA'
+              ? 'Address lookup is busy right now — try again in a moment.'
+              : 'Could not look up that address.'}
+        </span>
+      )}
+      {status === 'idle' && manualOrigin && (
+        <span
+          data-testid="nearby-sheet-address-resolved"
+          css={{ fontSize: 11, color: 'var(--app-text-subdued, #666)' }}
+        >
+          Using: {manualOrigin.formatted}
+        </span>
+      )}
     </div>
   )
 }
