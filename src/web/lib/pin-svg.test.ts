@@ -33,6 +33,38 @@ describe('buildPinSVG', () => {
     expect(online).toContain('#0d6cb0')
     expect(offline).toContain('#9ca3af')
   })
+
+  describe('typical-comparison ring (#39)', () => {
+    it('omits the ring when no ringTone is provided', () => {
+      const svg = buildPinSVG(3, 8)
+      expect(svg).not.toContain('#16a34a')
+      expect(svg).not.toContain('#f59e0b')
+    })
+
+    it('renders a green ring when ringTone is success', () => {
+      const svg = buildPinSVG(3, 8, { ringTone: 'success' })
+      expect(svg).toContain('#16a34a')
+      // The ring path comes BEFORE the main body path so the body draws on top
+      // of it — only the border-overhang shows through as a colored ring.
+      expect(svg.indexOf('#16a34a')).toBeLessThan(svg.indexOf('#0d6cb0'))
+    })
+
+    it('renders an amber ring when ringTone is warning', () => {
+      const svg = buildPinSVG(3, 8, { ringTone: 'warning' })
+      expect(svg).toContain('#f59e0b')
+    })
+
+    it('omits the ring when ringTone is null', () => {
+      const svg = buildPinSVG(3, 8, { ringTone: null })
+      expect(svg).not.toContain('#16a34a')
+    })
+
+    it('suppresses the ring on offline pins so the grey state stands alone', () => {
+      const svg = buildPinSVG(3, 8, { offline: true, ringTone: 'success' })
+      expect(svg).not.toContain('#16a34a')
+      expect(svg).not.toContain('#f59e0b')
+    })
+  })
 })
 
 describe('pinSize', () => {

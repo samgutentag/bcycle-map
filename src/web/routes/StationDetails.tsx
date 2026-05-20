@@ -31,37 +31,14 @@ import { resolveRange } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
 import type { Trip } from '@shared/types'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
+import { classifyTypical, type TypicalProfile } from '../lib/typical-comparison'
+import { fetchStationTypical } from '../lib/typical-fetch'
 import type { StationSnapshot } from '@shared/types'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-
-type HourBucket = { hour: number; bikes: number; docks: number; samples: number }
-
-type TypicalProfile = {
-  stationId: string
-  hours: HourBucket[]
-  currentHour: number
-  currentDow: number
-  daysCovered: number
-  isDowFiltered: boolean
-  label: string
-  timezone: string
-}
-
-async function fetchStationTypical(
-  apiBase: string,
-  systemId: string,
-  stationId: string,
-): Promise<TypicalProfile> {
-  const res = await fetch(
-    `${apiBase}/api/systems/${encodeURIComponent(systemId)}/stations/${encodeURIComponent(stationId)}/recent`,
-  )
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return (await res.json()) as TypicalProfile
-}
 
 function haversineMiles(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const R = 3958.7613
@@ -183,8 +160,11 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
   if (error || !profile) {
     return <Hint icon={IconInfo}>Typical comparison unavailable right now.</Hint>
   }
-  if (profile.daysCovered < 3) {
-    const daysSoFar = profile.daysCovered
+
+  const comparison = classifyTypical(currentBikes, profile)
+
+  if (comparison.verdict === 'insufficient-data') {
+    const daysSoFar = comparison.daysCovered ?? 0
     return (
       <Hint icon={IconInfo}>
         <Flex direction="column" gap="2xs">
@@ -205,25 +185,26 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
     )
   }
 
-  const bucket = profile.hours[profile.currentHour]
-  const typical = bucket && bucket.samples > 0 ? bucket.bikes : 0
   const hourStr = formatHourLabel(profile.currentHour)
   const dayStr = profile.label
+  // `typical` is null only when verdict is 'no-baseline' here; default to 0
+  // to keep the legacy wording ("We don't have typical data for…") intact.
+  const typical = comparison.typical ?? 0
   const typicalStr = typical.toFixed(1)
 
   let title: string
   let body: string
   let tone: 'more' | 'fewer' | 'avg'
 
-  if (typical <= 0) {
+  if (comparison.verdict === 'no-baseline') {
     title = 'No typical baseline yet.'
     body = `${currentBikes} bikes right now. We don't have typical data for ${hourStr} on ${dayStr} yet.`
     tone = 'avg'
-  } else if (currentBikes >= typical * 1.5) {
+  } else if (comparison.verdict === 'more') {
     title = 'More bikes than typical right now.'
     body = `${currentBikes} bikes vs ~${typicalStr} typical for ${hourStr} on ${dayStr}.`
     tone = 'more'
-  } else if (currentBikes <= typical * 0.5 || currentBikes <= Math.max(1, typical - 3)) {
+  } else if (comparison.verdict === 'fewer') {
     title = 'Fewer bikes than typical right now.'
     body = `${currentBikes} bikes vs ~${typicalStr} typical for ${hourStr} on ${dayStr}.`
     tone = 'fewer'

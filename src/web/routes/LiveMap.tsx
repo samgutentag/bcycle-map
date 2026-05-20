@@ -10,6 +10,7 @@ import StalenessBadge from '../components/StalenessBadge'
 import SystemTotals from '../components/SystemTotals'
 import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
+import TypicalComparisonToggle from '../components/TypicalComparisonToggle'
 import PollPinger from '../components/PollPinger'
 import NearbyStationsSheet from '../components/NearbyStationsSheet'
 import MapFilterChips from '../components/MapFilterChips'
@@ -23,7 +24,18 @@ import {
   readFiltersFromSearch,
   writeFiltersToSearch,
 } from '../lib/map-filters'
+import { classifyTypical, ringToneFor } from '../lib/typical-comparison'
+import { useTypicalProfiles } from '../hooks/useTypicalProfiles'
 import type { StationSnapshot } from '@shared/types'
+
+const TYPICAL_LS_KEY = 'bcycle-map:show-typical-comparison'
+
+function readTypicalToggle(): boolean {
+  if (typeof window === 'undefined') return true
+  const v = window.localStorage.getItem(TYPICAL_LS_KEY)
+  // Default ON per spec; only an explicit '0' turns it off.
+  return v !== '0'
+}
 
 const PULSE_DURATION_MS = 800
 
@@ -155,6 +167,18 @@ export default function LiveMap() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState<MapView>('pins')
   const [basemap, setBasemap] = useState<Basemap>('clean')
+  // Typical-comparison ring toggle (#39). Hydrate from localStorage so the
+  // user's last choice survives reload; persist on every change.
+  const [showTypical, setShowTypicalState] = useState<boolean>(() => readTypicalToggle())
+  const setShowTypical = useCallback((next: boolean) => {
+    setShowTypicalState(next)
+    try {
+      window.localStorage.setItem(TYPICAL_LS_KEY, next ? '1' : '0')
+    } catch {
+      // localStorage access can throw in private/quota'd contexts — toggle
+      // still works in-session, the choice just won't persist.
+    }
+  }, [])
   // Nearby-stations sheet toggle. URL-driven (`?nearby=open`) to mirror the
   // ActivityDrawer pattern so the state survives reload/share.
   const nearbyOpen = searchParams.get('nearby') === 'open'
@@ -194,6 +218,16 @@ export default function LiveMap() {
     if (!data) return []
     return applyMapFilters(data.stations, filters, corridorByStation)
   }, [data, filters, corridorByStation])
+
+  // Fetch the typical-vs-now profile for every station in the snapshot. We
+  // pass the full station list rather than just `visibleStations` so chip
+  // toggles (which narrow the visible set) don't re-trigger network — the
+  // profiles are needed only when the ring is enabled.
+  const allStationIds = useMemo(
+    () => (data?.stations ?? []).map(s => s.station_id).sort(),
+    [data?.stations],
+  )
+  const typicalProfiles = useTypicalProfiles(API_BASE, SYSTEM_ID, allStationIds, showTypical)
 
   // Trigger a single pulse on a marker. If one is already running for that
   // station, queue the latest direction instead (we only ever keep the most
@@ -414,7 +448,13 @@ export default function LiveMap() {
       const total = s.num_bikes_available + s.num_docks_available
       const offline = !s.is_installed || !s.is_renting
       const { width, height } = pinSize(total)
-      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline })
+      // Ring is computed per-render so it reacts to both the toggle and the
+      // bike count changing on the next snapshot tick. Profile lookup
+      // returns undefined while the fetch is in flight → classifyTypical
+      // treats that as 'unavailable' → no ring (the safe default).
+      const profile = showTypical ? typicalProfiles.get(s.station_id) ?? null : null
+      const ringTone = ringToneFor(classifyTypical(s.num_bikes_available, profile).verdict)
+      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline, ringTone })
 
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
@@ -444,7 +484,7 @@ export default function LiveMap() {
     for (const [id, marker] of markersRef.current) {
       if (!seen.has(id)) { marker.remove(); markersRef.current.delete(id) }
     }
-  }, [data, view, visibleStations])
+  }, [data, view, visibleStations, showTypical, typicalProfiles])
 
   // Diff successive snapshots and pulse each pin whose bike count changed.
   // Runs after the marker-sync effect, so markers for new stations exist by
@@ -493,6 +533,7 @@ export default function LiveMap() {
          now; bring back once we revisit the heatmap UI direction. */}
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
+      <TypicalComparisonToggle value={showTypical} onChange={setShowTypical} />
       <PollPinger data={data} />
       <MapFilterChips
         minBikes={filters.minBikes}

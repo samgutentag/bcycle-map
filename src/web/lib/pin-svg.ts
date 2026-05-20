@@ -7,6 +7,14 @@ const PIN_STROKE = '#0a5896'
 const PIN_FILL_OFFLINE = '#9ca3af' // neutral-400 for offline stations
 const PIN_STROKE_OFFLINE = '#6b7280'
 
+// Typical-comparison ring colors (#39). Picked to read clearly against both
+// Positron and CyclOSM while staying obviously distinct from the offline
+// grey treatment. Harmony's `theme.color.status.success/warning` aren't
+// available here (this file builds raw SVG strings outside the React tree),
+// so we mirror the same hex values Audius Harmony uses.
+const RING_SUCCESS = '#16a34a'    // green-600
+const RING_WARNING = '#f59e0b'    // amber-500
+
 const VIEW_WIDTH = 36
 const VIEW_HEIGHT = 48
 const ASPECT = VIEW_HEIGHT / VIEW_WIDTH
@@ -21,8 +29,21 @@ const TOP_Y = 16    // bikes-available baseline
 const SEP_Y = 20    // horizontal rule between numbers
 const BOT_Y = 30    // open-docks baseline
 
+/** Pin-border ring tone for the typical-comparison signal (#39). */
+export type PinRingTone = 'success' | 'warning'
+
 export type PinOptions = {
   offline?: boolean
+  /**
+   * Optional ring around the pin indicating how the current bike count
+   * compares to typical for this hour:
+   *   - 'success' → above typical (green)
+   *   - 'warning' → below typical (amber)
+   * Omit for no ring (within epsilon, no baseline, or feature toggled off).
+   * The ring is suppressed automatically when `offline` is true so it can't
+   * be confused with the grey offline treatment.
+   */
+  ringTone?: PinRingTone | null
 }
 
 export function buildPinSVG(bikesAvailable: number, openDocks: number, opts: PinOptions = {}): string {
@@ -32,7 +53,21 @@ export function buildPinSVG(bikesAvailable: number, openDocks: number, opts: Pin
   const topSize = bikesAvailable >= 100 ? 10 : 12
   const botSize = openDocks >= 100 ? 10 : 12
 
+  // Ring is suppressed on offline pins — those use grey which would already
+  // read as a state, and we don't want stacked signals competing.
+  const ringColor = !opts.offline && opts.ringTone === 'success' ? RING_SUCCESS
+    : !opts.offline && opts.ringTone === 'warning' ? RING_WARNING
+    : null
+  // Outline path stroke-width is bumped from 1 to 2.25 when a ring is
+  // applied. We render the ring as a second copy of the outline path
+  // (fill='none', wider stroke) sitting *under* the body so only the
+  // border-overhang reads as a colored ring around the teardrop edge.
+  const ringSvg = ringColor
+    ? `<path d="${PIN_OUTLINE}" fill="none" stroke="${ringColor}" stroke-width="2.5" stroke-linejoin="round"/>`
+    : ''
+
   return `<svg viewBox="0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}" xmlns="http://www.w3.org/2000/svg">` +
+    ringSvg +
     `<path d="${PIN_OUTLINE}" fill="${fill}" stroke="${stroke}" stroke-width="1"/>` +
     `<text x="${CX}" y="${TOP_Y}" text-anchor="middle" font-size="${topSize}" font-weight="700" font-family="system-ui,-apple-system,sans-serif" fill="white">${bikesAvailable}</text>` +
     `<line x1="8" y1="${SEP_Y}" x2="28" y2="${SEP_Y}" stroke="white" stroke-opacity="0.7" stroke-width="1" stroke-linecap="round"/>` +
