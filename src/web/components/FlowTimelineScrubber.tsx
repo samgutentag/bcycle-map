@@ -82,9 +82,10 @@ export default function FlowTimelineScrubber({
 
   // Skip to the trip immediately before / after the cursor. If no trip in
   // that direction, no-op (button auto-disables via the `disabled` attr).
-  const prevTripTs = useMemo(() => {
+  const prevTripTs = useMemo<number | null>(() => {
     for (let i = sortedTrips.length - 1; i >= 0; i--) {
-      if (sortedTrips[i] < cursorTs) return sortedTrips[i]
+      const t = sortedTrips[i]
+      if (t !== undefined && t < cursorTs) return t
     }
     return null
   }, [sortedTrips, cursorTs])

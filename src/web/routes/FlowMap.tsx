@@ -173,7 +173,7 @@ export default function FlowMap() {
     const onKey = (ev: KeyboardEvent) => {
       if (ev.code !== 'Space') return
       const target = ev.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON' || target.isContentEditable)) return
       ev.preventDefault()
       togglePlay()
     }
@@ -233,9 +233,8 @@ export default function FlowMap() {
             pointerEvents: 'none',
           }}
         >
-          <strong css={{ color: theme.color.text.heading }}>Flow (v1)</strong> — animated bikes follow
-          cached routes for each inferred trip in the rolling 24h window. Pin counts shown reflect
-          <em> right now</em>, not the scrubbed timestamp; historical pin rewind ships in v2 (#52).
+          <strong css={{ color: theme.color.text.heading }}>Flow</strong> — animated bikes follow
+          cached routes for trips in the past 24 hours. Pin counts are live, not the scrubbed timestamp.
         </div>
       </div>
       <FlowTimelineScrubber
