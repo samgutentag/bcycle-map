@@ -92,9 +92,19 @@ describe('applyTripTransition', () => {
       from_station_id: 'a',
       to_station_id: 'b',
       duration_sec: 100,
+      confidence: 'high',
     })
     expect(result.inFlightFromStationId).toBeNull()
     expect(result.inFlightDepartureTs).toBeNull()
+  })
+
+  it('stamps conservatively-paired trips with confidence: high', () => {
+    const result = applyTripTransition(
+      { inFlightFromStationId: 'a', inFlightDepartureTs: 100 },
+      [{ ts: 200, station_id: 'b', type: 'arrival', delta: 1 }],
+      200, 1, 0,
+    )
+    expect(result.newTrip?.confidence).toBe('high')
   })
 
   it('preserves in-flight when no events occur (rider still out)', () => {

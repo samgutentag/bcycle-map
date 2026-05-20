@@ -99,6 +99,7 @@ export function inferTrips(
         from_station_id: match.station_id,
         to_station_id: e.station_id,
         duration_sec: e.ts - match.ts,
+        confidence: 'low',
       }
       const k = tripKey(trip)
       if (seenNewTripKeys.has(k)) continue

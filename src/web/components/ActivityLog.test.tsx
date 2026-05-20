@@ -136,6 +136,62 @@ describe('ActivityLog', () => {
     expect(onTripClick).toHaveBeenCalledWith(trip)
   })
 
+  it('renders a `guess` chip on low-confidence trip rows', () => {
+    const now = Math.floor(Date.now() / 1000)
+    const log: ActivityLogData = {
+      events: [],
+      trips: [{
+        departure_ts: now - 900,
+        arrival_ts: now - 300,
+        from_station_id: 'a',
+        to_station_id: 'b',
+        duration_sec: 600,
+        confidence: 'low',
+      }],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    }
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    expect(screen.getByText(/^guess$/i)).toBeInTheDocument()
+  })
+
+  it('omits the `guess` chip on high-confidence trip rows', () => {
+    const now = Math.floor(Date.now() / 1000)
+    const log: ActivityLogData = {
+      events: [],
+      trips: [{
+        departure_ts: now - 900,
+        arrival_ts: now - 300,
+        from_station_id: 'a',
+        to_station_id: 'b',
+        duration_sec: 600,
+        confidence: 'high',
+      }],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    }
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    expect(screen.queryByText(/^guess$/i)).not.toBeInTheDocument()
+  })
+
+  it('omits the `guess` chip on trips with no confidence field (backward-compat)', () => {
+    const now = Math.floor(Date.now() / 1000)
+    const log: ActivityLogData = {
+      events: [],
+      trips: [{
+        departure_ts: now - 900,
+        arrival_ts: now - 300,
+        from_station_id: 'a',
+        to_station_id: 'b',
+        duration_sec: 600,
+      }],
+      inFlightFromStationId: null,
+      inFlightDepartureTs: null,
+    }
+    renderWithRouter(<ActivityLog log={log} stations={STATIONS} matrix={MATRIX} />)
+    expect(screen.queryByText(/^guess$/i)).not.toBeInTheDocument()
+  })
+
   it('does not fire onTripClick when a station-name link inside a trip row is clicked', () => {
     const trip: Trip = { departure_ts: 1_700_000_000, arrival_ts: 1_700_000_540, from_station_id: 'a', to_station_id: 'b', duration_sec: 540 }
     const log: ActivityLogData = {

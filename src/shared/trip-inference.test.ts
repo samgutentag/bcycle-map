@@ -29,6 +29,15 @@ describe('inferTrips', () => {
     })
   })
 
+  it('stamps greedy-paired trips with confidence: low', () => {
+    const events = [
+      ev(0, 'a', 'departure'),
+      ev(600, 'b', 'arrival'),
+    ]
+    const trips = inferTrips(events, matrix)
+    expect(trips[0]?.confidence).toBe('low')
+  })
+
   it('rejects pairings whose duration is implausibly short', () => {
     const events = [
       ev(0, 'a', 'departure'),

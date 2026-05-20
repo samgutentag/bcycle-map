@@ -236,6 +236,15 @@ export default function ActivityLog({ log, stations, matrix, timezone, maxEvents
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium text-ink truncate">
+                        {trip.confidence === 'low' && (
+                          <span
+                            className="inline-flex items-center px-1 py-0 mr-1 rounded text-[10px] font-medium uppercase tracking-wide bg-surface-2 text-ink-subdued border border-line align-middle"
+                            title="Likely match — multiple bikes were in flight when this trip was inferred."
+                            aria-label="Low-confidence inferred trip"
+                          >
+                            guess
+                          </span>
+                        )}
                         <Link to={`/station/${trip.from_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{fromName}</Link>
                         <span className="text-ink-subdued"> → </span>
                         <Link to={`/station/${trip.to_station_id}/details`} onClick={e => e.stopPropagation()} className="hover:text-sky-700 hover:underline">{toName}</Link>
