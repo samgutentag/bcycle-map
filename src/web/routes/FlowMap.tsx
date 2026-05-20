@@ -10,6 +10,7 @@ import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
 import BikeAnimationLayer, { TRAIL_GHOST_FADE_SEC } from '../components/BikeAnimationLayer'
 import { selectVisibleTrips, capTripsForRender } from '../lib/flow-selection'
+import { computeDynamicWindow } from '../lib/flow-window'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
@@ -24,7 +25,16 @@ export default function FlowMap() {
   const [map, setMap] = useState<MlMap | null>(null)
 
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
-  const { trips, windowStart, windowEnd, loading: tripsLoading } = useFlowTrips(SYSTEM_ID)
+  const { trips, windowEnd: fetchWindowEnd, loading: tripsLoading } = useFlowTrips(SYSTEM_ID)
+  // Dynamic window (#56): shrink the scrubber to
+  // [max(now-24h, oldestTripDeparture - 5min), now] so quiet days don't show
+  // a mostly-empty 24h slider. Recomputed when either the trip set or the
+  // fetch's "now" anchor changes. Returns {0, 0} until the fetch resolves so
+  // dependent hooks (useHistoricalSnapshots) stay idle on the initial render.
+  const { windowStart, windowEnd } = useMemo(() => {
+    if (fetchWindowEnd <= 0) return { windowStart: 0, windowEnd: 0 }
+    return computeDynamicWindow(trips, fetchWindowEnd)
+  }, [trips, fetchWindowEnd])
   const { getSnapshotAt } = useHistoricalSnapshots(SYSTEM_ID, windowStart, windowEnd)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)

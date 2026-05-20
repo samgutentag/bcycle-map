@@ -11,6 +11,7 @@ import {
   type LngLat,
 } from '../lib/flow-interpolate'
 import { type TravelMatrix } from '../hooks/useTravelMatrix'
+import { isInGap, nextDepartureAfter, DEAD_AIR_LEAD_SEC } from '../lib/flow-window'
 
 /**
  * Canvas overlay that draws one animated dot per visible trip along its cached
@@ -154,6 +155,19 @@ export default function BikeAnimationLayer({
   playbackLoopEndRef.current = playbackLoopEnd
   onCursorAdvanceRef.current = onCursorAdvance
 
+  // Sorted departure timestamps used by skip-the-gaps playback (#56). Kept
+  // in refs so the rAF loop reads the latest values without re-mounting on
+  // every trip update. Sorted once per trips change; the gap check is then
+  // a quick linear scan over ~50 ints.
+  const sortedDepartures = useMemo(
+    () => trips.map(t => t.departure_ts).sort((a, b) => a - b),
+    [trips],
+  )
+  const tripsRef = useRef<Trip[]>(trips)
+  const sortedDeparturesRef = useRef<number[]>(sortedDepartures)
+  tripsRef.current = trips
+  sortedDeparturesRef.current = sortedDepartures
+
   // Prepare polylines once per trips/routes/matrix change. Each prepared trip
   // carries the decoded polyline, its cumulative distance array, and the
   // color class. The rAF loop just interpolates + paints.
@@ -232,6 +246,28 @@ export default function BikeAnimationLayer({
             // days when most of the 24h would otherwise be empty.
             next = loopStart + ((next - loopStart) % Math.max(1, loopEnd - loopStart))
           }
+
+          // Skip-the-gaps (#56): if the cursor lands in a >5min trip-free
+          // stretch, fast-forward to the next departure (or wrap to the
+          // loop start if no later departure exists). Manual scrubbing is
+          // unaffected — only playback advances trigger this. The
+          // playbackLoop bounds already trimmed the lead-in / lead-out
+          // dead air, so this only fires for gaps BETWEEN trip clusters.
+          if (isInGap(tripsRef.current, sortedDeparturesRef.current, next, DEAD_AIR_LEAD_SEC)) {
+            const upcoming = nextDepartureAfter(sortedDeparturesRef.current, next)
+            // Jump to the next departure if there is one and it's inside
+            // the playback loop. Otherwise wrap to loopStart so playback
+            // restarts the busy cluster from the top.
+            if (upcoming !== null && upcoming < loopEnd) {
+              next = upcoming
+            } else {
+              next = loopStart
+            }
+            // No explicit lastFrameMsRef resync needed — line below sets it
+            // to timeMs unconditionally on every frame, so the next dt is
+            // measured from THIS frame, not the pre-jump cursor position.
+          }
+
           playingCursorRef.current = next
           activeCursor = next
 

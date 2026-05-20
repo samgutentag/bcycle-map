@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { Flex, Text, useTheme } from '@audius/harmony'
+import { pickTickInterval } from '../lib/flow-window'
 
 /**
  * 24-hour timeline scrubber for the flow map.
@@ -32,9 +33,6 @@ type Props = {
   tripTimestamps?: number[]
 }
 
-const HOUR_SEC = 3600
-const TICK_INTERVAL_SEC = 3 * HOUR_SEC
-
 function formatClock(tsSec: number, timezone: string | undefined): string {
   return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
     hour: 'numeric',
@@ -43,11 +41,16 @@ function formatClock(tsSec: number, timezone: string | undefined): string {
   })
 }
 
-function formatTick(tsSec: number, timezone: string | undefined): string {
-  // Compact hour-only label for tick marks ("3 PM"). Minutes are always :00
-  // for ticks since we space them on 3-hour boundaries from windowStart.
+function formatTick(
+  tsSec: number,
+  timezone: string | undefined,
+  showMinutes: boolean,
+): string {
+  // Compact hour label for wide spans ("3 PM"); hour+minute for narrow spans
+  // ("3:15 PM") so 15- and 30-minute ticks read as distinct labels.
   return new Date(tsSec * 1000).toLocaleTimeString(undefined, {
     hour: 'numeric',
+    ...(showMinutes ? { minute: '2-digit' } : {}),
     timeZone: timezone,
   })
 }
@@ -103,22 +106,25 @@ export default function FlowTimelineScrubber({
     if (nextTripTs !== null) onCursorChange(nextTripTs)
   }, [nextTripTs, onCursorChange])
 
-  // Floor windowStart to the nearest 3-hour boundary in local time so ticks
-  // land on familiar clock hours (12 / 3 / 6 / 9) rather than arbitrary offsets.
-  // We do this against the *absolute* timestamp space — ticks every 3 hours
-  // from the first such boundary that falls inside the window.
+  // Tick interval adapts to the window span (#56): a 2h dynamic window gets
+  // 30-minute ticks; the full 24h still gets the original 3-hour spacing.
+  // See `pickTickInterval` for the breakpoints. Ticks land on the absolute
+  // timestamp-space boundary (UTC seconds), not local clock hours — keeps the
+  // logic timezone-agnostic at the cost of an occasional off-by-one against
+  // the local clock. Acceptable: the cursor label is the authoritative time.
   const ticks = useMemo(() => {
     const offsets: { ts: number; pctLeft: number; label: string }[] = []
-    // Start one tick before windowStart and step forward; first tick inside
-    // the window is the one we render.
-    const firstTickTs = Math.ceil(windowStart / TICK_INTERVAL_SEC) * TICK_INTERVAL_SEC
-    const span = Math.max(1, windowEnd - windowStart)
-    for (let ts = firstTickTs; ts <= windowEnd; ts += TICK_INTERVAL_SEC) {
+    const tickInterval = pickTickInterval(span)
+    // Show minutes on the tick labels when the interval is sub-hour, so 15-
+    // and 30-minute ticks aren't all labeled with the same hour string.
+    const showMinutes = tickInterval < 3600
+    const firstTickTs = Math.ceil(windowStart / tickInterval) * tickInterval
+    for (let ts = firstTickTs; ts <= windowEnd; ts += tickInterval) {
       const pct = ((ts - windowStart) / span) * 100
-      offsets.push({ ts, pctLeft: pct, label: formatTick(ts, timezone) })
+      offsets.push({ ts, pctLeft: pct, label: formatTick(ts, timezone, showMinutes) })
     }
     return offsets
-  }, [windowStart, windowEnd, timezone])
+  }, [windowStart, windowEnd, span, timezone])
 
   const onSliderInput = useCallback(
     (ev: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,6 +332,7 @@ export default function FlowTimelineScrubber({
           {ticks.map(tick => (
             <div
               key={tick.ts}
+              data-testid="flow-scrubber-tick"
               css={{
                 position: 'absolute',
                 top: 0,

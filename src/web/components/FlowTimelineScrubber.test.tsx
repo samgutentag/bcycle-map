@@ -91,4 +91,48 @@ describe('FlowTimelineScrubber', () => {
     expect(slider).toHaveAttribute('aria-valuemax', String(BASE_END))
     expect(slider).toHaveAttribute('aria-valuenow', String(BASE_START + 7200))
   })
+
+  // Adaptive tick density (#56): tick interval shrinks for narrow dynamic
+  // windows so a ~2h scrubber doesn't render with one or zero ticks, and
+  // the full 24h still gets sensible 3h spacing rather than 96 crowded ticks.
+  describe('adaptive tick density', () => {
+    function countTicks(start: number, end: number): number {
+      renderScrubber({ windowStart: start, windowEnd: end, cursorTs: start })
+      return screen.queryAllByTestId('flow-scrubber-tick').length
+    }
+
+    it('renders ~4 ticks on a 2h dynamic window (30min spacing)', () => {
+      const end = BASE_END
+      const start = end - 2 * 3600
+      // 30-minute ticks across 2h → 4 or 5 ticks depending on alignment
+      const count = countTicks(start, end)
+      expect(count).toBeGreaterThanOrEqual(3)
+      expect(count).toBeLessThanOrEqual(6)
+    })
+
+    it('renders ~8 ticks on the full 24h window (3h spacing)', () => {
+      // 3-hour ticks across 24h → 8 or 9 ticks
+      const count = countTicks(BASE_START, BASE_END)
+      expect(count).toBeGreaterThanOrEqual(7)
+      expect(count).toBeLessThanOrEqual(10)
+    })
+
+    it('renders multiple ticks on a narrow 30min window (15min spacing)', () => {
+      const end = BASE_END
+      const start = end - 30 * 60
+      // 15-minute ticks across 30min → 2 or 3 ticks
+      const count = countTicks(start, end)
+      expect(count).toBeGreaterThanOrEqual(2)
+      expect(count).toBeLessThanOrEqual(4)
+    })
+
+    it('renders ticks on a 6h medium window (1h spacing)', () => {
+      const end = BASE_END
+      const start = end - 6 * 3600
+      // 1-hour ticks across 6h → 6 or 7 ticks
+      const count = countTicks(start, end)
+      expect(count).toBeGreaterThanOrEqual(5)
+      expect(count).toBeLessThanOrEqual(8)
+    })
+  })
 })
