@@ -1,4 +1,4 @@
-import type { KVValue, ActivityLog } from '@shared/types'
+import type { KVValue, ActivityLog, Trip } from '@shared/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -12,6 +12,20 @@ export async function fetchActivity(systemId: string): Promise<ActivityLog> {
   const res = await fetch(`${API_BASE}/api/systems/${systemId}/activity`)
   if (!res.ok) throw new Error(`activity fetch failed: ${res.status}`)
   return await res.json() as ActivityLog
+}
+
+/**
+ * Bulk trips for an arbitrary [since, until] window — derived server-side
+ * from the station_status parquet archive (issue #53). Use this when the
+ * window exceeds what the rolling activity log covers (>24h). For ≤24h
+ * windows, `fetchActivity` is cheaper and already covers it on quiet days.
+ */
+export async function fetchTrips(systemId: string, sinceTs: number, untilTs: number): Promise<Trip[]> {
+  const url = `${API_BASE}/api/systems/${systemId}/trips?since=${sinceTs}&until=${untilTs}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`trips fetch failed: ${res.status}`)
+  const body = await res.json() as { trips: Trip[] }
+  return body.trips
 }
 
 export type GeocodeResult = { lat: number; lng: number; formatted: string }

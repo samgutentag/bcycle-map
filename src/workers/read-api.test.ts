@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import worker from './read-api'
 import type { Env } from '../../worker-configuration'
+import * as tripsLib from './lib/trips-from-parquet'
 
 function makeEnv({
   latestValue = null,
@@ -244,6 +245,137 @@ describe('read-api', () => {
       )
       expect(res.status).toBe(502)
       expect(await res.json()).toEqual({ error: 'INVALID' })
+    })
+  })
+
+  // ─── Bulk trips endpoint (#53) ───────────────────────────────────────
+  describe('bulk trips endpoint', () => {
+    const sampleTrip = {
+      departure_ts: 1000,
+      arrival_ts: 1100,
+      from_station_id: 'a',
+      to_station_id: 'b',
+      duration_sec: 100,
+    }
+
+    beforeEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('returns trips from the parquet archive for a valid window', async () => {
+      const snapsSpy = vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([
+        { ts: 999, stations: [] },
+      ])
+      const tripsSpy = vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([sampleTrip])
+      const env = makeEnv({
+        latestValue: JSON.stringify({ max_bikes_ever: 50 }),
+      })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(res.headers.get('cache-control')).toMatch(/max-age=60/)
+      expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
+      const body = await res.json() as { trips: typeof sampleTrip[]; since: number; until: number }
+      expect(body.trips).toHaveLength(1)
+      expect(body.trips[0]).toEqual(sampleTrip)
+      expect(body.since).toBe(500)
+      expect(body.until).toBe(2000)
+      // max_bikes_ever from KV must flow into the trip-pairing call
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 50)
+      expect(snapsSpy).toHaveBeenCalledWith(env.GBFS_R2, 'bcycle_santabarbara', 500, 2000)
+    })
+
+    it('clips out trips whose departure falls outside the requested window', async () => {
+      // partition reader includes a 1h pad; we only return trips strictly within [since, until]
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([
+        { ...sampleTrip, departure_ts: 400 },   // before window
+        { ...sampleTrip, departure_ts: 1000 },  // in
+        { ...sampleTrip, departure_ts: 3000 },  // after
+      ])
+      const env = makeEnv({ latestValue: JSON.stringify({ max_bikes_ever: 1 }) })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      const body = await res.json() as { trips: typeof sampleTrip[] }
+      expect(body.trips).toHaveLength(1)
+      expect(body.trips[0]!.departure_ts).toBe(1000)
+    })
+
+    it('rejects a window with until <= since', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=2000&until=1000'),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'until must be greater than since' })
+    })
+
+    it('rejects a window > 7 days', async () => {
+      const env = makeEnv()
+      const sevenDays = 7 * 86400
+      const res = await worker.fetch(
+        new Request(`https://example/api/systems/bcycle_santabarbara/trips?since=0&until=${sevenDays + 1}`),
+        env,
+      )
+      expect(res.status).toBe(400)
+      const body = await res.json() as { error: string }
+      expect(body.error).toMatch(/<= 604800/)
+    })
+
+    it('rejects missing/non-numeric since or until', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips'),
+        env,
+      )
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'since and until must be unix-second integers' })
+    })
+
+    it('returns 502 when the R2 parquet read throws', async () => {
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockRejectedValue(new Error('R2 down'))
+      const env = makeEnv({ latestValue: JSON.stringify({ max_bikes_ever: 1 }) })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(502)
+      expect(await res.json()).toEqual({ error: 'failed to read trip archive' })
+    })
+
+    it('still returns when KV latest is missing (cold start) — pairs with maxBikesEver=0', async () => {
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      const tripsSpy = vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([])
+      const env = makeEnv()  // latestValue: null
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 0)
+    })
+
+    it('exposes a cache-control header for downstream CDN caching (~60s)', async () => {
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([])
+      const env = makeEnv({ latestValue: JSON.stringify({ max_bikes_ever: 10 }) })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      // This is the cache layer the worker exposes — Cloudflare's edge cache
+      // honors it without us having to touch the Cache API directly. Other
+      // read-api endpoints use the same pattern.
+      expect(res.headers.get('cache-control')).toBe('max-age=60')
     })
   })
 })
