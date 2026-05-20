@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import type { Trip, StationSnapshot } from '@shared/types'
 import { lookupRoute, type RouteCache } from '@shared/route-cache'
 import { lookupTravelTime, type TravelMatrix } from '../hooks/useTravelMatrix'
+import { useUnitSystem } from '../hooks/useUnitSystem'
+import { formatDistance } from '../lib/units'
 import TripRouteMap from './TripRouteMap'
-
-const METERS_PER_MILE = 1609.344
 
 type TripRouteModalProps = {
   trip: Trip
@@ -38,14 +38,8 @@ function formatMinutes(seconds: number): string {
   return `${m} min`
 }
 
-function formatDistance(meters: number): string {
-  const mi = meters / METERS_PER_MILE
-  if (mi < 0.1) return `${Math.round(meters / 0.3048)} ft`
-  if (mi < 10) return `${mi.toFixed(1)} mi`
-  return `${Math.round(mi)} mi`
-}
-
 export default function TripRouteModal({ trip, stations, matrix, routes, systemTz, onClose }: TripRouteModalProps) {
+  const { unitSystem } = useUnitSystem()
   const stationById = useMemo(() => new Map(stations.map(s => [s.station_id, s])), [stations])
   const fromStation = stationById.get(trip.from_station_id)
   const toStation = stationById.get(trip.to_station_id)
@@ -137,7 +131,7 @@ export default function TripRouteModal({ trip, stations, matrix, routes, systemT
             <div>
               <dt className="text-[10px] uppercase tracking-wide text-ink-subdued">Distance</dt>
               <dd className="text-sm font-semibold text-ink-heading">
-                {distanceMeters !== null ? formatDistance(distanceMeters) : '—'}
+                {distanceMeters !== null ? formatDistance(distanceMeters, unitSystem) : '—'}
               </dd>
             </div>
           </dl>
