@@ -90,6 +90,17 @@ type Props = {
    * its state in rough sync (we throttle internally to ~4Hz to avoid React
    * re-render storms; full smoothness is provided by the canvas itself). */
   onCursorAdvance?: (ts: number) => void
+  /**
+   * Full unfiltered trip list used by the skip-the-gaps gap detection (#56).
+   * The `trips` prop is the visible-at-cursor subset (parent already filtered
+   * via selectVisibleTrips for rendering). Gap detection needs the broader
+   * set: when the cursor sits outside any active trip — common right after
+   * pressing play with cursor at "now" past all trip arrivals — the gap
+   * check has to look at the FULL list to find the next departure to jump
+   * to, or it'll infinite-loop at loopStart. Falls back to `trips` when not
+   * supplied so existing callers stay functional.
+   */
+  allTrips?: Trip[]
 }
 
 function prepareTrips(
@@ -127,7 +138,12 @@ export default function BikeAnimationLayer({
   playbackLoopStart,
   playbackLoopEnd,
   onCursorAdvance,
+  allTrips,
 }: Props) {
+  // Gap detection (#56) uses the full trip list. When the parent doesn't
+  // supply one, fall back to the visible-at-cursor `trips` subset —
+  // backward-compat for any caller that pre-dates this prop.
+  const gapTrips = allTrips ?? trips
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const dprRef = useRef<number>(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
@@ -155,17 +171,18 @@ export default function BikeAnimationLayer({
   playbackLoopEndRef.current = playbackLoopEnd
   onCursorAdvanceRef.current = onCursorAdvance
 
-  // Sorted departure timestamps used by skip-the-gaps playback (#56). Kept
-  // in refs so the rAF loop reads the latest values without re-mounting on
-  // every trip update. Sorted once per trips change; the gap check is then
-  // a quick linear scan over ~50 ints.
+  // Sorted departure timestamps used by skip-the-gaps playback (#56). Built
+  // from the full unfiltered trip list (`gapTrips`) — not from the visible-
+  // at-cursor `trips` — so the gap check can find a "next departure" even
+  // when the cursor sits outside any currently-visible trip. Kept in refs
+  // so the rAF loop reads the latest values without re-mounting.
   const sortedDepartures = useMemo(
-    () => trips.map(t => t.departure_ts).sort((a, b) => a - b),
-    [trips],
+    () => gapTrips.map(t => t.departure_ts).sort((a, b) => a - b),
+    [gapTrips],
   )
-  const tripsRef = useRef<Trip[]>(trips)
+  const gapTripsRef = useRef<Trip[]>(gapTrips)
   const sortedDeparturesRef = useRef<number[]>(sortedDepartures)
-  tripsRef.current = trips
+  gapTripsRef.current = gapTrips
   sortedDeparturesRef.current = sortedDepartures
 
   // Prepare polylines once per trips/routes/matrix change. Each prepared trip
@@ -253,7 +270,7 @@ export default function BikeAnimationLayer({
           // unaffected — only playback advances trigger this. The
           // playbackLoop bounds already trimmed the lead-in / lead-out
           // dead air, so this only fires for gaps BETWEEN trip clusters.
-          if (isInGap(tripsRef.current, sortedDeparturesRef.current, next, DEAD_AIR_LEAD_SEC)) {
+          if (isInGap(gapTripsRef.current, sortedDeparturesRef.current, next, DEAD_AIR_LEAD_SEC)) {
             const upcoming = nextDepartureAfter(sortedDeparturesRef.current, next)
             // Jump to the next departure if there is one and it's inside
             // the playback loop. Otherwise wrap to loopStart so playback
