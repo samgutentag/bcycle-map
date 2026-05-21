@@ -8,6 +8,7 @@ import {
   type Snap,
   type SnapWithDocks,
 } from './trips-from-parquet'
+import type { SimpleMatrix } from '../../shared/trip-inference'
 
 describe('partitionKeysForRange', () => {
   it('emits one key per hour spanning the window (with 1h pad on each side)', () => {
@@ -68,7 +69,7 @@ describe('tripsFromSnapshots', () => {
       { ts: 200, stations: [{ station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 1 }] },
       { ts: 300, stations: [{ station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 2 }] },
     ]
-    const trips = tripsFromSnapshots(snaps, 2)
+    const trips = tripsFromSnapshots(snaps, 2, null)
     expect(trips).toHaveLength(1)
     expect(trips[0]).toMatchObject({
       from_station_id: 'a',
@@ -76,6 +77,7 @@ describe('tripsFromSnapshots', () => {
       departure_ts: 200,
       arrival_ts: 300,
       duration_sec: 100,
+      confidence: 'high',
     })
   })
 
@@ -83,6 +85,7 @@ describe('tripsFromSnapshots', () => {
     const trips = tripsFromSnapshots(
       [{ ts: 100, stations: [{ station_id: 'a', num_bikes_available: 1 }] }],
       1,
+      null,
     )
     expect(trips).toEqual([])
   })
@@ -93,8 +96,129 @@ describe('tripsFromSnapshots', () => {
       { ts: 200, stations: [{ station_id: 'a', num_bikes_available: 0 }] },
       { ts: 300, stations: [{ station_id: 'a', num_bikes_available: 1 }] },
     ]
-    const trips = tripsFromSnapshots(snaps, 0)
+    const trips = tripsFromSnapshots(snaps, 0, null)
     expect(trips).toEqual([])
+  })
+
+  it('runs the greedy pass on non-clean transitions and stamps them confidence=low (#75)', () => {
+    // 4 stations, maxBikesEver=4 so active = 4 - sum(bikes).
+    //   Snap 0   : a=1 b=1 c=1 d=1 → total=4, active=0
+    //   Snap 60  : a=0 b=0 c=1 d=1 → total=2, active=2 (two departures: a, b)
+    //              — conservative cancels in-flight pairing (multi-rider)
+    //   Snap 660 : a=0 b=0 c=2 d=1 → total=3, active=1 (arrival at c)
+    //   Snap 720 : a=0 b=0 c=2 d=2 → total=4, active=0 (arrival at d)
+    // Conservative produces nothing (no 0→1→0 single-rider transition).
+    // Greedy, with a matrix saying a→c ≈ 10min and b→d ≈ 11min, pairs:
+    //   a@60 → c@660 (10 min, exact) and b@60 → d@720 (11 min, exact).
+    const snaps: Snap[] = [
+      { ts: 0,   stations: [
+        { station_id: 'a', num_bikes_available: 1 },
+        { station_id: 'b', num_bikes_available: 1 },
+        { station_id: 'c', num_bikes_available: 1 },
+        { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 60,  stations: [
+        { station_id: 'a', num_bikes_available: 0 },
+        { station_id: 'b', num_bikes_available: 0 },
+        { station_id: 'c', num_bikes_available: 1 },
+        { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 660, stations: [
+        { station_id: 'a', num_bikes_available: 0 },
+        { station_id: 'b', num_bikes_available: 0 },
+        { station_id: 'c', num_bikes_available: 2 },
+        { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 720, stations: [
+        { station_id: 'a', num_bikes_available: 0 },
+        { station_id: 'b', num_bikes_available: 0 },
+        { station_id: 'c', num_bikes_available: 2 },
+        { station_id: 'd', num_bikes_available: 2 },
+      ] },
+    ]
+    const matrix: SimpleMatrix = {
+      a: { c: { minutes: 10, meters: 3000 }, d: { minutes: 30, meters: 9000 } },
+      b: { c: { minutes: 30, meters: 9000 }, d: { minutes: 11, meters: 3300 } },
+    }
+    const trips = tripsFromSnapshots(snaps, 4, matrix)
+    // Conservative produced zero (multi-rider tick cancels in-flight), but
+    // greedy picks up both based on the matrix.
+    expect(trips).toHaveLength(2)
+    expect(trips.every(t => t.confidence === 'low')).toBe(true)
+    const ac = trips.find(t => t.from_station_id === 'a' && t.to_station_id === 'c')
+    const bd = trips.find(t => t.from_station_id === 'b' && t.to_station_id === 'd')
+    expect(ac).toMatchObject({ departure_ts: 60, arrival_ts: 660, duration_sec: 600 })
+    expect(bd).toMatchObject({ departure_ts: 60, arrival_ts: 720, duration_sec: 660 })
+  })
+
+  it('returns both conservative (high) and greedy (low) trips when the same window has each', () => {
+    // First three snaps: a clean a→b transition (conservative, high).
+    // Then a multi-rider c+d departure paired by greedy.
+    // maxBikesEver=4.
+    const snaps: Snap[] = [
+      { ts: 0,   stations: [
+        { station_id: 'a', num_bikes_available: 1 }, { station_id: 'b', num_bikes_available: 1 },
+        { station_id: 'c', num_bikes_available: 1 }, { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 60,  stations: [
+        { station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 1 },
+        { station_id: 'c', num_bikes_available: 1 }, { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 120, stations: [
+        { station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 2 },
+        { station_id: 'c', num_bikes_available: 1 }, { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 180, stations: [
+        { station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 2 },
+        { station_id: 'c', num_bikes_available: 0 }, { station_id: 'd', num_bikes_available: 0 },
+      ] },
+      { ts: 780, stations: [
+        { station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 2 },
+        { station_id: 'c', num_bikes_available: 1 }, { station_id: 'd', num_bikes_available: 0 },
+      ] },
+      { ts: 840, stations: [
+        { station_id: 'a', num_bikes_available: 0 }, { station_id: 'b', num_bikes_available: 2 },
+        { station_id: 'c', num_bikes_available: 1 }, { station_id: 'd', num_bikes_available: 1 },
+      ] },
+    ]
+    const matrix: SimpleMatrix = {
+      a: { b: { minutes: 1, meters: 200 } },
+      c: { a: { minutes: 10, meters: 3000 }, c: { minutes: 10, meters: 3000 } },
+      d: { a: { minutes: 11, meters: 3300 }, d: { minutes: 11, meters: 3300 } },
+    }
+    const trips = tripsFromSnapshots(snaps, 4, matrix)
+    const high = trips.filter(t => t.confidence === 'high')
+    const low = trips.filter(t => t.confidence === 'low')
+    expect(high.length).toBeGreaterThanOrEqual(1)
+    expect(low.length).toBeGreaterThanOrEqual(1)
+    const ab = high.find(t => t.from_station_id === 'a' && t.to_station_id === 'b')
+    expect(ab).toMatchObject({ departure_ts: 60, arrival_ts: 120 })
+  })
+
+  it('matrix=null skips greedy and returns only conservative trips', () => {
+    // Same multi-rider scenario as the greedy test — without a matrix
+    // we get zero trips even though the events are there.
+    const snaps: Snap[] = [
+      { ts: 0,   stations: [
+        { station_id: 'a', num_bikes_available: 1 },
+        { station_id: 'b', num_bikes_available: 1 },
+        { station_id: 'c', num_bikes_available: 1 },
+        { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 60,  stations: [
+        { station_id: 'a', num_bikes_available: 0 },
+        { station_id: 'b', num_bikes_available: 0 },
+        { station_id: 'c', num_bikes_available: 1 },
+        { station_id: 'd', num_bikes_available: 1 },
+      ] },
+      { ts: 660, stations: [
+        { station_id: 'a', num_bikes_available: 0 },
+        { station_id: 'b', num_bikes_available: 0 },
+        { station_id: 'c', num_bikes_available: 2 },
+        { station_id: 'd', num_bikes_available: 2 },
+      ] },
+    ]
+    expect(tripsFromSnapshots(snaps, 4, null)).toEqual([])
   })
 })
 

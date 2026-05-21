@@ -8,6 +8,7 @@ import {
   tripsFromSnapshots,
 } from './lib/trips-from-parquet'
 import type { Trip } from '../shared/types'
+import type { SimpleMatrix } from '../shared/trip-inference'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -378,6 +379,27 @@ async function handleTrips(env: Env, systemId: string, sinceTs: number, untilTs:
     }
   }
 
+  // Greedy trip inference (#75) needs the travel-time matrix so it can
+  // score departure→arrival pairings against expected durations. Without
+  // it we'd fall back to conservative-only trips, which on a normal day
+  // is ~0 trips for SB — the bug PR #74 hit when /flow tried to use
+  // this endpoint as its default source. The matrix file is large but
+  // immutable until the station set changes; the response-level
+  // max-age=60 cache fronts most repeat loads.
+  let matrix: SimpleMatrix | null = null
+  try {
+    const matrixObj = await env.GBFS_R2.get(`gbfs/${systemId}/travel-times.json`)
+    if (matrixObj) {
+      const parsed = JSON.parse(await matrixObj.text()) as { edges?: SimpleMatrix }
+      if (parsed?.edges) matrix = parsed.edges
+      else console.warn(`trips: travel-times.json for ${systemId} missing 'edges' field; greedy inference disabled`)
+    } else {
+      console.warn(`trips: travel-times.json missing for ${systemId}; returning conservative trips only`)
+    }
+  } catch (err) {
+    console.warn(`trips: travel-times.json read/parse failed for ${systemId}; returning conservative trips only:`, err)
+  }
+
   let snaps
   try {
     snaps = await readSnapshotsForRange(env.GBFS_R2, systemId, sinceTs, untilTs)
@@ -386,7 +408,7 @@ async function handleTrips(env: Env, systemId: string, sinceTs: number, untilTs:
     return jsonResponse<TripsError>({ error: 'failed to read trip archive' }, 502)
   }
 
-  const allTrips = tripsFromSnapshots(snaps, maxBikesEver)
+  const allTrips = tripsFromSnapshots(snaps, maxBikesEver, matrix)
   // Snapshots include a 1h pad on each side so trips straddling a
   // partition boundary still pair. Clip back to the exact requested window.
   const trips = allTrips.filter(t => t.departure_ts >= sinceTs && t.departure_ts <= untilTs)

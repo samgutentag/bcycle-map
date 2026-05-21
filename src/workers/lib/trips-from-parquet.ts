@@ -19,6 +19,7 @@ import {
   appendTick,
   emptyActivityLog,
 } from '../../shared/activity'
+import { inferTrips, type SimpleMatrix } from '../../shared/trip-inference'
 
 type ParquetRow = {
   snapshot_ts: bigint | number
@@ -86,11 +87,28 @@ export function snapshotsFromRows(rows: ParquetRow[]): Snap[] {
 
 /**
  * Replay consecutive snapshot pairs through the same poller primitives that
- * write the live activity log, then return only the inferred trips. Active
- * rider count is derived from maxBikesEver - sum(bikes_available); when
+ * write the live activity log, then return inferred trips. Active rider
+ * count is derived from maxBikesEver - sum(bikes_available); when
  * maxBikesEver is 0 (cold start) trip pairing identifies nothing.
+ *
+ * Runs the same two-pass replay as the live poller (#75): first the
+ * conservative `applyTripTransition` for clean 0→1→0 single-rider
+ * transitions (confidence='high'), then the greedy `inferTrips` over
+ * every event the conservative pass collected, scored against the
+ * travel-time matrix (confidence='low'). Most production trips come
+ * from the greedy path — without it the bulk endpoint returns ~0 trips
+ * during normal-volume hours.
+ *
+ * `matrix` is the on-disk `travel-times.json` shape's `.edges` field
+ * (Record<from, Record<to, {minutes, meters}>>). When null, only the
+ * conservative trips are returned — the same degraded-mode behavior the
+ * poller uses when travel-times.json is missing.
  */
-export function tripsFromSnapshots(snaps: Snap[], maxBikesEver: number): Trip[] {
+export function tripsFromSnapshots(
+  snaps: Snap[],
+  maxBikesEver: number,
+  matrix: SimpleMatrix | null,
+): Trip[] {
   let log = emptyActivityLog()
   for (let i = 1; i < snaps.length; i++) {
     const prev = snaps[i - 1]!
@@ -106,7 +124,14 @@ export function tripsFromSnapshots(snaps: Snap[], maxBikesEver: number): Trip[] 
       maxTrips: Number.POSITIVE_INFINITY,
     })
   }
-  return log.trips
+  // Greedy pass: feed every accumulated event through inferTrips with the
+  // conservative-paired trips as `existingTrips` so those slots stay off
+  // limits. Mirrors the poller's `nextActivity.events` + `nextActivity.trips`
+  // call in src/workers/poller.ts. Without a matrix we can't score
+  // candidates, so we just return the conservative output.
+  if (!matrix || log.events.length === 0) return log.trips
+  const greedy = inferTrips(log.events, matrix, log.trips)
+  return [...log.trips, ...greedy].sort((a, b) => a.departure_ts - b.departure_ts)
 }
 
 /**
