@@ -12,7 +12,8 @@
     "build:web": "vite build",
     "deploy:worker": "wrangler deploy",
     "compute-routes": "tsx scripts/compute-routes.ts",
-    "compute-popularity": "tsx scripts/compute-popularity.ts"
+    "compute-popularity": "tsx scripts/compute-popularity.ts",
+    "compute-leaderboards": "tsx scripts/compute-leaderboards.ts"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
