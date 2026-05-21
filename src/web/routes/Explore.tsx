@@ -25,7 +25,7 @@ import { useHourOfWeekActiveRiders } from '../hooks/useHourOfWeekActiveRiders'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { useRouteCache } from '../hooks/useRouteCache'
 import { useActivity } from '../hooks/useActivity'
-import { useRoutePopularity } from '../hooks/useRoutePopularity'
+import { useLeaderboards } from '../hooks/useLeaderboards'
 import PopularStationsTile from '../components/PopularStationsTile'
 import PopularRoutesTile from '../components/PopularRoutesTile'
 import { resolveRange } from '../lib/date-range'
@@ -99,7 +99,7 @@ export default function Explore() {
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const matrix = useTravelMatrix(R2_BASE, SYSTEM_ID)
-  const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
+  const leaderboards = useLeaderboards(R2_BASE, SYSTEM_ID)
   const routes = useRouteCache(R2_BASE, SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
   const [openTrip, setOpenTrip] = useState<Trip | null>(null)
@@ -217,19 +217,25 @@ export default function Explore() {
         )}
       </Section>
 
-      <Section title="Popular stations · 30 days">
+      <Section
+        title="Popular stations"
+        description="Top stations ranked by total departures + arrivals. Toggle between the rolling 30-day window and the all-time leaderboard."
+      >
         <PopularStationsTile
-          top={popularity.data?.topStations ?? []}
+          data={leaderboards.data}
           stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
-          loading={popularity.loading}
+          loading={leaderboards.loading}
         />
       </Section>
 
-      <Section title="Popular routes · 30 days">
+      <Section
+        title="Popular routes"
+        description="Top directed pairs ranked by inferred trip count. Routes with fewer than 5 observed trips are filtered out."
+      >
         <PopularRoutesTile
-          top={popularity.data?.topRoutes ?? []}
+          data={leaderboards.data}
           stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
-          loading={popularity.loading}
+          loading={leaderboards.loading}
         />
       </Section>
 

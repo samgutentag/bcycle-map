@@ -1,0 +1,49 @@
+name: leaderboards
+
+# Daily rollup of station + route leaderboards for the /explore page.
+# Separate from popularity.yml (which runs every 4 hours for the
+# /route avg-trip-duration badge) because the leaderboards read the
+# full parquet archive — running hourly would be wasted R2 ops.
+
+on:
+  schedule:
+    # 08:17 UTC daily — offset from the 4-hourly popularity run so
+    # the two jobs don't contend for the same R2 read bandwidth.
+    - cron: '17 8 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: leaderboards
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # All-time scan over hourly partitions for ~1 year of data fits well
+    # under 30 minutes on a fresh runner; pad for cold caches.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run leaderboards script
+        run: npx tsx scripts/compute-leaderboards.ts
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_KV_API_TOKEN: ${{ secrets.CF_KV_API_TOKEN }}
+          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          SYSTEM_ID: bcycle_santabarbara

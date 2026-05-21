@@ -1,40 +1,105 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Flex, Paper, Text } from '@audius/harmony'
+import { Flex, Paper, SegmentedControl, Text } from '@audius/harmony'
 import { useStableVerb } from '../lib/spinner-verbs'
+import type { Leaderboards } from '@shared/leaderboards'
+
+type WindowKey = '30d' | 'all'
 
 type Props = {
-  top: Array<{ from_station_id: string; to_station_id: string; count: number }>
+  data: Leaderboards | null
   stations: Array<{ station_id: string; name: string }>
   loading: boolean
+  /** Unix seconds; if the rollup is older than 48h we show the empty state. */
+  nowTs?: number
 }
 
-export default function PopularRoutesTile({ top, stations, loading }: Props) {
+const STALE_AFTER_SEC = 48 * 3600
+
+export default function PopularRoutesTile({ data, stations, loading, nowTs }: Props) {
   const verb = useStableVerb()
-  const nameById = new Map(stations.map(s => [s.station_id, s.name]))
+  const [windowKey, setWindowKey] = useState<WindowKey>('30d')
+  const nameById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
 
   if (loading) {
-    return <Text variant="body" size="s" color="subdued">{verb}</Text>
+    return (
+      <Flex direction="column" gap="xs" aria-busy="true">
+        <Text variant="body" size="s" color="subdued">{verb}</Text>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Paper key={i} p="s" borderRadius="s" border="default" css={{ height: 36, opacity: 0.4 }} />
+        ))}
+      </Flex>
+    )
   }
-  if (top.length === 0) {
-    return <Text variant="body" size="s" color="subdued">No popularity data yet — check back after the next rollup run.</Text>
+
+  const now = nowTs ?? Math.floor(Date.now() / 1000)
+  const isStale = !!data && now - data.generated_at > STALE_AFTER_SEC
+  const win = data?.windows[windowKey]
+  const rows = win?.routes ?? []
+
+  if (!data || isStale || rows.length === 0) {
+    return (
+      <Flex direction="column" gap="s">
+        <SegmentedControl
+          options={[{ key: '30d', text: '30d' }, { key: 'all', text: 'All' }]}
+          selected={windowKey}
+          onSelectOption={setWindowKey}
+        />
+        <Text variant="body" size="s" color="subdued">Not enough data yet.</Text>
+      </Flex>
+    )
   }
 
   return (
-    <Flex direction="column" gap="xs">
-      {top.map((row, i) => {
-        const fromName = nameById.get(row.from_station_id) ?? row.from_station_id
-        const toName = nameById.get(row.to_station_id) ?? row.to_station_id
-        const label = `${fromName} → ${toName}`
-        return (
-          <Paper key={`${row.from_station_id}-${row.to_station_id}`} p="s" borderRadius="s" border="default" direction="row" alignItems="center" gap="m">
-            <Text variant="body" size="s" color="subdued" css={{ width: 24, textAlign: 'right' }}>{i + 1}.</Text>
-            <Link to={`/route/${row.from_station_id}/${row.to_station_id}`} style={{ flex: 1, textDecoration: 'none' }}>
-              <Text variant="body" size="s" color="default">{label}</Text>
-            </Link>
-            <Text variant="body" size="s" strength="strong" color="heading">{row.count}</Text>
-          </Paper>
-        )
-      })}
+    <Flex direction="column" gap="s">
+      <SegmentedControl
+        options={[{ key: '30d', text: '30d' }, { key: 'all', text: 'All' }]}
+        selected={windowKey}
+        onSelectOption={setWindowKey}
+      />
+      <Flex direction="column" gap="xs">
+        {rows.map((row, i) => {
+          const fromName = nameById.get(row.from) ?? row.from
+          const toName = nameById.get(row.to) ?? row.to
+          const label = `${fromName} → ${toName}`
+          return (
+            <Paper
+              key={`${row.from}-${row.to}`}
+              p="s"
+              borderRadius="s"
+              border="default"
+              direction="row"
+              alignItems="center"
+              gap="m"
+            >
+              <Text variant="body" size="s" color="subdued" css={{ width: 24, textAlign: 'right' }}>{i + 1}.</Text>
+              <Link
+                to={`/route/${row.from}/${row.to}`}
+                style={{ flex: 1, textDecoration: 'none', minWidth: 0 }}
+              >
+                <Text
+                  variant="body"
+                  size="s"
+                  color="default"
+                  css={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {label}
+                </Text>
+              </Link>
+              <Text
+                variant="body"
+                size="s"
+                strength="strong"
+                color="heading"
+                title="Inferred trips"
+                css={{ minWidth: 32, textAlign: 'right' }}
+              >
+                {row.trips}
+              </Text>
+            </Paper>
+          )
+        })}
+      </Flex>
     </Flex>
   )
 }
