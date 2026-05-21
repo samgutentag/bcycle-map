@@ -286,8 +286,10 @@ describe('read-api', () => {
       expect(body.trips[0]).toEqual(sampleTrip)
       expect(body.since).toBe(500)
       expect(body.until).toBe(2000)
-      // max_bikes_ever from KV must flow into the trip-pairing call
-      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 50)
+      // max_bikes_ever from KV must flow into the trip-pairing call; matrix
+      // arg is null here because no travel-times.json is stubbed (greedy
+      // pass skipped, conservative-only output).
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 50, null)
       expect(snapsSpy).toHaveBeenCalledWith(env.GBFS_R2, 'bcycle_santabarbara', 500, 2000)
     })
 
@@ -361,7 +363,7 @@ describe('read-api', () => {
         env,
       )
       expect(res.status).toBe(200)
-      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 0)
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 0, null)
     })
 
     it('exposes a cache-control header for downstream CDN caching (~60s)', async () => {
@@ -376,6 +378,72 @@ describe('read-api', () => {
       // honors it without us having to touch the Cache API directly. Other
       // read-api endpoints use the same pattern.
       expect(res.headers.get('cache-control')).toBe('max-age=60')
+    })
+
+    it('reads travel-times.json from R2 and forwards the edges map to tripsFromSnapshots (#75)', async () => {
+      // Bulk endpoint must load the same travel-time matrix the poller
+      // uses so the greedy `inferTrips` pass can score candidates and
+      // pair non-clean transitions. Without this, the endpoint returns
+      // ~0 trips on a normal-volume day — see PR #74 revert in 3c825d8.
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      const tripsSpy = vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([])
+      const matrixJson = JSON.stringify({
+        computedAt: 1,
+        edges: { a: { b: { minutes: 10, meters: 2500 } } },
+      })
+      const env = makeEnv({
+        latestValue: JSON.stringify({ max_bikes_ever: 5 }),
+        r2Get: { 'gbfs/bcycle_santabarbara/travel-times.json': matrixJson },
+      })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(env.GBFS_R2.get).toHaveBeenCalledWith('gbfs/bcycle_santabarbara/travel-times.json')
+      // Third arg is the edges field only — `.computedAt` and `.stations` are
+      // shaped for the web side and aren't part of SimpleMatrix.
+      expect(tripsSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        5,
+        { a: { b: { minutes: 10, meters: 2500 } } },
+      )
+    })
+
+    it('logs a warning and continues with matrix=null when travel-times.json is missing', async () => {
+      // Matrix-missing must NOT 5xx — partial output (conservative-only
+      // trips) is better than the whole request failing. Matches the
+      // poller's matrix-missing branch.
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      const tripsSpy = vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([])
+      const env = makeEnv({ latestValue: JSON.stringify({ max_bikes_ever: 5 }) })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 5, null)
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/travel-times\.json missing/),
+      )
+    })
+
+    it('logs a warning and continues when travel-times.json fails to parse', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.spyOn(tripsLib, 'readSnapshotsForRange').mockResolvedValue([])
+      const tripsSpy = vi.spyOn(tripsLib, 'tripsFromSnapshots').mockReturnValue([])
+      const env = makeEnv({
+        latestValue: JSON.stringify({ max_bikes_ever: 5 }),
+        r2Get: { 'gbfs/bcycle_santabarbara/travel-times.json': 'not-valid-json{{' },
+      })
+      const res = await worker.fetch(
+        new Request('https://example/api/systems/bcycle_santabarbara/trips?since=500&until=2000'),
+        env,
+      )
+      expect(res.status).toBe(200)
+      expect(tripsSpy).toHaveBeenCalledWith(expect.anything(), 5, null)
+      expect(warnSpy).toHaveBeenCalled()
     })
   })
 
