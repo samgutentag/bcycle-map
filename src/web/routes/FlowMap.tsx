@@ -280,6 +280,7 @@ export default function FlowMap() {
         <BikeAnimationLayer
           map={map}
           trips={rendered}
+          allTrips={trips}
           routes={routes.data}
           matrix={matrix.data}
           cursorTs={cursorTs}
