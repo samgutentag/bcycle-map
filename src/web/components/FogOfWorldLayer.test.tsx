@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { cleanup, screen } from '@testing-library/react'
 import { renderWithTheme } from '../test-utils'
-import FogOfWorldLayer, { carveTripPath, prepareFogTrips, shouldResetOnJump } from './FogOfWorldLayer'
+import FogOfWorldLayer, { carveTripPath, prepareFogTrips } from './FogOfWorldLayer'
 import type { Trip } from '@shared/types'
 import type { RouteCache } from '@shared/route-cache'
 import type maplibregl from 'maplibre-gl'
@@ -223,36 +223,16 @@ describe('carveTripPath (deterministic path generation)', () => {
   })
 })
 
-/**
- * The "accumulator clears on cursor jump" test exercises the prop-flow.
- * We can't easily inspect the canvas pixels in happy-dom (the mock 2D
- * context from test-setup is a no-op proxy), but we CAN verify that a
- * cursor jump rerender doesn't tear the canvas off the DOM — i.e. the
- * component stays mounted across cursor changes. The actual primeFog
- * call is gated by an internal ref toggled on prop change; the existing
- * "renders the canvas when enabled" test plus this re-render test cover
- * the contract that the canvas is reused across cursor updates rather
- * than remounted (which would defeat the accumulator entirely).
- */
-describe('shouldResetOnJump (accumulator reset semantics)', () => {
-  it('does not reset on a tiny forward step (normal rAF frame at 60x playback)', () => {
-    // 60s/sec playback × ~16ms/frame ≈ 1s of cursor per frame. Well under
-    // the default RESET_JUMP_SEC threshold (30s).
-    expect(shouldResetOnJump(1000, 1001)).toBe(false)
-  })
-
-  it('resets on a forward jump bigger than the threshold (manual scrub forward)', () => {
-    expect(shouldResetOnJump(1000, 1500)).toBe(true)
-  })
-
-  it('resets on any meaningful backward step (manual rewind OR playback loop wrap)', () => {
-    // Loop wrap: cursor goes from loopEnd back to loopStart — could be
-    // an arbitrary swing. Manual rewind: user scrubs back. Both reset.
-    expect(shouldResetOnJump(5000, 1000)).toBe(true)
-  })
-
-  it('respects a custom threshold for callers that want a tighter reset window', () => {
-    expect(shouldResetOnJump(1000, 1005, 10)).toBe(false)
-    expect(shouldResetOnJump(1000, 1015, 10)).toBe(true)
-  })
-})
+// Accumulator contract: cursor changes (any size, any direction) and
+// trip-set reference changes (poller refresh) must NOT reset the fog.
+// destination-out is monotonic — each stroke only adds to the cleared
+// area — so the fog naturally accumulates across a playback session,
+// scrub, and loop wrap.
+//
+// Pixel-level verification isn't possible in happy-dom (the 2D context
+// is a no-op mock). The behavioral fix is verified by:
+//   1. The existing "renders the canvas when enabled" test (component
+//      doesn't crash on any of these prop changes).
+//   2. The typecheck — `shouldResetOnJump` is gone, no dangling reset
+//      triggers in the source.
+//   3. Visual smoke test in the dev server.
