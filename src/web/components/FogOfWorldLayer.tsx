@@ -27,16 +27,21 @@ import {
  *    entire route popping into view the instant the trip becomes active.
  *
  * Reset triggers (clearRect + re-fill with fog):
- *  - `cursorTs` jumps backward or forward by more than RESET_JUMP_SEC (manual
- *    scrub — the parent toggles play off too, so we'd be repainting a stale
- *    accumulator otherwise).
- *  - The playback loop wraps from loopEnd back to loopStart — detected as a
- *    backward jump while playing.
  *  - The map's camera moves (pan/zoom) — fog is projected per-frame from
  *    geographic coordinates, so stale pixels from the prior viewport are
  *    meaningless. Re-prime + redraw progress from scratch.
- *  - The `enabled` flag flips on (fresh canvas), or `trips` / `routes`
- *    change (different polyline set).
+ *  - The `enabled` flag flips on (fresh canvas).
+ *  - Canvas resize (DPR change or container resize) wipes the bitmap.
+ *
+ * What does NOT reset (intentional cumulative behavior):
+ *  - Cursor changes of any size — destination-out is monotonic (can only
+ *    add cleared area, never re-fog), so the accumulator naturally grows
+ *    as playback advances. Manual scrubs and playback-loop wraps both
+ *    leave the existing carved area intact.
+ *  - Trip-set reference changes from the poller — useFlowTrips returns
+ *    a fresh array on every poll tick. Resetting on that would wipe the
+ *    fog every ~30s. The trip list grows; previously-carved corridors
+ *    stay regardless of whether the source trip is still in the array.
  *
  * Polyline source: duplicates `prepareTrips` from BikeAnimationLayer rather
  * than lifting into a shared hook. The function is ~10 lines, the data is
@@ -51,11 +56,6 @@ const FOG_FILL_ALPHA = 0.72
 /** Width of the carved-out corridor, in CSS pixels. Thick enough to read at
  * city-scale zoom. */
 const LIT_STROKE_PX = 12
-/** Cursor jump bigger than this (in seconds) is treated as a "reset" event.
- * Playback advances by playbackRate*dt per frame, so at the default 60x
- * playback rate a 60s/frame jump would require dt = 1s — already a frame
- * stutter, not normal playback. */
-const RESET_JUMP_SEC = 30
 
 type PreparedTrip = {
   trip: Trip
@@ -92,22 +92,6 @@ export function prepareFogTrips(
     out.push({ trip, poly, cum })
   }
   return out
-}
-
-/**
- * Returns true when a cursor change should trigger a fog reset
- * (clearRect + re-prime). Exported so tests can pin the threshold
- * semantics without poking the canvas.
- *
- * Triggers on:
- *  - Forward jumps bigger than `RESET_JUMP_SEC` (typical 60x playback
- *    advances ~60s of cursor per real second, so any frame that advances
- *    much more than that is a manual scrub or a loop-wrap).
- *  - Any backward step bigger than RESET_JUMP_SEC (manual rewind OR the
- *    playback loop's loopEnd → loopStart wrap — both are "new pass").
- */
-export function shouldResetOnJump(prev: number, next: number, threshold = RESET_JUMP_SEC): boolean {
-  return Math.abs(next - prev) > threshold
 }
 
 /**
@@ -170,7 +154,6 @@ export default function FogOfWorldLayer({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const dprRef = useRef<number>(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
   const rafRef = useRef<number | null>(null)
-  const lastCursorRef = useRef<number>(cursorTs)
   const needsPrimeRef = useRef<boolean>(true)
 
   // Per-trip polyline + cumulative-distance prep. Duplicated from
@@ -233,12 +216,6 @@ export default function FogOfWorldLayer({
     }
   }, [map, enabled])
 
-  // Mark for re-prime when the prepared trip set changes (different trips
-  // mean a different "what should be carved" universe).
-  useEffect(() => {
-    needsPrimeRef.current = true
-  }, [prepared])
-
   // The render loop. Distinct from BikeAnimationLayer's loop — this one runs
   // on its own rAF so the fog redraws even when the bike layer is paused
   // (e.g. mid-scrub the user is still examining a single still frame).
@@ -255,10 +232,6 @@ export default function FogOfWorldLayer({
     const draw = () => {
       const dpr = dprRef.current
       const cursor = cursorTsRef.current
-      const prev = lastCursorRef.current
-
-      // Reset on cursor jump (manual scrub or playback-loop wrap).
-      if (shouldResetOnJump(prev, cursor)) needsPrimeRef.current = true
 
       if (needsPrimeRef.current) {
         primeFog(canvas, ctx)
@@ -270,7 +243,10 @@ export default function FogOfWorldLayer({
       // The basemap below shines through cleanly along each trip's carved
       // path. Color is irrelevant under this composite — only the alpha
       // matters — but a solid color avoids surprises if a future engine
-      // changes the composite semantics.
+      // changes the composite semantics. Crucially, destination-out is
+      // monotonic: each frame's strokes only *add* to the cleared region,
+      // so the fog naturally accumulates as playback advances without any
+      // explicit accumulator state.
       ctx.globalCompositeOperation = 'destination-out'
       ctx.globalAlpha = 1
       ctx.strokeStyle = `rgba(0, 0, 0, ${FOG_FILL_ALPHA})`
@@ -283,7 +259,6 @@ export default function FogOfWorldLayer({
       // predictably. (Not strictly necessary as we set it again next frame.)
       ctx.globalCompositeOperation = 'source-over'
 
-      lastCursorRef.current = cursor
       rafRef.current = window.requestAnimationFrame(draw)
     }
 
