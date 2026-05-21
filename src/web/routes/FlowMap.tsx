@@ -9,6 +9,8 @@ import { useRouteCache } from '../hooks/useRouteCache'
 import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
 import BikeAnimationLayer, { TRAIL_GHOST_FADE_SEC } from '../components/BikeAnimationLayer'
+import FogOfWorldLayer from '../components/FogOfWorldLayer'
+import FogToggle from '../components/FogToggle'
 import { selectVisibleTrips, capTripsForRender } from '../lib/flow-selection'
 import { computeDynamicWindow } from '../lib/flow-window'
 
@@ -18,6 +20,7 @@ const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 const MAX_BIKES_PER_FRAME = 80
+const FOG_ENABLED_KEY = 'bcycle-map:flow-fog-enabled'
 
 export default function FlowMap() {
   const theme = useTheme()
@@ -41,6 +44,31 @@ export default function FlowMap() {
 
   const [cursorTs, setCursorTs] = useState<number>(windowEnd)
   const [playing, setPlaying] = useState(false)
+
+  // Fog-of-world toggle (#57). Persisted across reloads via localStorage —
+  // '1' or '0'; defaults to '0' (off) for first-time visitors so the page
+  // looks the way it always did and nobody arrives at a black screen
+  // wondering what broke.
+  const [fogEnabled, setFogEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    try {
+      return window.localStorage.getItem(FOG_ENABLED_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleFog = useCallback(() => {
+    setFogEnabled(prev => {
+      const next = !prev
+      try {
+        window.localStorage.setItem(FOG_ENABLED_KEY, next ? '1' : '0')
+      } catch {
+        // Private-browsing / quota errors — keep the in-memory toggle but
+        // don't persist. Not worth surfacing.
+      }
+      return next
+    })
+  }, [])
 
   // Boot the map once. Render mode is "view-only" — no clickable pins,
   // no popups, per the spec ("this is a viewing experience").
@@ -242,6 +270,13 @@ export default function FlowMap() {
           background: theme.color.background.surface1,
         }}
       >
+        <FogOfWorldLayer
+          map={map}
+          trips={rendered}
+          routes={routes.data}
+          cursorTs={cursorTs}
+          enabled={fogEnabled}
+        />
         <BikeAnimationLayer
           map={map}
           trips={rendered}
@@ -255,6 +290,7 @@ export default function FlowMap() {
           playbackLoopEnd={playbackLoopEnd}
           onCursorAdvance={setCursorTs}
         />
+        <FogToggle enabled={fogEnabled} onToggle={toggleFog} />
         <div
           aria-live="polite"
           css={{
