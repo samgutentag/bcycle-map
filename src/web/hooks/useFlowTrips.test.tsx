@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useFlowTrips } from './useFlowTrips'
 import * as api from '../lib/api'
-import type { ActivityLog, Trip } from '@shared/types'
+import type { Trip } from '@shared/types'
 
 const tripA: Trip = {
   departure_ts: 1000,
@@ -10,13 +10,6 @@ const tripA: Trip = {
   from_station_id: 'a',
   to_station_id: 'b',
   duration_sec: 100,
-}
-
-const activityPayload: ActivityLog = {
-  events: [],
-  trips: [tripA],
-  inFlightFromStationId: null,
-  inFlightDepartureTs: null,
 }
 
 beforeEach(() => {
@@ -31,20 +24,20 @@ afterEach(() => {
 })
 
 describe('useFlowTrips', () => {
-  it('uses fetchActivity for the default 24h window (≤ threshold)', async () => {
-    const activitySpy = vi.spyOn(api, 'fetchActivity').mockResolvedValue(activityPayload)
-    const tripsSpy = vi.spyOn(api, 'fetchTrips').mockResolvedValue([])
+  it('uses fetchTrips for the default 24h window', async () => {
+    const tripsSpy = vi.spyOn(api, 'fetchTrips').mockResolvedValue([tripA])
 
     const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara'))
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    expect(activitySpy).toHaveBeenCalledTimes(1)
-    expect(tripsSpy).not.toHaveBeenCalled()
+    expect(tripsSpy).toHaveBeenCalledTimes(1)
+    const [systemArg, sinceArg, untilArg] = tripsSpy.mock.calls[0]!
+    expect(systemArg).toBe('bcycle_santabarbara')
+    expect(untilArg - sinceArg).toBe(24 * 3600)
     expect(result.current.trips).toEqual([tripA])
   })
 
-  it('uses fetchTrips when the window exceeds 24h', async () => {
-    const activitySpy = vi.spyOn(api, 'fetchActivity').mockResolvedValue(activityPayload)
+  it('uses fetchTrips for a 7d window', async () => {
     const bulkTrip: Trip = { ...tripA, from_station_id: 'c', to_station_id: 'd' }
     const tripsSpy = vi.spyOn(api, 'fetchTrips').mockResolvedValue([bulkTrip])
 
@@ -53,37 +46,26 @@ describe('useFlowTrips', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(tripsSpy).toHaveBeenCalledTimes(1)
-    expect(activitySpy).not.toHaveBeenCalled()
-    // Bulk endpoint was called with [now - 7d, now]
-    const [systemArg, sinceArg, untilArg] = tripsSpy.mock.calls[0]!
-    expect(systemArg).toBe('bcycle_santabarbara')
+    const [, sinceArg, untilArg] = tripsSpy.mock.calls[0]!
     expect(untilArg - sinceArg).toBe(sevenDays)
     expect(result.current.trips).toEqual([bulkTrip])
   })
 
   it('exposes a windowStart/windowEnd that match the requested window size', async () => {
-    vi.spyOn(api, 'fetchActivity').mockResolvedValue(activityPayload)
+    vi.spyOn(api, 'fetchTrips').mockResolvedValue([tripA])
     const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara'))
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.windowEnd - result.current.windowStart).toBe(24 * 3600)
   })
 
-  it('surfaces fetch errors on either path', async () => {
-    vi.spyOn(api, 'fetchActivity').mockRejectedValue(new Error('boom'))
+  it('surfaces fetch errors', async () => {
+    vi.spyOn(api, 'fetchTrips').mockRejectedValue(new Error('boom'))
     const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara'))
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.error?.message).toBe('boom')
   })
 
-  it('surfaces fetchTrips errors when on the bulk path', async () => {
-    vi.spyOn(api, 'fetchTrips').mockRejectedValue(new Error('bulk failed'))
-    const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara', 48 * 3600))
-    await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error?.message).toBe('bulk failed')
-  })
-
-  it('switches branches when windowSeconds changes across the threshold', async () => {
-    const activitySpy = vi.spyOn(api, 'fetchActivity').mockResolvedValue(activityPayload)
+  it('refetches when windowSeconds changes', async () => {
     const tripsSpy = vi.spyOn(api, 'fetchTrips').mockResolvedValue([])
 
     const { result, rerender } = renderHook(
@@ -91,12 +73,22 @@ describe('useFlowTrips', () => {
       { initialProps: { secs: 24 * 3600 } },
     )
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(activitySpy).toHaveBeenCalledTimes(1)
-    expect(tripsSpy).toHaveBeenCalledTimes(0)
+    expect(tripsSpy).toHaveBeenCalledTimes(1)
 
     rerender({ secs: 48 * 3600 })
-    await waitFor(() => expect(tripsSpy).toHaveBeenCalled())
-    // activity wasn't called again — we're on the bulk path now
-    expect(activitySpy).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(tripsSpy).toHaveBeenCalledTimes(2))
+    const [, sinceArg, untilArg] = tripsSpy.mock.calls[1]!
+    expect(untilArg - sinceArg).toBe(48 * 3600)
+  })
+
+  it('filters out trips outside the requested window', async () => {
+    // 100s window from fake "now" (2000s) → [1900, 2000]
+    const stale: Trip = { ...tripA, departure_ts: 1500 }  // before windowStart
+    const fresh: Trip = { ...tripA, departure_ts: 1950 }  // inside the window
+    vi.spyOn(api, 'fetchTrips').mockResolvedValue([stale, fresh])
+
+    const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara', 100))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.trips).toEqual([fresh])
   })
 })
