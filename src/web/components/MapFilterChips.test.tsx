@@ -87,6 +87,13 @@ describe('MapFilterChips', () => {
     expect(onReset).toHaveBeenCalledTimes(1)
   })
 
+  it('clicking Reset does NOT trigger the corridor dropdown', () => {
+    const { onReset, onCorridorChange } = renderChips({ corridor: 'waterfront' })
+    fireEvent.click(screen.getByTestId('filter-chip-reset'))
+    expect(onReset).toHaveBeenCalledTimes(1)
+    expect(onCorridorChange).not.toHaveBeenCalled()
+  })
+
   it('sets aria-pressed on the min-bikes chip', () => {
     renderChips({ minBikes: 3 })
     expect(screen.getByTestId('filter-chip-min-bikes')).toHaveAttribute('aria-pressed', 'true')
