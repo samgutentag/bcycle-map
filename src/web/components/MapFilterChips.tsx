@@ -118,6 +118,7 @@ export default function MapFilterChips({
               paddingTop: theme.spacing.xs,
               paddingBottom: theme.spacing.xs,
               pointerEvents: 'none',
+              whiteSpace: 'nowrap',
             }}
           >
             {corridor === null ? 'Corridor: All' : `Corridor: ${CORRIDOR_LABELS[corridor]}`}
