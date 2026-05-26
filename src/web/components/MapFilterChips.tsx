@@ -98,11 +98,11 @@ export default function MapFilterChips({
             for free, no custom popover machinery. */}
         <div
           css={{
+            ...baseChip,
+            ...(corridorActive ? activeChip : null),
             position: 'relative',
             display: 'inline-flex',
             alignItems: 'center',
-            ...baseChip,
-            ...(corridorActive ? activeChip : null),
             padding: 0,
             cursor: 'pointer',
           }}
