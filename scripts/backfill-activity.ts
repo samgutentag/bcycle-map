@@ -20,6 +20,7 @@ import {
   appendTick,
   emptyActivityLog,
 } from '../src/shared/activity'
+import { parquetPartitionKey } from '../src/shared/parquet'
 
 const DEFAULT_HOURS_BACK = 3
 
@@ -39,12 +40,7 @@ export function partitionKeysForHoursBack(systemId: string, nowSec: number, hour
   const out: Array<{ hourTs: number; key: string }> = []
   for (let i = hours; i >= 1; i--) {
     const hourTs = currentHourTs - i * 3600
-    const d = new Date(hourTs * 1000)
-    const yyyy = d.getUTCFullYear()
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
-    const dd = String(d.getUTCDate()).padStart(2, '0')
-    const hh = String(d.getUTCHours()).padStart(2, '0')
-    out.push({ hourTs, key: `gbfs/${systemId}/station_status/dt=${yyyy}-${mm}-${dd}/${hh}.parquet` })
+    out.push({ hourTs, key: parquetPartitionKey(systemId, hourTs) })
   }
   return out
 }
