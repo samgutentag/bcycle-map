@@ -1,4 +1,37 @@
 import { StationSnapshot } from './types'
+
+// ── Partition-key helpers ────────────────────────────────────────────
+// Shared across scripts/backfill-activity.ts and
+// src/workers/lib/trips-from-parquet.ts.
+
+/**
+ * Format a single hourly R2 partition key from a system id and a
+ * unix-epoch timestamp that has already been rounded to the hour.
+ */
+export function parquetPartitionKey(systemId: string, hourTs: number): string {
+  const d = new Date(hourTs * 1000)
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const hh = String(d.getUTCHours()).padStart(2, '0')
+  return `gbfs/${systemId}/station_status/dt=${yyyy}-${mm}-${dd}/${hh}.parquet`
+}
+
+/**
+ * Hourly partition keys covering [sinceTs, untilTs]. Both bounds are
+ * inclusive at the hour granularity — a partition is included if any
+ * of its hour overlaps the requested window. We pad by one hour on
+ * each side so trips that span a partition boundary are still pairable.
+ */
+export function partitionKeysForRange(systemId: string, sinceTs: number, untilTs: number): string[] {
+  const startHour = Math.floor((sinceTs - 3600) / 3600) * 3600
+  const endHour = Math.floor((untilTs + 3600) / 3600) * 3600
+  const out: string[] = []
+  for (let hourTs = startHour; hourTs <= endHour; hourTs += 3600) {
+    out.push(parquetPartitionKey(systemId, hourTs))
+  }
+  return out
+}
 import { tableFromJSON, tableFromIPC, tableToIPC } from 'apache-arrow'
 import {
   readParquet,

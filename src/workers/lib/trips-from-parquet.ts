@@ -20,6 +20,7 @@ import {
   emptyActivityLog,
 } from '../../shared/activity'
 import { inferTrips, type SimpleMatrix } from '../../shared/trip-inference'
+import { partitionKeysForRange } from '../../shared/parquet'
 
 type ParquetRow = {
   snapshot_ts: bigint | number
@@ -51,26 +52,8 @@ export type SnapWithDocks = {
   }>
 }
 
-/**
- * Hourly partition keys covering [sinceTs, untilTs]. Both bounds are
- * inclusive at the hour granularity — a partition is included if any
- * of its hour overlaps the requested window. We pad by one hour on
- * each side so trips that span a partition boundary are still pairable.
- */
-export function partitionKeysForRange(systemId: string, sinceTs: number, untilTs: number): string[] {
-  const startHour = Math.floor((sinceTs - 3600) / 3600) * 3600
-  const endHour = Math.floor((untilTs + 3600) / 3600) * 3600
-  const out: string[] = []
-  for (let hourTs = startHour; hourTs <= endHour; hourTs += 3600) {
-    const d = new Date(hourTs * 1000)
-    const yyyy = d.getUTCFullYear()
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
-    const dd = String(d.getUTCDate()).padStart(2, '0')
-    const hh = String(d.getUTCHours()).padStart(2, '0')
-    out.push(`gbfs/${systemId}/station_status/dt=${yyyy}-${mm}-${dd}/${hh}.parquet`)
-  }
-  return out
-}
+// Re-export so existing imports from this module keep working.
+export { partitionKeysForRange } from '../../shared/parquet'
 
 export function snapshotsFromRows(rows: ParquetRow[]): Snap[] {
   const byTs = new Map<number, Snap['stations']>()

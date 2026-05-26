@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { snapshotsToParquet, parquetToSnapshots } from './parquet'
+import { snapshotsToParquet, parquetToSnapshots, parquetPartitionKey, partitionKeysForRange } from './parquet'
 import { StationSnapshot } from './types'
 
 const sample: StationSnapshot = {
@@ -59,5 +59,57 @@ describe('snapshotsToParquet', () => {
     expect(back[1]!.station.is_installed).toBe(false)
     expect(back[1]!.station.is_renting).toBe(false)
     expect(back[1]!.station.is_returning).toBe(true)
+  })
+})
+
+describe('parquetPartitionKey', () => {
+  it('formats a single hourly R2 key from a unix-epoch hour timestamp', () => {
+    // 2026-05-14 09:00 UTC
+    const hourTs = Math.floor(Date.UTC(2026, 4, 14, 9) / 1000)
+    expect(parquetPartitionKey('bcycle_x', hourTs)).toBe(
+      'gbfs/bcycle_x/station_status/dt=2026-05-14/09.parquet',
+    )
+  })
+
+  it('zero-pads single-digit months, days, and hours', () => {
+    // 2026-01-02 03:00 UTC
+    const hourTs = Math.floor(Date.UTC(2026, 0, 2, 3) / 1000)
+    expect(parquetPartitionKey('bcycle_x', hourTs)).toBe(
+      'gbfs/bcycle_x/station_status/dt=2026-01-02/03.parquet',
+    )
+  })
+
+  it('handles midnight correctly', () => {
+    const hourTs = Math.floor(Date.UTC(2026, 11, 31, 0) / 1000)
+    expect(parquetPartitionKey('sys', hourTs)).toBe(
+      'gbfs/sys/station_status/dt=2026-12-31/00.parquet',
+    )
+  })
+})
+
+describe('partitionKeysForRange', () => {
+  it('emits one key per hour spanning the window (with 1h pad on each side)', () => {
+    const since = Math.floor(Date.UTC(2026, 4, 13, 12) / 1000)
+    const until = since + 2 * 3600 // 14:00 UTC
+    const keys = partitionKeysForRange('bcycle_sb', since, until)
+    // Pad of 1h before/after means we cover 11..15 UTC inclusive (5 keys)
+    expect(keys).toHaveLength(5)
+    expect(keys[0]).toBe('gbfs/bcycle_sb/station_status/dt=2026-05-13/11.parquet')
+    expect(keys[4]).toBe('gbfs/bcycle_sb/station_status/dt=2026-05-13/15.parquet')
+  })
+
+  it('crosses date boundaries', () => {
+    const since = Math.floor(Date.UTC(2026, 4, 13, 23, 30) / 1000)
+    const until = since + 2 * 3600
+    const keys = partitionKeysForRange('bcycle_sb', since, until)
+    expect(keys.some(k => k.endsWith('dt=2026-05-13/23.parquet'))).toBe(true)
+    expect(keys.some(k => k.endsWith('dt=2026-05-14/01.parquet'))).toBe(true)
+  })
+
+  it('returns a single key when sinceTs and untilTs fall in the same hour', () => {
+    const ts = Math.floor(Date.UTC(2026, 4, 13, 12, 15) / 1000)
+    const keys = partitionKeysForRange('bcycle_sb', ts, ts)
+    // 1h pad each side: hours 11, 12, 13
+    expect(keys).toHaveLength(3)
   })
 })
