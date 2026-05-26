@@ -131,7 +131,7 @@ export default function BikeAnimationLayer({
   matrix,
   cursorTs,
   playing,
-  playbackRate = 60,
+  playbackRate = 1440,
   maxBikes = 80,
   windowStart,
   windowEnd,
