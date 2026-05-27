@@ -213,27 +213,6 @@ export default function SystemTotals({
         </Flex>
       </Flex>
 
-      <Flex
-        alignItems="center"
-        gap="m"
-        wrap="wrap"
-        css={{
-          paddingTop: theme.spacing.xs,
-          borderTop: `1px solid ${theme.color.border.default}`,
-        }}
-      >
-        {lastChangedTs != null && (
-          <Text
-            variant="body"
-            size="xs"
-            color="subdued"
-            title={`Bike count last changed: ${new Date(lastChangedTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}
-          >
-            changed {formatRelative(lastChangedTs, nowSec)}
-          </Text>
-        )}
-      </Flex>
-
       {visibleEvents.length > 0 && (
         <Flex
           direction="column"
