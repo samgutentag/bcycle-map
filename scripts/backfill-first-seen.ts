@@ -33,63 +33,64 @@ function makeKVClient(opts: { accountId: string; namespaceId: string; token: str
 }
 
 /**
- * Scan the first SCAN_DAYS days of parquet partitions to build the full
- * set of "original" station IDs. The very first partition often misses
- * stations that hadn't reported yet, so we scan a wider window.
+ * Scan ALL parquet partitions and find the earliest snapshot_ts for each
+ * station_id. This gives the actual first-seen date, not an approximation.
  */
-const SCAN_DAYS = 3
-
-async function findOriginalStations(
+async function findEarliestPerStation(
   s3: S3Client,
   bucket: string,
   systemId: string,
-): Promise<{ stationIds: Set<string>; earliestTs: number }> {
+): Promise<Map<string, number>> {
   const prefix = `gbfs/${systemId}/station_status/`
+  const earliest = new Map<string, number>()
 
-  const list = await s3.send(new ListObjectsV2Command({
-    Bucket: bucket,
-    Prefix: prefix,
-    MaxKeys: SCAN_DAYS * 24 + 10,
-  }))
+  let continuationToken: string | undefined
+  let totalPartitions = 0
 
-  if (!list.Contents || list.Contents.length === 0) {
-    throw new Error(`No parquet files found under ${prefix}`)
-  }
+  do {
+    const list = await s3.send(new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: prefix,
+      MaxKeys: 1000,
+      ContinuationToken: continuationToken,
+    }))
 
-  const sorted = list.Contents
-    .filter(o => o.Key)
-    .sort((a, b) => a.Key!.localeCompare(b.Key!))
+    const keys = (list.Contents ?? [])
+      .filter(o => o.Key)
+      .sort((a, b) => a.Key!.localeCompare(b.Key!))
 
-  const firstKey = sorted[0]!.Key!
-  console.log(`Earliest partition: ${firstKey}`)
-  console.log(`Scanning first ${Math.min(sorted.length, SCAN_DAYS * 24)} partitions (~${SCAN_DAYS} days)...`)
+    for (const obj of keys) {
+      try {
+        const got = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }))
+        const ab = await got.Body!.transformToByteArray()
+        const rows = await parquetReadObjects({
+          file: ab.buffer as ArrayBuffer,
+          columns: ['snapshot_ts', 'station_id'],
+        }) as ParquetRow[]
 
-  const stationIds = new Set<string>()
-  let minTs = Infinity
-  const toScan = sorted.slice(0, SCAN_DAYS * 24)
+        for (const r of rows) {
+          const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
+          const prev = earliest.get(r.station_id)
+          if (prev === undefined || ts < prev) {
+            earliest.set(r.station_id, ts)
+          }
+        }
+        totalPartitions++
 
-  for (const obj of toScan) {
-    try {
-      const got = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }))
-      const ab = await got.Body!.transformToByteArray()
-      const rows = await parquetReadObjects({
-        file: ab.buffer as ArrayBuffer,
-        columns: ['snapshot_ts', 'station_id'],
-      }) as ParquetRow[]
-
-      for (const r of rows) {
-        stationIds.add(r.station_id)
-        const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
-        if (ts < minTs) minTs = ts
+        if (totalPartitions % 24 === 0) {
+          console.log(`  scanned ${totalPartitions} partitions, ${earliest.size} stations found so far...`)
+        }
+      } catch (e: any) {
+        if (e?.$metadata?.httpStatusCode === 404) continue
+        throw e
       }
-    } catch (e: any) {
-      if (e?.$metadata?.httpStatusCode === 404) continue
-      throw e
     }
-  }
 
-  console.log(`Found ${stationIds.size} stations across ${toScan.length} partitions (earliest ts=${new Date(minTs * 1000).toISOString()})`)
-  return { stationIds, earliestTs: minTs }
+    continuationToken = list.IsTruncated ? list.NextContinuationToken : undefined
+  } while (continuationToken)
+
+  console.log(`Scanned ${totalPartitions} partitions total, found ${earliest.size} unique stations`)
+  return earliest
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -121,30 +122,29 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     })
 
     console.log(`Backfilling first_seen_ts for ${systemId}`)
-    const { stationIds: originalIds, earliestTs } = await findOriginalStations(s3, env.R2_BUCKET!, systemId)
+    console.log('Scanning all partitions to find earliest appearance per station...')
+    const earliestByStation = await findEarliestPerStation(s3, env.R2_BUCKET!, systemId)
 
     const latestKey = `system:${systemId}:latest`
     const raw = await kv.get(latestKey)
     if (!raw) throw new Error(`KV ${latestKey} not found`)
     const parsed = JSON.parse(raw)
 
-    // Set original stations to a date well outside the 14-day "new" window.
-    // Using 30 days before the earliest partition ensures they never show
-    // as new, even if the archive is recent.
-    const backdateTo = earliestTs - 30 * 86400
-    let backdated = 0
-    let kept = 0
+    let updated = 0
+    let missing = 0
     for (const s of parsed.stations) {
-      if (originalIds.has(s.station_id)) {
-        s.first_seen_ts = backdateTo
-        backdated++
+      const ts = earliestByStation.get(s.station_id)
+      if (ts !== undefined) {
+        s.first_seen_ts = ts
+        updated++
       } else {
-        kept++
+        missing++
+        console.log(`  ${s.station_id} (${s.name}): not found in any partition, keeping current first_seen_ts`)
       }
     }
 
-    console.log(`Backdated ${backdated} original stations to ${new Date(backdateTo * 1000).toISOString()}`)
-    console.log(`Kept ${kept} stations with current first_seen_ts (genuinely new)`)
+    console.log(`Updated ${updated} stations with actual earliest appearance`)
+    if (missing > 0) console.log(`${missing} stations not found in archive (brand new or renamed)`)
 
     await kv.put(latestKey, JSON.stringify(parsed))
     console.log(`Wrote patched snapshot to ${latestKey}`)
