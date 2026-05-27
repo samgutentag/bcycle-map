@@ -99,13 +99,14 @@ export default function FlowMap() {
     const lons = valid.map(s => s.lon)
     const minLat = Math.min(...lats), maxLat = Math.max(...lats)
     const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-    const latPad = (maxLat - minLat) * 0.4
-    const lonPad = (maxLon - minLon) * 0.4
+    const latPad = (maxLat - minLat) * 0.15
+    const lonPad = (maxLon - minLon) * 0.15
     const bounds: [[number, number], [number, number]] = [
       [minLon - lonPad, minLat - latPad],
       [maxLon + lonPad, maxLat + latPad],
     ]
     map.fitBounds(bounds, { padding: 0, duration: 0, animate: false })
+    map.setMinZoom(map.getZoom() - 1)
     fitBoundsAppliedRef.current = true
   }, [map, live])
 

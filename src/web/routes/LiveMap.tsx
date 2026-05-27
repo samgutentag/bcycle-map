@@ -411,19 +411,14 @@ export default function LiveMap() {
       const lons = valid.map(s => s.lon)
       const minLat = Math.min(...lats), maxLat = Math.max(...lats)
       const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-      // 3x scale-out: generous padding so portrait phones can pan vertically.
-      const latPad = (maxLat - minLat) * 1.0
-      const lonPad = (maxLon - minLon) * 1.0
-      const bounds: [[number, number], [number, number]] = [
+      const latPad = (maxLat - minLat) * 0.15
+      const lonPad = (maxLon - minLon) * 0.15
+      const fitBounds: [[number, number], [number, number]] = [
         [minLon - lonPad, minLat - latPad],
         [maxLon + lonPad, maxLat + latPad],
       ]
-      map.setMaxBounds(bounds)
-      // padding=0 → bounds fill the viewport exactly. The 1.5x scale is the visual margin.
-      map.fitBounds(bounds, { padding: 0, duration: 0, animate: false })
-      // Lock minZoom to the fit zoom — user can pan within bounds but can't zoom out
-      // past the 1.5x view (which would otherwise reveal empty world map).
-      map.setMinZoom(map.getZoom())
+      map.fitBounds(fitBounds, { padding: 0, duration: 0, animate: false })
+      map.setMinZoom(map.getZoom() - 1)
       boundsSetRef.current = true
     }
 
@@ -557,7 +552,7 @@ export default function LiveMap() {
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       {/* Desktop controls — hidden on mobile, replaced by gear sheet */}
       <div css={{ '@media (max-width: 600px)': { display: 'none' } }}>
-        <BasemapToggle value={basemap} onChange={setBasemap} />
+        {/* <BasemapToggle value={basemap} onChange={setBasemap} /> */}
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
@@ -611,7 +606,7 @@ export default function LiveMap() {
         ⚙
       </button>
       <MobileSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)}>
-        <BasemapToggle value={basemap} onChange={setBasemap} />
+        {/* <BasemapToggle value={basemap} onChange={setBasemap} /> */}
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
