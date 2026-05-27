@@ -225,16 +225,7 @@ export default function Explore() {
         )}
       </Section>
 
-      <Section
-        title="Popular stations"
-        description="Top stations ranked by total departures + arrivals. Toggle between the rolling 30-day window and the all-time leaderboard."
-      >
-        <PopularStationsTile
-          data={leaderboards.data}
-          stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
-          loading={leaderboards.loading}
-        />
-      </Section>
+      {/* Popular stations — hidden until 30+ days of data (#97) */}
 
       <Section
         title="Active riders over time · 7 days"

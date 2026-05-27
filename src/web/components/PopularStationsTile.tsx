@@ -1,10 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Flex, Paper, SegmentedControl, Text } from '@audius/harmony'
+import { Flex, Paper, Text } from '@audius/harmony'
 import { useStableVerb } from '../lib/spinner-verbs'
 import type { Leaderboards } from '@shared/leaderboards'
-
-type WindowKey = '30d' | 'all'
 
 type Props = {
   data: Leaderboards | null
@@ -18,7 +16,6 @@ const STALE_AFTER_SEC = 48 * 3600
 
 export default function PopularStationsTile({ data, stations, loading, nowTs }: Props) {
   const verb = useStableVerb()
-  const [windowKey, setWindowKey] = useState<WindowKey>('30d')
   const nameById = useMemo(() => new Map(stations.map(s => [s.station_id, s.name])), [stations])
 
   if (loading) {
@@ -34,30 +31,15 @@ export default function PopularStationsTile({ data, stations, loading, nowTs }: 
 
   const now = nowTs ?? Math.floor(Date.now() / 1000)
   const isStale = !!data && now - data.generated_at > STALE_AFTER_SEC
-  const win = data?.windows[windowKey]
+  const win = data?.windows['30d']
   const rows = win?.stations ?? []
 
   if (!data || isStale || rows.length === 0) {
-    return (
-      <Flex direction="column" gap="s">
-        <SegmentedControl
-          options={[{ key: '30d', text: '30d' }, { key: 'all', text: 'All' }]}
-          selected={windowKey}
-          onSelectOption={setWindowKey}
-        />
-        <Text variant="body" size="s" color="subdued">Not enough data yet.</Text>
-      </Flex>
-    )
+    return <Text variant="body" size="s" color="subdued">Not enough data yet.</Text>
   }
 
   return (
-    <Flex direction="column" gap="s">
-      <SegmentedControl
-        options={[{ key: '30d', text: '30d' }, { key: 'all', text: 'All' }]}
-        selected={windowKey}
-        onSelectOption={setWindowKey}
-      />
-      <Flex direction="column" gap="xs">
+    <Flex direction="column" gap="xs">
         {rows.map((row, i) => {
           const name = nameById.get(row.station_id) ?? row.station_id
           return (
@@ -112,6 +94,5 @@ export default function PopularStationsTile({ data, stations, loading, nowTs }: 
           )
         })}
       </Flex>
-    </Flex>
   )
 }
