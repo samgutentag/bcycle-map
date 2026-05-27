@@ -142,7 +142,7 @@ export default function SystemTotals({
       <Flex alignItems="center" gap="xs">
         <LiveDot />
         <Text variant="label" size="xs" strength="strong" color="active" textTransform="uppercase">
-          Right now
+          {snapshotTs != null ? `Updated ${formatRelative(snapshotTs, nowSec)}` : 'Live'}
         </Text>
       </Flex>
 
@@ -222,16 +222,6 @@ export default function SystemTotals({
           borderTop: `1px solid ${theme.color.border.default}`,
         }}
       >
-        {snapshotTs != null && (
-          <Text
-            variant="body"
-            size="xs"
-            color="subdued"
-            title={`Last poll: ${new Date(snapshotTs * 1000).toLocaleString(undefined, { timeZone: timezone })}`}
-          >
-            checked {formatRelative(snapshotTs, nowSec)}
-          </Text>
-        )}
         {lastChangedTs != null && (
           <Text
             variant="body"
