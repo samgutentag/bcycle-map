@@ -130,21 +130,35 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (!raw) throw new Error(`KV ${latestKey} not found`)
     const parsed = JSON.parse(raw)
 
-    let updated = 0
+    // Stations present in the first 24h of tracking predate our data —
+    // we can't know their real start date, so backdate them well outside
+    // the 14-day "new" window. Stations that appeared later are genuinely
+    // new and keep their actual first-seen timestamp.
+    const allTs = [...earliestByStation.values()]
+    const archiveStart = Math.min(...allTs)
+    const firstDayCutoff = archiveStart + 86400
+
+    let predating = 0
+    let genuine = 0
     let missing = 0
     for (const s of parsed.stations) {
       const ts = earliestByStation.get(s.station_id)
-      if (ts !== undefined) {
-        s.first_seen_ts = ts
-        updated++
-      } else {
+      if (ts === undefined) {
         missing++
-        console.log(`  ${s.station_id} (${s.name}): not found in any partition, keeping current first_seen_ts`)
+        console.log(`  ${s.station_id} (${s.name}): not in archive, keeping current first_seen_ts`)
+      } else if (ts <= firstDayCutoff) {
+        s.first_seen_ts = archiveStart - 90 * 86400
+        predating++
+      } else {
+        s.first_seen_ts = ts
+        genuine++
       }
     }
 
-    console.log(`Updated ${updated} stations with actual earliest appearance`)
-    if (missing > 0) console.log(`${missing} stations not found in archive (brand new or renamed)`)
+    console.log(`Archive starts: ${new Date(archiveStart * 1000).toISOString()}`)
+    console.log(`${predating} stations predate tracking (backdated to well before 14-day window)`)
+    console.log(`${genuine} stations have actual first-seen dates (genuinely added later)`)
+    if (missing > 0) console.log(`${missing} stations not found in archive`)
 
     await kv.put(latestKey, JSON.stringify(parsed))
     console.log(`Wrote patched snapshot to ${latestKey}`)
