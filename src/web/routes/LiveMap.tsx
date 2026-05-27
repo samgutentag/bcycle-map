@@ -410,9 +410,9 @@ export default function LiveMap() {
       const lons = valid.map(s => s.lon)
       const minLat = Math.min(...lats), maxLat = Math.max(...lats)
       const minLon = Math.min(...lons), maxLon = Math.max(...lons)
-      // 1.5x scale-out: 25% padding on each side of the station bbox.
-      const latPad = (maxLat - minLat) * 0.25
-      const lonPad = (maxLon - minLon) * 0.25
+      // 3x scale-out: generous padding so portrait phones can pan vertically.
+      const latPad = (maxLat - minLat) * 1.0
+      const lonPad = (maxLon - minLon) * 1.0
       const bounds: [[number, number], [number, number]] = [
         [minLon - lonPad, minLat - latPad],
         [maxLon + lonPad, maxLat + latPad],
@@ -591,8 +591,8 @@ export default function LiveMap() {
           all: 'unset',
           cursor: 'pointer',
           position: 'absolute',
-          bottom: `calc(16px + env(safe-area-inset-bottom, 0px))`,
-          right: 16,
+          top: 8,
+          right: 8,
           zIndex: 10,
           width: 40,
           height: 40,
