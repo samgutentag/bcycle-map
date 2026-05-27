@@ -33,10 +33,12 @@ function makeKVClient(opts: { accountId: string; namespaceId: string; token: str
 }
 
 /**
- * Scan R2 to find the earliest parquet partition, read its station IDs,
- * and return the set of "original" station IDs along with the earliest
- * snapshot timestamp found.
+ * Scan the first SCAN_DAYS days of parquet partitions to build the full
+ * set of "original" station IDs. The very first partition often misses
+ * stations that hadn't reported yet, so we scan a wider window.
  */
+const SCAN_DAYS = 3
+
 async function findOriginalStations(
   s3: S3Client,
   bucket: string,
@@ -47,32 +49,46 @@ async function findOriginalStations(
   const list = await s3.send(new ListObjectsV2Command({
     Bucket: bucket,
     Prefix: prefix,
-    MaxKeys: 5,
+    MaxKeys: SCAN_DAYS * 24 + 10,
   }))
 
   if (!list.Contents || list.Contents.length === 0) {
     throw new Error(`No parquet files found under ${prefix}`)
   }
 
-  const earliest = list.Contents.sort((a, b) => (a.Key ?? '').localeCompare(b.Key ?? ''))[0]!
-  console.log(`Earliest partition: ${earliest.Key}`)
+  const sorted = list.Contents
+    .filter(o => o.Key)
+    .sort((a, b) => a.Key!.localeCompare(b.Key!))
 
-  const got = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: earliest.Key }))
-  const ab = await got.Body!.transformToByteArray()
-  const rows = await parquetReadObjects({
-    file: ab.buffer as ArrayBuffer,
-    columns: ['snapshot_ts', 'station_id'],
-  }) as ParquetRow[]
+  const firstKey = sorted[0]!.Key!
+  console.log(`Earliest partition: ${firstKey}`)
+  console.log(`Scanning first ${Math.min(sorted.length, SCAN_DAYS * 24)} partitions (~${SCAN_DAYS} days)...`)
 
   const stationIds = new Set<string>()
   let minTs = Infinity
-  for (const r of rows) {
-    stationIds.add(r.station_id)
-    const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
-    if (ts < minTs) minTs = ts
+  const toScan = sorted.slice(0, SCAN_DAYS * 24)
+
+  for (const obj of toScan) {
+    try {
+      const got = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: obj.Key }))
+      const ab = await got.Body!.transformToByteArray()
+      const rows = await parquetReadObjects({
+        file: ab.buffer as ArrayBuffer,
+        columns: ['snapshot_ts', 'station_id'],
+      }) as ParquetRow[]
+
+      for (const r of rows) {
+        stationIds.add(r.station_id)
+        const ts = typeof r.snapshot_ts === 'bigint' ? Number(r.snapshot_ts) : r.snapshot_ts
+        if (ts < minTs) minTs = ts
+      }
+    } catch (e: any) {
+      if (e?.$metadata?.httpStatusCode === 404) continue
+      throw e
+    }
   }
 
-  console.log(`Found ${stationIds.size} stations in earliest partition (ts=${new Date(minTs * 1000).toISOString()})`)
+  console.log(`Found ${stationIds.size} stations across ${toScan.length} partitions (earliest ts=${new Date(minTs * 1000).toISOString()})`)
   return { stationIds, earliestTs: minTs }
 }
 
