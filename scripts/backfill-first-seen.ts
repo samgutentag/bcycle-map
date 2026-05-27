@@ -112,18 +112,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (!raw) throw new Error(`KV ${latestKey} not found`)
     const parsed = JSON.parse(raw)
 
+    // Set original stations to a date well outside the 14-day "new" window.
+    // Using 30 days before the earliest partition ensures they never show
+    // as new, even if the archive is recent.
+    const backdateTo = earliestTs - 30 * 86400
     let backdated = 0
     let kept = 0
     for (const s of parsed.stations) {
       if (originalIds.has(s.station_id)) {
-        s.first_seen_ts = earliestTs
+        s.first_seen_ts = backdateTo
         backdated++
       } else {
         kept++
       }
     }
 
-    console.log(`Backdated ${backdated} original stations to ${new Date(earliestTs * 1000).toISOString()}`)
+    console.log(`Backdated ${backdated} original stations to ${new Date(backdateTo * 1000).toISOString()}`)
     console.log(`Kept ${kept} stations with current first_seen_ts (genuinely new)`)
 
     await kv.put(latestKey, JSON.stringify(parsed))
