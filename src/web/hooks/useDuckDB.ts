@@ -7,8 +7,13 @@ type State = {
   error: Error | null
 }
 
-// Singleton promise — first caller initializes, subsequent callers reuse.
+// Singleton promise — init starts eagerly on first import so the WASM
+// download overlaps with React mount + data fetches.
 let _connPromise: Promise<AsyncDuckDBConnection> | null = null
+
+export function prefetchDuckDB() {
+  if (!_connPromise) _connPromise = initDuckDB()
+}
 
 async function initDuckDB(): Promise<AsyncDuckDBConnection> {
   const duckdb = await import('@duckdb/duckdb-wasm')

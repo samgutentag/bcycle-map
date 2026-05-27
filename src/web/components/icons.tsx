@@ -150,4 +150,78 @@ export function IconFlow({ size = 'm', color, className, ...rest }: IconProps) {
   )
 }
 
+export function IconSignpost({ size = 'm', color, className, ...rest }: IconProps) {
+  const px = ICON_PX[size]
+  const stroke = useIconColor(color)
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden={rest['aria-label'] ? undefined : true}
+      role={rest['aria-label'] ? 'img' : undefined}
+      {...rest}
+    >
+      <path d="M12 3v18" />
+      <path d="M6 7h10l2 2-2 2H6V7z" />
+      <path d="M18 15H8l-2 2 2 2h10V15z" />
+    </svg>
+  )
+}
+
+export function IconLivePin({ size = 'm', color, className, ...rest }: IconProps) {
+  const px = ICON_PX[size]
+  const stroke = useIconColor(color)
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden={rest['aria-label'] ? undefined : true}
+      role={rest['aria-label'] ? 'img' : undefined}
+      {...rest}
+    >
+      <path d="M12 22s-7-6.2-7-12a7 7 0 1 1 14 0c0 5.8-7 12-7 12z" />
+      <circle cx={12} cy={10} r={2.5} fill={stroke} stroke="none" />
+    </svg>
+  )
+}
+
+export function IconBarChart({ size = 'm', color, className, ...rest }: IconProps) {
+  const px = ICON_PX[size]
+  const stroke = useIconColor(color)
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={stroke}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden={rest['aria-label'] ? undefined : true}
+      role={rest['aria-label'] ? 'img' : undefined}
+      {...rest}
+    >
+      <rect x={4} y={13} width={4} height={8} rx={0.5} />
+      <rect x={10} y={7} width={4} height={14} rx={0.5} />
+      <rect x={16} y={3} width={4} height={18} rx={0.5} />
+    </svg>
+  )
+}
+
 export type CustomIconComponent = typeof IconBike

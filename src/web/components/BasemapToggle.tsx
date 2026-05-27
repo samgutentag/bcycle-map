@@ -26,7 +26,7 @@ export default function BasemapToggle({ value, onChange }: Props) {
         all: 'unset',
         cursor: 'pointer',
         position: 'absolute',
-        bottom: 16,
+        bottom: `calc(16px + env(safe-area-inset-bottom, 0px))`,
         right: 16,
         zIndex: 10,
         padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
@@ -41,6 +41,11 @@ export default function BasemapToggle({ value, onChange }: Props) {
         transition: `background ${theme.motion.quick}, color ${theme.motion.quick}, box-shadow ${theme.motion.quick}`,
         '&:hover': { boxShadow: theme.shadows.far },
         '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 2 },
+        '[role="dialog"] &': {
+          position: 'static',
+          width: '100%',
+          justifyContent: 'center',
+        },
       }}
     >
       <Flex alignItems="center" gap="xs">

@@ -167,6 +167,8 @@ export default function FlowTimelineScrubber({
         borderTop: `1px solid ${theme.color.border.default}`,
         '@media (max-width: 600px)': {
           padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+          borderTop: 'none',
+          borderBottom: `1px solid ${theme.color.border.default}`,
         },
       }}
     >

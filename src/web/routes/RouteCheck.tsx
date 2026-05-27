@@ -9,9 +9,10 @@ import {
   Text,
   useTheme,
 } from '@audius/harmony'
-import { IconBike } from '../components/icons'
+import { IconSignpost } from '../components/icons'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import { useStationOverTime } from '../hooks/useStationOverTime'
+import { prefetchDuckDB } from '../hooks/useDuckDB'
 import { useTravelMatrix, lookupTravelTime } from '../hooks/useTravelMatrix'
 import { useRoutePopularity } from '../hooks/useRoutePopularity'
 import { useRouteCache } from '../hooks/useRouteCache'
@@ -19,7 +20,7 @@ import { useActivity } from '../hooks/useActivity'
 import TripRouteModal from '../components/TripRouteModal'
 import { lookupRoute } from '@shared/route-cache'
 import { lookupPairStat } from '@shared/popularity'
-import DateRangePicker from '../components/DateRangePicker'
+// DateRangePicker removed — hardcoded to 24h for faster loading
 import StationPicker from '../components/StationPicker'
 import StationOverTimeChart from '../components/StationOverTimeChart'
 import TravelTimeBadge from '../components/TravelTimeBadge'
@@ -27,7 +28,9 @@ import AvgTripDurationBadge from '../components/AvgTripDurationBadge'
 import TripRouteMap from '../components/TripRouteMap'
 import LiveDot from '../components/LiveDot'
 import ChartSkeleton from '../components/ChartSkeleton'
-import { resolveRange, type Preset } from '../lib/date-range'
+import { resolveRange } from '../lib/date-range'
+
+prefetchDuckDB()
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -172,9 +175,8 @@ export default function RouteCheck() {
   const popularity = useRoutePopularity(R2_BASE, SYSTEM_ID)
   const routeCache = useRouteCache(R2_BASE, SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)
-  const [preset, setPreset] = useState<Preset>('24h')
   const [now] = useState(() => Math.floor(Date.now() / 1000))
-  const range = useMemo(() => resolveRange(preset, now), [preset, now])
+  const range = useMemo(() => resolveRange('24h', now), [now])
   const [hover, setHover] = useState<HoverState | null>(null)
   const [openTripFromHistory, setOpenTripFromHistory] = useState<Trip | null>(null)
 
@@ -257,24 +259,21 @@ export default function RouteCheck() {
         },
       }}
     >
-      <Flex alignItems="flex-end" justifyContent="space-between" gap="m" wrap="wrap">
-        <Flex direction="column" gap="xs">
-          <Flex alignItems="center" gap="s">
-            <IconBike size="m" color="subdued" />
-            <Text
-              variant="display"
-              size="s"
-              strength="strong"
-              color="heading"
-              css={{ '@media (max-width: 600px)': { fontSize: 24, lineHeight: '1.2' } }}
-            >Route check</Text>
-          </Flex>
-          <Text variant="body" size="s" color="subdued">
-            Pick a start and a destination. Hover either chart to see the matching time on the other,
-            offset by your bike-ride duration.
-          </Text>
+      <Flex direction="column" gap="xs">
+        <Flex alignItems="center" gap="s">
+          <IconSignpost size="m" color="subdued" />
+          <Text
+            variant="display"
+            size="s"
+            strength="strong"
+            color="heading"
+            css={{ '@media (max-width: 600px)': { fontSize: 24, lineHeight: '1.2' } }}
+          >Route check</Text>
         </Flex>
-        <DateRangePicker value={preset} onChange={setPreset} />
+        <Text variant="body" size="s" color="subdued">
+          Pick a start and a destination. Hover either chart to see the matching time on the other,
+          offset by your bike-ride duration.
+        </Text>
       </Flex>
 
       <Box css={{
@@ -385,17 +384,6 @@ export default function RouteCheck() {
         meanSec={lookupPairStat(popularity.data, startId, endId)?.mean_sec ?? null}
       />
 
-      {startId && endId && (
-        <RouteHistorySection
-          activity={activity.data}
-          fromId={startId}
-          toId={endId}
-          matrix={matrix.data}
-          timezone={timezone}
-          onTripClick={setOpenTripFromHistory}
-        />
-      )}
-
       <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
         <Text variant="title" size="s" strength="strong" color="heading">
           Destination: {destStation?.name ?? <Text tag="span" color="subdued">(no station selected)</Text>}
@@ -422,6 +410,17 @@ export default function RouteCheck() {
           />
         )}
       </Paper>
+
+      {startId && endId && (
+        <RouteHistorySection
+          activity={activity.data}
+          fromId={startId}
+          toId={endId}
+          matrix={matrix.data}
+          timezone={timezone}
+          onTripClick={setOpenTripFromHistory}
+        />
+      )}
 
       <Text variant="body" size="xs" color="subdued">
         Tip: the URL stays in sync with your selections. Bookmark{' '}

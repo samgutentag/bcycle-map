@@ -76,6 +76,11 @@ export default function MapFilterChips({
         alignItems: 'center',
         gap: theme.spacing.xs,
         pointerEvents: 'none',
+        '[role="dialog"] &': {
+          position: 'static',
+          transform: 'none',
+          pointerEvents: 'auto',
+        },
       }}
     >
       <Flex

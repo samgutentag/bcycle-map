@@ -13,6 +13,7 @@ import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import TypicalComparisonToggle from '../components/TypicalComparisonToggle'
 import PollPinger from '../components/PollPinger'
 import MapFilterChips from '../components/MapFilterChips'
+import MobileSettingsSheet from '../components/MobileSettingsSheet'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import { buildCorridorMap, type CorridorId } from '../config/corridors'
@@ -177,6 +178,8 @@ export default function LiveMap() {
       // still works in-session, the choice just won't persist.
     }
   }, [])
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
   // Filter chips. URL-driven (`?bikes=N&corridor=…`) so links are shareable
   // and round-trip safely across reloads.
   const filters = useMemo(() => readFiltersFromSearch(searchParams), [searchParams])
@@ -513,23 +516,25 @@ export default function LiveMap() {
   }, [])
 
   return (
-    <div className="relative w-full h-[calc(100vh-49px)]">
+    <div className="relative w-full" style={{ height: 'calc(100dvh - 49px)' }}>
       <div ref={ref} className="absolute inset-0" />
       {/* Heatmap view toggle is wired up below but the button is hidden for
          now; bring back once we revisit the heatmap UI direction. */}
       {/* <MapViewToggle value={view} onChange={setView} /> */}
-      <BasemapToggle value={basemap} onChange={setBasemap} />
-      {/* <TypicalComparisonToggle value={showTypical} onChange={setShowTypical} /> */}
+      {/* Desktop controls — hidden on mobile, replaced by gear sheet */}
+      <div css={{ '@media (max-width: 600px)': { display: 'none' } }}>
+        <BasemapToggle value={basemap} onChange={setBasemap} />
+        <MapFilterChips
+          minBikes={filters.minBikes}
+          corridor={filters.corridor}
+          onCorridorChange={setCorridor}
+          onMinBikesChange={setMinBikes}
+          onReset={resetFilters}
+          filteredCount={visibleStations.length}
+          totalCount={data?.stations.length ?? 0}
+        />
+      </div>
       <PollPinger data={data} />
-      <MapFilterChips
-        minBikes={filters.minBikes}
-        corridor={filters.corridor}
-        onCorridorChange={setCorridor}
-        onMinBikesChange={setMinBikes}
-        onReset={resetFilters}
-        filteredCount={visibleStations.length}
-        totalCount={data?.stations.length ?? 0}
-      />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && (
         <SystemTotals
@@ -543,6 +548,46 @@ export default function LiveMap() {
           recentEvents={activity?.events ?? []}
         />
       )}
+      {/* Mobile gear button */}
+      <button
+        type="button"
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Map settings"
+        title="Settings"
+        css={{
+          all: 'unset',
+          cursor: 'pointer',
+          position: 'absolute',
+          bottom: `calc(16px + env(safe-area-inset-bottom, 0px))`,
+          right: 16,
+          zIndex: 10,
+          width: 40,
+          height: 40,
+          borderRadius: '50%',
+          display: 'none',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--app-bg-surface, white)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+          border: '1px solid rgba(0,0,0,0.08)',
+          fontSize: 18,
+          '@media (max-width: 600px)': { display: 'inline-flex' },
+        }}
+      >
+        ⚙
+      </button>
+      <MobileSettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)}>
+        <BasemapToggle value={basemap} onChange={setBasemap} />
+        <MapFilterChips
+          minBikes={filters.minBikes}
+          corridor={filters.corridor}
+          onCorridorChange={setCorridor}
+          onMinBikesChange={setMinBikes}
+          onReset={resetFilters}
+          filteredCount={visibleStations.length}
+          totalCount={data?.stations.length ?? 0}
+        />
+      </MobileSettingsSheet>
     </div>
   )
 }

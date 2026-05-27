@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Flex, Paper, Text, useTheme } from '@audius/harmony'
 import type { ActivityEvent, HourBikeStats, StationSnapshot } from '@shared/types'
@@ -103,6 +103,9 @@ export default function SystemTotals({
   const hoveredActiveVal = hover?.series === 'active' && hoveredHour ? activeSeries[hover.index] : null
   const hoveredLabel = hoveredHour ? formatHourLabel(hoveredHour.hour_ts, timezone) : null
 
+  const [activityExpanded, setActivityExpanded] = useState(false)
+  const toggleActivity = useCallback(() => setActivityExpanded(p => !p), [])
+
   const overlayCss =
     variant === 'overlay'
       ? {
@@ -111,14 +114,19 @@ export default function SystemTotals({
           right: 16,
           minWidth: 280,
           maxWidth: 340,
-          // The card now hosts the recent-activity list, so it can grow tall.
-          // Cap its max height so it doesn't dominate the whole right side on
-          // shorter viewports; the activity section scrolls internally if it
-          // overflows.
-          maxHeight: 'calc(100vh - 80px)',
+          maxHeight: 'calc(100dvh - 80px)',
           overflow: 'auto',
           backdropFilter: 'saturate(160%) blur(8px)',
           background: `color-mix(in srgb, ${theme.color.background.white} 92%, transparent)`,
+          '@media (max-width: 600px)': {
+            top: 8,
+            right: 8,
+            left: 8,
+            minWidth: 0,
+            maxWidth: 'none',
+            maxHeight: 'none',
+            overflow: 'visible',
+          },
         }
       : { background: theme.color.background.white }
 
@@ -248,7 +256,38 @@ export default function SystemTotals({
           data-testid="system-totals-recent-activity"
         >
           <Flex alignItems="center" justifyContent="space-between">
-            <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">
+            <button
+              type="button"
+              onClick={toggleActivity}
+              css={{
+                all: 'unset',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                '@media (min-width: 601px)': { display: 'none' },
+              }}
+            >
+              <Text variant="label" size="xs" strength="strong" color="subdued" textTransform="uppercase">
+                Recent activity
+              </Text>
+              <span css={{
+                fontSize: 10,
+                color: theme.color.text.subdued,
+                transition: 'transform 150ms',
+                transform: activityExpanded ? 'rotate(180deg)' : 'rotate(0)',
+              }}>
+                ▼
+              </span>
+            </button>
+            <Text
+              variant="label"
+              size="xs"
+              strength="strong"
+              color="subdued"
+              textTransform="uppercase"
+              css={{ '@media (max-width: 600px)': { display: 'none' } }}
+            >
               Recent activity
             </Text>
             <Link
@@ -266,7 +305,19 @@ export default function SystemTotals({
               View more →
             </Link>
           </Flex>
-          <Flex direction="column" gap="2xs" as="ul" css={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          <Flex
+            direction="column"
+            gap="2xs"
+            as="ul"
+            css={{
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              '@media (max-width: 600px)': {
+                display: activityExpanded ? 'flex' : 'none',
+              },
+            }}
+          >
             {visibleEvents.map(ev => {
               const isOut = ev.type === 'departure'
               const name = stationNameById.get(ev.station_id) ?? ev.station_id

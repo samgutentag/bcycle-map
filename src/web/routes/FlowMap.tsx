@@ -249,7 +249,12 @@ export default function FlowMap() {
   }, [tripsLoading, routes.loading, trips.length, aliveCount, poolStartedCount])
 
   return (
-    <Flex direction="column" css={{ height: 'calc(100vh - 49px)' }}>
+    <Flex direction="column" css={{
+      height: 'calc(100dvh - 49px)',
+      '@media (max-width: 600px)': {
+        flexDirection: 'column-reverse',
+      },
+    }}>
       <div
         ref={containerRef}
         css={{

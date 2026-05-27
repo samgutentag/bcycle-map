@@ -3,9 +3,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
 import {
   Box,
   Flex,
-  IconExplore,
   IconInfo,
-  IconRadar,
   LoadingSpinner,
   Text,
   useTheme,
@@ -16,7 +14,7 @@ import { UnitSystemProvider } from './hooks/useUnitSystem'
 import AboutModal from './components/AboutModal'
 import BrandMark from './components/BrandMark'
 import ThemeToggle from './components/ThemeToggle'
-import { IconBike, IconFlow } from './components/icons'
+import { IconLivePin, IconSignpost, IconFlow, IconBarChart } from './components/icons'
 import type { ComponentType } from 'react'
 import { useStableVerb } from './lib/spinner-verbs'
 
@@ -40,10 +38,10 @@ type NavIcon = ComponentType<any>
 type NavSpec = { to: string; label: string; Icon: NavIcon; matchPrefix?: string }
 
 const PRIMARY_NAV: NavSpec[] = [
-  { to: '/', label: 'Live', Icon: IconRadar, matchPrefix: '/station' },
-  { to: '/route', label: 'Route', Icon: IconBike },
+  { to: '/', label: 'Live', Icon: IconLivePin, matchPrefix: '/station' },
+  { to: '/route', label: 'Route', Icon: IconSignpost },
   { to: '/flow', label: 'Flow', Icon: IconFlow },
-  { to: '/explore', label: 'Explore', Icon: IconExplore, matchPrefix: '/activity' },
+  { to: '/explore', label: 'Explore', Icon: IconBarChart, matchPrefix: '/activity' },
 ]
 
 function PrimaryNavLink({ to, label, Icon, matchPrefix }: NavSpec) {
