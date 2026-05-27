@@ -38,7 +38,7 @@ export default function MobileSettingsSheet({ open, onClose, children }: Props) 
         zIndex: 50,
         background: 'rgba(0,0,0,0.35)',
         display: 'flex',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         justifyContent: 'center',
       }}
     >
@@ -47,14 +47,13 @@ export default function MobileSettingsSheet({ open, onClose, children }: Props) 
         role="dialog"
         aria-label="Map settings"
         css={{
-          width: '100%',
-          maxWidth: 480,
+          width: 'calc(100% - 32px)',
+          maxWidth: 360,
           maxHeight: '60dvh',
           overflow: 'auto',
           background: theme.color.background.white,
-          borderRadius: `${theme.cornerRadius.l}px ${theme.cornerRadius.l}px 0 0`,
+          borderRadius: theme.cornerRadius.l,
           padding: theme.spacing.l,
-          paddingBottom: `calc(${theme.spacing.l}px + env(safe-area-inset-bottom, 0px))`,
           boxShadow: theme.shadows.far,
         }}
       >
