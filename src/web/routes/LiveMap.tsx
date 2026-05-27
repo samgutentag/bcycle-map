@@ -12,9 +12,7 @@ import MapViewToggle, { type MapView } from '../components/MapViewToggle'
 import BasemapToggle, { type Basemap } from '../components/BasemapToggle'
 import TypicalComparisonToggle from '../components/TypicalComparisonToggle'
 import PollPinger from '../components/PollPinger'
-import NearbyStationsSheet from '../components/NearbyStationsSheet'
 import MapFilterChips from '../components/MapFilterChips'
-import { IconLocationPin } from '../components/icons'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import { buildCorridorMap, type CorridorId } from '../config/corridors'
@@ -179,18 +177,6 @@ export default function LiveMap() {
       // still works in-session, the choice just won't persist.
     }
   }, [])
-  // Nearby-stations sheet toggle. URL-driven (`?nearby=open`) to mirror the
-  // ActivityDrawer pattern so the state survives reload/share.
-  const nearbyOpen = searchParams.get('nearby') === 'open'
-  const setNearbyOpen = useCallback((next: boolean) => {
-    setSearchParams(prev => {
-      const updated = new URLSearchParams(prev)
-      if (next) updated.set('nearby', 'open')
-      else updated.delete('nearby')
-      return updated
-    }, { replace: true })
-  }, [setSearchParams])
-
   // Filter chips. URL-driven (`?bikes=N&corridor=…`) so links are shareable
   // and round-trip safely across reloads.
   const filters = useMemo(() => readFiltersFromSearch(searchParams), [searchParams])
@@ -533,7 +519,7 @@ export default function LiveMap() {
          now; bring back once we revisit the heatmap UI direction. */}
       {/* <MapViewToggle value={view} onChange={setView} /> */}
       <BasemapToggle value={basemap} onChange={setBasemap} />
-      <TypicalComparisonToggle value={showTypical} onChange={setShowTypical} />
+      {/* <TypicalComparisonToggle value={showTypical} onChange={setShowTypical} /> */}
       <PollPinger data={data} />
       <MapFilterChips
         minBikes={filters.minBikes}
@@ -544,42 +530,6 @@ export default function LiveMap() {
         filteredCount={visibleStations.length}
         totalCount={data?.stations.length ?? 0}
       />
-      {/* Nearby-stations trigger sits in the bottom-right control strip
-         alongside the basemap toggle. Top-right is now reserved for the
-         SystemTotals card; secondary controls cluster at the opposite
-         corner. Active state mirrors the cycling-routes button. */}
-      <button
-        type="button"
-        onClick={() => setNearbyOpen(!nearbyOpen)}
-        aria-pressed={nearbyOpen}
-        aria-label={nearbyOpen ? 'Close nearby stations' : 'Find stations near me'}
-        title={nearbyOpen ? 'Close nearby stations' : 'Find stations near me'}
-        data-testid="nearby-trigger"
-        css={{
-          all: 'unset',
-          cursor: 'pointer',
-          position: 'absolute',
-          bottom: 16,
-          right: 168,
-          zIndex: 10,
-          padding: '6px 10px',
-          borderRadius: 6,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-          border: `1px solid ${nearbyOpen ? '#0d6cb0' : 'rgba(0,0,0,0.08)'}`,
-          background: nearbyOpen ? '#0d6cb0' : 'var(--app-bg-surface, white)',
-          color: nearbyOpen ? 'white' : 'var(--app-text-default, #222)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          transition: 'background 120ms, color 120ms, box-shadow 120ms',
-          '&:hover': { boxShadow: '0 2px 6px rgba(0,0,0,0.18)' },
-        }}
-      >
-        <IconLocationPin size="s" color="inherit" />
-        <span css={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.02em' }}>
-          Near me
-        </span>
-      </button>
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && (
         <SystemTotals
@@ -593,11 +543,6 @@ export default function LiveMap() {
           recentEvents={activity?.events ?? []}
         />
       )}
-      <NearbyStationsSheet
-        stations={data?.stations ?? []}
-        open={nearbyOpen}
-        onOpenChange={setNearbyOpen}
-      />
     </div>
   )
 }
