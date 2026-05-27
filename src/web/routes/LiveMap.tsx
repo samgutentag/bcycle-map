@@ -563,7 +563,6 @@ export default function LiveMap() {
           totalCount={data?.stations.length ?? 0}
         />
       </div>
-      <PollPinger data={data} />
       {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
       {data && (
         <SystemTotals
