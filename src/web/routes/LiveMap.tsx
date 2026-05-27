@@ -545,7 +545,7 @@ export default function LiveMap() {
   }, [])
 
   return (
-    <div className="relative w-full" style={{ height: 'calc(100dvh - 49px)' }}>
+    <div className="relative w-full" style={{ height: 'calc(100dvh - 49px)', overflow: 'hidden' }}>
       <div ref={ref} className="absolute inset-0" />
       {/* Heatmap view toggle is wired up below but the button is hidden for
          now; bring back once we revisit the heatmap UI direction. */}

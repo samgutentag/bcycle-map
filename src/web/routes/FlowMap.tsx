@@ -252,6 +252,7 @@ export default function FlowMap() {
   return (
     <Flex direction="column" css={{
       height: 'calc(100dvh - 49px)',
+      overflow: 'hidden',
       '@media (max-width: 600px)': {
         flexDirection: 'column-reverse',
       },

@@ -114,8 +114,7 @@ export default function SystemTotals({
           right: 16,
           minWidth: 280,
           maxWidth: 340,
-          maxHeight: 'calc(100dvh - 80px)',
-          overflow: 'auto',
+          overflow: 'hidden',
           backdropFilter: 'saturate(160%) blur(8px)',
           background: `color-mix(in srgb, ${theme.color.background.white} 92%, transparent)`,
           '@media (max-width: 600px)': {
