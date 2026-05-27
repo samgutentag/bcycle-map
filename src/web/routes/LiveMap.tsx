@@ -563,7 +563,7 @@ export default function LiveMap() {
           totalCount={data?.stations.length ?? 0}
         />
       </div>
-      {data && <StalenessBadge ageSec={ageSec} snapshotTs={data.snapshot_ts} />}
+      {/* StalenessBadge removed — the live tile header shows "Updated Xm ago" */}
       {data && (
         <SystemTotals
           stations={data.stations}
