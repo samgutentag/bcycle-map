@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import type { StationSnapshot, Trip, ActivityLog as ActivityLogData } from '@shared/types'
 import {
@@ -179,6 +179,13 @@ export default function RouteCheck() {
   const range = useMemo(() => resolveRange('24h', now), [now])
   const [hover, setHover] = useState<HoverState | null>(null)
   const [openTripFromHistory, setOpenTripFromHistory] = useState<Trip | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const copyLink = useCallback(() => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    })
+  }, [])
 
   const [nowTick, setNowTick] = useState(() => Math.floor(Date.now() / 1000))
   useEffect(() => {
@@ -329,20 +336,46 @@ export default function RouteCheck() {
       )}
 
       {startStation && destStation && (
-        <Paper p="0" borderRadius="m" shadow="near" border="default" direction="column" css={{ overflow: 'hidden' }}>
-          <TripRouteMap
-            from={startStation}
-            to={destStation}
-            routeEdge={routeEdge}
-            stations={stations}
-            className="h-64 sm:h-80 w-full bg-neutral-100"
-          />
-          {!routeEdge && (
-            <Text variant="body" size="xs" color="subdued" css={{ padding: theme.spacing.s, textAlign: 'center' }}>
-              Approximate route — bike directions not yet cached for this pair.
-            </Text>
-          )}
-        </Paper>
+        <>
+          <Paper p="0" borderRadius="m" shadow="near" border="default" direction="column" css={{ overflow: 'hidden' }}>
+            <TripRouteMap
+              from={startStation}
+              to={destStation}
+              routeEdge={routeEdge}
+              stations={stations}
+              className="h-64 sm:h-80 w-full bg-neutral-100"
+            />
+            {!routeEdge && (
+              <Text variant="body" size="xs" color="subdued" css={{ padding: theme.spacing.s, textAlign: 'center' }}>
+                Approximate route — bike directions not yet cached for this pair.
+              </Text>
+            )}
+          </Paper>
+          <button
+            type="button"
+            onClick={copyLink}
+            css={{
+              all: 'unset',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              alignSelf: 'flex-start',
+              gap: theme.spacing.xs,
+              padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+              borderRadius: theme.cornerRadius.s,
+              border: `1px solid ${theme.color.border.default}`,
+              background: linkCopied ? theme.color.background.accent : theme.color.background.white,
+              color: linkCopied ? theme.color.text.staticWhite : theme.color.text.default,
+              fontSize: 12,
+              fontWeight: 600,
+              transition: `background 150ms, color 150ms`,
+              '&:hover': { background: linkCopied ? undefined : theme.color.background.surface1 },
+              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+            }}
+          >
+            {linkCopied ? '✓ Copied!' : '🔗 Copy link to this route'}
+          </button>
+        </>
       )}
 
       <Paper p="m" borderRadius="m" shadow="near" border="default" direction="column" gap="s">
@@ -422,17 +455,6 @@ export default function RouteCheck() {
         />
       )}
 
-      <Text variant="body" size="xs" color="subdued">
-        Tip: the URL stays in sync with your selections. Bookmark{' '}
-        <code css={{
-          background: theme.color.background.surface1,
-          padding: '1px 6px',
-          borderRadius: theme.cornerRadius.xs,
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          fontSize: 11,
-        }}>/route/&lt;start&gt;/&lt;destination&gt;</code>{' '}
-        to come back to a specific pair.
-      </Text>
       {openTripFromHistory && (
         <TripRouteModal
           trip={openTripFromHistory}

@@ -116,8 +116,22 @@ export async function writeSnapshotToKV(kv: KVNamespace, r2: R2Bucket, snap: KVV
     ? (totalBikesNow !== totalBikesPrev ? snap.snapshot_ts : (prev.last_total_changed_ts ?? snap.snapshot_ts))
     : snap.snapshot_ts
 
+  // Stamp first_seen_ts on each station. New stations get the current
+  // snapshot time; existing stations carry forward their prior value.
+  const prevFirstSeen = new Map<string, number>()
+  if (prev) {
+    for (const s of prev.stations) {
+      if (s.first_seen_ts) prevFirstSeen.set(s.station_id, s.first_seen_ts)
+    }
+  }
+  const stationsWithFirstSeen = snap.stations.map(s => ({
+    ...s,
+    first_seen_ts: prevFirstSeen.get(s.station_id) ?? snap.snapshot_ts,
+  }))
+
   const enriched: KVValue = {
     ...snap,
+    stations: stationsWithFirstSeen,
     max_bikes_ever: maxBikesEver,
     recent24h: recent,
     last_total_changed_ts: lastTotalChangedTs,

@@ -24,6 +24,9 @@ export type StationDynamic = {
   is_renting: boolean
   is_returning: boolean
   last_reported: number
+  /** Unix seconds when this station first appeared in the GBFS feed.
+   *  Populated by the poller; absent for stations that pre-date this field. */
+  first_seen_ts?: number
 }
 
 export type StationSnapshot = StationStatic & StationDynamic

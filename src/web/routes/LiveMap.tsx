@@ -443,7 +443,9 @@ export default function LiveMap() {
       // treats that as 'unavailable' → no ring (the safe default).
       const profile = showTypical ? typicalProfiles.get(s.station_id) ?? null : null
       const ringTone = ringToneFor(classifyTypical(s.num_bikes_available, profile).verdict)
-      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline, ringTone })
+      const NEW_STATION_SEC = 14 * 86400
+      const isNew = !!s.first_seen_ts && (Math.floor(Date.now() / 1000) - s.first_seen_ts) < NEW_STATION_SEC
+      const svg = buildPinSVG(s.num_bikes_available, s.num_docks_available, { offline, ringTone, isNew })
 
       let marker = markersRef.current.get(s.station_id)
       let el: HTMLElement
@@ -460,8 +462,39 @@ export default function LiveMap() {
 
       el.style.width = `${width}px`
       el.style.height = `${height}px`
-      el.innerHTML = svg
+      el.innerHTML = ''
       el.title = `${s.name}: ${s.num_bikes_available} bikes / ${s.num_docks_available} docks (total ${total})`
+
+      const wrapper = document.createElement('div')
+      wrapper.style.position = 'relative'
+      wrapper.style.width = '100%'
+      wrapper.style.height = '100%'
+      wrapper.innerHTML = svg
+
+      if (isNew) {
+        const badge = document.createElement('span')
+        badge.textContent = 'NEW'
+        Object.assign(badge.style, {
+          position: 'absolute',
+          top: '-6px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#f59e0b',
+          color: 'white',
+          fontSize: '7px',
+          fontWeight: '800',
+          padding: '1px 4px',
+          borderRadius: '4px',
+          letterSpacing: '0.05em',
+          lineHeight: '1.2',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+        })
+        wrapper.appendChild(badge)
+      }
+
+      el.appendChild(wrapper)
 
       // rebind click each render so the closure captures the latest station snapshot
       el.onclick = (ev) => {

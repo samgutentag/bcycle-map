@@ -12,6 +12,7 @@ import {
 } from '@audius/harmony'
 import { useLiveSnapshot } from '../hooks/useLiveSnapshot'
 import SystemTotals from '../components/SystemTotals'
+import NewStationsSection from '../components/NewStationsSection'
 import ActiveRidersOverTime from '../components/ActiveRidersOverTime'
 import HourOfWeekHeatmap from '../components/HourOfWeekHeatmap'
 import TravelTimeHeatmap from '../components/TravelTimeHeatmap'
@@ -179,6 +180,13 @@ export default function Explore() {
           snapshotTs={live.snapshot_ts}
           lastChangedTs={live.last_total_changed_ts}
           variant="inline"
+        />
+      )}
+
+      {live && (
+        <NewStationsSection
+          stations={live.stations}
+          nowSec={Math.floor(Date.now() / 1000)}
         />
       )}
 

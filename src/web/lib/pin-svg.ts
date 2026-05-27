@@ -6,6 +6,8 @@ const PIN_FILL = '#0d6cb0'        // BCycle-ish brand blue
 const PIN_STROKE = '#0a5896'
 const PIN_FILL_OFFLINE = '#9ca3af' // neutral-400 for offline stations
 const PIN_STROKE_OFFLINE = '#6b7280'
+const PIN_FILL_NEW = '#f59e0b'     // amber-500 for new stations
+const PIN_STROKE_NEW = '#d97706'
 
 // Typical-comparison ring colors (#39). Picked to read clearly against both
 // Positron and CyclOSM while staying obviously distinct from the offline
@@ -34,21 +36,14 @@ export type PinRingTone = 'success' | 'warning'
 
 export type PinOptions = {
   offline?: boolean
-  /**
-   * Optional ring around the pin indicating how the current bike count
-   * compares to typical for this hour:
-   *   - 'success' → above typical (green)
-   *   - 'warning' → below typical (amber)
-   * Omit for no ring (within epsilon, no baseline, or feature toggled off).
-   * The ring is suppressed automatically when `offline` is true so it can't
-   * be confused with the grey offline treatment.
-   */
+  /** Station was recently added to the system. Renders amber fill. */
+  isNew?: boolean
   ringTone?: PinRingTone | null
 }
 
 export function buildPinSVG(bikesAvailable: number, openDocks: number, opts: PinOptions = {}): string {
-  const fill = opts.offline ? PIN_FILL_OFFLINE : PIN_FILL
-  const stroke = opts.offline ? PIN_STROKE_OFFLINE : PIN_STROKE
+  const fill = opts.offline ? PIN_FILL_OFFLINE : opts.isNew ? PIN_FILL_NEW : PIN_FILL
+  const stroke = opts.offline ? PIN_STROKE_OFFLINE : opts.isNew ? PIN_STROKE_NEW : PIN_STROKE
   // Shrink large numbers slightly so they don't overflow the pin body
   const topSize = bikesAvailable >= 100 ? 10 : 12
   const botSize = openDocks >= 100 ? 10 : 12
