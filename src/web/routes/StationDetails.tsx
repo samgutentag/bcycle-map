@@ -509,9 +509,16 @@ export default function StationDetails() {
             </a>
           )}
           {station && (
-            <Text variant="body" size="xs" color="subdued">
-              Reported {formatAge(reportedAge)}
-            </Text>
+            <Flex direction="column" gap="2xs">
+              <Text variant="body" size="xs" color="subdued">
+                Reported {formatAge(reportedAge)}
+              </Text>
+              {station.first_seen_ts && (
+                <Text variant="body" size="xs" color="subdued">
+                  Active station as of {new Date(station.first_seen_ts * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                </Text>
+              )}
+            </Flex>
           )}
           {!station && live && (
             <Text variant="body" size="s" color="subdued">

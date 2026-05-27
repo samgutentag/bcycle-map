@@ -133,6 +133,7 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
       ${types.length > 0 ? `<div style="margin-top:8px;font-size:11px;color:var(--app-text-subdued);display:flex;flex-direction:column;gap:2px">${types.map(t => `<div>${t}</div>`).join('')}</div>` : ''}
       ${offline ? `<div style="margin-top:8px;font-size:11px;font-weight:600;color:var(--app-danger);text-transform:uppercase;letter-spacing:0.04em">Station offline</div>` : ''}
       <div style="margin-top:8px;font-size:11px;color:var(--app-text-subdued)">Reported ${ageText}</div>
+      ${s.first_seen_ts ? `<div style="font-size:11px;color:var(--app-text-subdued)">Active station as of ${new Date(s.first_seen_ts * 1000).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</div>` : ''}
       <div style="margin-top:10px">
         <div data-sparkline="${escapeHtml(s.station_id)}" style="display:block"></div>
         <div style="display:flex;gap:10px;font-size:10px;color:var(--app-text-subdued);margin-top:4px">
