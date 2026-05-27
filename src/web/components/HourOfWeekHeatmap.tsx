@@ -85,7 +85,7 @@ export default function HourOfWeekHeatmap({ data, scheme = 'bikes', unit = 'bike
 
   const hoveredCell = hover ? lookup.get(`${hover.dow}-${hover.hod}`) : null
   const tooltipText = hover && hoveredCell
-    ? `${DAYS_FULL[hover.dow]} ${formatHour(hover.hod)} — ${hoveredCell.value.toFixed(1)} ${unit} avg (${hoveredCell.samples} samples)`
+    ? `${DAYS_FULL[hover.dow]} ${formatHour(hover.hod)} — ${Math.ceil(hoveredCell.value)} ${unit} avg`
     : null
 
   return (

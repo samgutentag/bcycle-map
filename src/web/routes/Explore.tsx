@@ -237,17 +237,6 @@ export default function Explore() {
       </Section>
 
       <Section
-        title="Popular routes"
-        description="Top directed pairs ranked by inferred trip count. Routes with fewer than 5 observed trips are filtered out."
-      >
-        <PopularRoutesTile
-          data={leaderboards.data}
-          stations={live?.stations.map(s => ({ station_id: s.station_id, name: s.name })) ?? []}
-          loading={leaderboards.loading}
-        />
-      </Section>
-
-      <Section
         title="Active riders over time · 7 days"
         description={`Bikes not parked at any station, sampled every two minutes. active_riders = max(0, peak_observed_bikes − parked_bikes), where peak_observed_bikes ≈ fleet size.${maxBikesEver ? ` Current fleet baseline: ${maxBikesEver}.` : ''}`}
       >
