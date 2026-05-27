@@ -11,15 +11,15 @@ import FlowTimelineScrubber from '../components/FlowTimelineScrubber'
 import BikeAnimationLayer, { TRAIL_GHOST_FADE_SEC } from '../components/BikeAnimationLayer'
 import FogOfWorldLayer from '../components/FogOfWorldLayer'
 import FogToggle from '../components/FogToggle'
-import { selectVisibleTrips, capTripsForRender } from '../lib/flow-selection'
+import { selectVisibleTrips } from '../lib/flow-selection'
 import { computeDynamicWindow } from '../lib/flow-window'
+import { schedulePool } from '../lib/flow-pool'
 
 const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
-const MAX_BIKES_PER_FRAME = 80
 const FOG_ENABLED_KEY = 'bcycle-map:flow-fog-enabled'
 
 export default function FlowMap() {
@@ -85,18 +85,6 @@ export default function FlowMap() {
     // Intentionally not depending on `map` — we only ever boot once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Sync cursor to windowEnd ("now") the first time the data window resolves.
-  // After that we trust the user's scrub position. We track this with a ref
-  // so a later React re-render doesn't reset the user's scroll position.
-  const cursorInitRef = useRef(false)
-  useEffect(() => {
-    if (cursorInitRef.current) return
-    if (windowEnd > 0) {
-      setCursorTs(windowEnd)
-      cursorInitRef.current = true
-    }
-  }, [windowEnd])
 
   // Fit-to-station-bounds on first data load, same logic as LiveMap.
   // No popup behavior here — pins are static visual indicators only.
@@ -190,47 +178,50 @@ export default function FlowMap() {
     }
   }, [map, live, historicalById])
 
-  // Visible-window selection. Two passes: `alive` is strict (drives the
-  // "N trips active at cursor" caption), `renderable` extends the window
-  // by TRAIL_GHOST_FADE_SEC so the trail can linger + fade for a moment
-  // after the bike arrives instead of popping out of existence.
-  const alive = useMemo(() => selectVisibleTrips(trips, cursorTs), [trips, cursorTs])
+  // Pool schedule: pack trips into 5 concurrent lanes so the animation
+  // always shows a handful of bikes in motion rather than speeding through
+  // the real timeline. Each trip gets synthetic start/end times in "pool
+  // seconds." The existing cursor + interpolation pipeline operates on
+  // these synthetic timestamps unchanged.
+  const poolSchedule = useMemo(() => schedulePool(trips), [trips])
+  const poolTrips = useMemo(
+    () => poolSchedule.entries.map(e => ({
+      ...e.trip,
+      departure_ts: e.poolStart,
+      arrival_ts: e.poolEnd,
+      duration_sec: e.poolEnd - e.poolStart,
+    })),
+    [poolSchedule],
+  )
+
+  const poolWindowStart = 0
+  const poolWindowEnd = poolSchedule.totalDuration
+
+  const cursorInitRef = useRef(false)
+  useEffect(() => {
+    if (cursorInitRef.current) return
+    if (poolSchedule.totalDuration > 0) {
+      setCursorTs(0)
+      cursorInitRef.current = true
+    }
+  }, [poolSchedule.totalDuration])
+
+  const alive = useMemo(
+    () => selectVisibleTrips(poolTrips, cursorTs),
+    [poolTrips, cursorTs],
+  )
+  const POOL_GHOST_FADE_SEC = 5
   const renderable = useMemo(
-    () => selectVisibleTrips(trips, cursorTs, TRAIL_GHOST_FADE_SEC),
-    [trips, cursorTs],
+    () => selectVisibleTrips(poolTrips, cursorTs, POOL_GHOST_FADE_SEC),
+    [poolTrips, cursorTs],
   )
-  const { rendered, totalCount } = useMemo(
-    () => capTripsForRender(renderable, MAX_BIKES_PER_FRAME),
-    [renderable],
-  )
-  // Caption count reflects ALIVE trips only — ghosts are visual lingerers,
-  // not "active" rides.
+  const rendered = renderable
   const aliveCount = alive.length
 
-  // Departure timestamps for the scrubber's density markers + prev/next trip
-  // buttons. Memoized so a 4Hz cursor update during playback doesn't keep
-  // remapping the same 50-trip list.
-  const tripTimestamps = useMemo(() => trips.map(t => t.departure_ts), [trips])
-
-  // Playback-loop bounds tight to the active trip cluster. Without this
-  // the cursor wraps through the full 24h on every loop, which on quiet
-  // days is mostly dead air. With it, ▶ Play loops the busy window
-  // forever while manual scrubbing still walks the full window for
-  // history. Falls back to undefined (= use windowStart/windowEnd) when
-  // there are no trips at all.
-  const { playbackLoopStart, playbackLoopEnd } = useMemo(() => {
-    if (trips.length === 0) return { playbackLoopStart: undefined, playbackLoopEnd: undefined }
-    let minDep = Infinity
-    let maxArr = -Infinity
-    for (const t of trips) {
-      if (t.departure_ts < minDep) minDep = t.departure_ts
-      if (t.arrival_ts > maxArr) maxArr = t.arrival_ts
-    }
-    // 60s of lead-in lets the first bike "appear" rather than already
-    // being mid-trip on the first frame; 60s of lead-out gives a brief
-    // settle before the loop restarts.
-    return { playbackLoopStart: minDep - 60, playbackLoopEnd: maxArr + 60 }
-  }, [trips])
+  const poolStartedCount = useMemo(
+    () => poolSchedule.entries.filter(e => e.poolStart <= cursorTs).length,
+    [poolSchedule, cursorTs],
+  )
 
   // Spacebar play/pause. Bound at document level so the user doesn't need
   // to keyboard-focus the button to use it. Skip if the user is typing into
@@ -248,17 +239,14 @@ export default function FlowMap() {
     return () => window.removeEventListener('keydown', onKey)
   }, [togglePlay])
 
-  const timezone = live?.system.timezone
   const caption = useMemo(() => {
     if (tripsLoading) return 'Loading trips…'
     if (routes.loading) return 'Loading route polylines…'
     if (trips.length === 0) return 'No inferred trips in the last 24 hours yet.'
-    if (totalCount > rendered.length) {
-      return `Showing ${rendered.length} of ${totalCount} trips at cursor (capped for performance)`
-    }
-    if (aliveCount === 0) return 'No trips active at this moment — scrub elsewhere.'
-    return `${aliveCount} trip${aliveCount === 1 ? '' : 's'} active at cursor`
-  }, [tripsLoading, routes.loading, trips.length, totalCount, rendered.length, aliveCount])
+    if (aliveCount === 0 && poolStartedCount >= trips.length) return 'All trips shown — looping…'
+    if (aliveCount === 0) return 'Press play to start.'
+    return `${aliveCount} active — trip ${poolStartedCount} of ${trips.length}`
+  }, [tripsLoading, routes.loading, trips.length, aliveCount, poolStartedCount])
 
   return (
     <Flex direction="column" css={{ height: 'calc(100vh - 49px)' }}>
@@ -280,16 +268,18 @@ export default function FlowMap() {
         <BikeAnimationLayer
           map={map}
           trips={rendered}
-          allTrips={trips}
+          allTrips={poolTrips}
           routes={routes.data}
           matrix={matrix.data}
           cursorTs={cursorTs}
           playing={playing}
-          windowStart={windowStart}
-          windowEnd={windowEnd}
-          playbackLoopStart={playbackLoopStart}
-          playbackLoopEnd={playbackLoopEnd}
+          playbackRate={1}
+          windowStart={poolWindowStart}
+          windowEnd={poolWindowEnd}
+          playbackLoopStart={poolWindowStart}
+          playbackLoopEnd={poolWindowEnd}
           onCursorAdvance={setCursorTs}
+          ghostFadeSec={POOL_GHOST_FADE_SEC}
         />
         <FogToggle enabled={fogEnabled} onToggle={toggleFog} />
         <div
@@ -315,14 +305,14 @@ export default function FlowMap() {
       </div>
       <FlowTimelineScrubber
         cursorTs={cursorTs}
-        windowStart={windowStart}
-        windowEnd={windowEnd}
+        windowStart={poolWindowStart}
+        windowEnd={poolWindowEnd}
         playing={playing}
         onCursorChange={ts => { setCursorTs(ts); setPlaying(false) }}
         onPlayToggle={togglePlay}
         caption={caption}
-        timezone={timezone}
-        tripTimestamps={tripTimestamps}
+        poolMode
+        poolProgress={trips.length > 0 ? `${poolStartedCount} / ${trips.length} trips in the last 24 hours` : undefined}
       />
       {!live && (
         <Text variant="body" size="xs" color="subdued" css={{ padding: theme.spacing.s }}>

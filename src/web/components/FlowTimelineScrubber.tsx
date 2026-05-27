@@ -31,6 +31,10 @@ type Props = {
    * quiet days; the markers make it obvious where the trips cluster.
    */
   tripTimestamps?: number[]
+  /** Pool playback mode — shows trip counter instead of clock, hides timeline controls. */
+  poolMode?: boolean
+  /** e.g. "12 / 47" — progress through the trip pool. */
+  poolProgress?: string
 }
 
 function formatClock(tsSec: number, timezone: string | undefined): string {
@@ -65,6 +69,8 @@ export default function FlowTimelineScrubber({
   caption,
   timezone,
   tripTimestamps,
+  poolMode,
+  poolProgress,
 }: Props) {
   const theme = useTheme()
   const trackRef = useRef<HTMLDivElement | null>(null)
@@ -191,104 +197,110 @@ export default function FlowTimelineScrubber({
             }}
           >
             {playing ? (
-              // Pause glyph
               <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden>
                 <rect x={2} y={2} width={3} height={8} fill="currentColor" />
                 <rect x={7} y={2} width={3} height={8} fill="currentColor" />
               </svg>
             ) : (
-              // Play glyph
               <svg width={14} height={14} viewBox="0 0 12 12" aria-hidden>
                 <path d="M3 2 L10 6 L3 10 Z" fill="currentColor" />
               </svg>
             )}
           </button>
-          <button
-            type="button"
-            onClick={onPrevTrip}
-            disabled={prevTripTs === null}
-            aria-label="Skip to previous trip"
-            title="Previous trip"
-            data-testid="flow-prev-trip"
-            css={{
-              all: 'unset',
-              cursor: prevTripTs === null ? 'not-allowed' : 'pointer',
-              opacity: prevTripTs === null ? 0.35 : 1,
-              width: 28,
-              height: 28,
-              borderRadius: theme.cornerRadius.s,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `1px solid ${theme.color.border.default}`,
-              background: theme.color.background.white,
-              color: theme.color.text.default,
-              transition: `background ${theme.motion.quick}`,
-              '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
-              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
-            }}
-          >
-            <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
-              <path d="M3 2 L3 8 M7 1 L3 5 L7 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <Text variant="title" size="s" strength="strong" color="heading">
-            {formatClock(cursorTs, timezone)}
-          </Text>
-          <button
-            type="button"
-            onClick={onNextTrip}
-            disabled={nextTripTs === null}
-            aria-label="Skip to next trip"
-            title="Next trip"
-            data-testid="flow-next-trip"
-            css={{
-              all: 'unset',
-              cursor: nextTripTs === null ? 'not-allowed' : 'pointer',
-              opacity: nextTripTs === null ? 0.35 : 1,
-              width: 28,
-              height: 28,
-              borderRadius: theme.cornerRadius.s,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `1px solid ${theme.color.border.default}`,
-              background: theme.color.background.white,
-              color: theme.color.text.default,
-              transition: `background ${theme.motion.quick}`,
-              '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
-              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
-            }}
-          >
-            <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
-              <path d="M7 2 L7 8 M3 1 L7 5 L3 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={onJumpToNow}
-            aria-label="Jump to now"
-            title="Jump to now"
-            data-testid="flow-jump-now"
-            css={{
-              all: 'unset',
-              cursor: 'pointer',
-              padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
-              borderRadius: theme.cornerRadius.s,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              color: theme.color.text.subdued,
-              border: `1px solid ${theme.color.border.default}`,
-              background: 'transparent',
-              transition: `color ${theme.motion.quick}, background ${theme.motion.quick}`,
-              '&:hover': { color: theme.color.text.default, background: theme.color.background.white },
-              '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
-            }}
-          >
-            Now
-          </button>
+          {poolMode ? (
+            <Text variant="title" size="s" strength="strong" color="heading">
+              {poolProgress ?? '—'}
+            </Text>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onPrevTrip}
+                disabled={prevTripTs === null}
+                aria-label="Skip to previous trip"
+                title="Previous trip"
+                data-testid="flow-prev-trip"
+                css={{
+                  all: 'unset',
+                  cursor: prevTripTs === null ? 'not-allowed' : 'pointer',
+                  opacity: prevTripTs === null ? 0.35 : 1,
+                  width: 28,
+                  height: 28,
+                  borderRadius: theme.cornerRadius.s,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${theme.color.border.default}`,
+                  background: theme.color.background.white,
+                  color: theme.color.text.default,
+                  transition: `background ${theme.motion.quick}`,
+                  '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+                  '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+                }}
+              >
+                <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+                  <path d="M3 2 L3 8 M7 1 L3 5 L7 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <Text variant="title" size="s" strength="strong" color="heading">
+                {formatClock(cursorTs, timezone)}
+              </Text>
+              <button
+                type="button"
+                onClick={onNextTrip}
+                disabled={nextTripTs === null}
+                aria-label="Skip to next trip"
+                title="Next trip"
+                data-testid="flow-next-trip"
+                css={{
+                  all: 'unset',
+                  cursor: nextTripTs === null ? 'not-allowed' : 'pointer',
+                  opacity: nextTripTs === null ? 0.35 : 1,
+                  width: 28,
+                  height: 28,
+                  borderRadius: theme.cornerRadius.s,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: `1px solid ${theme.color.border.default}`,
+                  background: theme.color.background.white,
+                  color: theme.color.text.default,
+                  transition: `background ${theme.motion.quick}`,
+                  '&:hover:not(:disabled)': { background: theme.color.background.surface1 },
+                  '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+                }}
+              >
+                <svg width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+                  <path d="M7 2 L7 8 M3 1 L7 5 L3 9" stroke="currentColor" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={onJumpToNow}
+                aria-label="Jump to now"
+                title="Jump to now"
+                data-testid="flow-jump-now"
+                css={{
+                  all: 'unset',
+                  cursor: 'pointer',
+                  padding: `${theme.spacing.xs}px ${theme.spacing.s}px`,
+                  borderRadius: theme.cornerRadius.s,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: theme.color.text.subdued,
+                  border: `1px solid ${theme.color.border.default}`,
+                  background: 'transparent',
+                  transition: `color ${theme.motion.quick}, background ${theme.motion.quick}`,
+                  '&:hover': { color: theme.color.text.default, background: theme.color.background.white },
+                  '&:focus-visible': { outline: `2px solid ${theme.color.focus.default}`, outlineOffset: 1 },
+                }}
+              >
+                Now
+              </button>
+            </>
+          )}
         </Flex>
         {caption && (
           <Text variant="body" size="xs" color="subdued">{caption}</Text>
@@ -298,18 +310,12 @@ export default function FlowTimelineScrubber({
       <div
         ref={trackRef}
         onClick={onTrackClick}
-        css={{ position: 'relative', height: 32, cursor: 'pointer' }}
+        css={{ position: 'relative', height: poolMode ? 20 : 32, cursor: 'pointer' }}
       >
-        {/* Trip-density markers sit just above the slider — one bright tick
-            per trip departure_ts, so the eye can immediately see where the
-            trips cluster (often a 2h window of the 24h scrubber on quiet
-            days). pointer-events:none so clicks pass through to the track. */}
-        {tripMarkers.length > 0 && (
+        {!poolMode && tripMarkers.length > 0 && (
           <div css={{ position: 'absolute', left: 0, right: 0, bottom: 16, height: 8, pointerEvents: 'none' }}>
             {tripMarkers.map((m, i) => (
               <div
-                // ts isn't unique — multiple trips can depart in the same
-                // integer-second bucket (poller granularity), so suffix with i.
                 key={`${m.ts}-${i}`}
                 css={{
                   position: 'absolute',
@@ -327,49 +333,49 @@ export default function FlowTimelineScrubber({
           </div>
         )}
 
-        {/* Hour tick row sits above the slider track */}
-        <div css={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          {ticks.map(tick => (
-            <div
-              key={tick.ts}
-              data-testid="flow-scrubber-tick"
-              css={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: `${tick.pctLeft}%`,
-                transform: 'translateX(-50%)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 2,
-              }}
-            >
-              <div css={{
-                width: 1,
-                height: 6,
-                background: theme.color.border.default,
-              }} />
-              <div css={{
-                fontSize: 10,
-                color: theme.color.text.subdued,
-                whiteSpace: 'nowrap',
-              }}>{tick.label}</div>
-            </div>
-          ))}
-        </div>
+        {!poolMode && (
+          <div css={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {ticks.map(tick => (
+              <div
+                key={tick.ts}
+                data-testid="flow-scrubber-tick"
+                css={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: `${tick.pctLeft}%`,
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <div css={{
+                  width: 1,
+                  height: 6,
+                  background: theme.color.border.default,
+                }} />
+                <div css={{
+                  fontSize: 10,
+                  color: theme.color.text.subdued,
+                  whiteSpace: 'nowrap',
+                }}>{tick.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <input
           type="range"
           min={windowStart}
           max={windowEnd}
-          step={60}
+          step={poolMode ? 0.1 : 60}
           value={cursorTs}
           onChange={onSliderInput}
-          aria-label="Timeline scrubber"
+          aria-label={poolMode ? 'Trip progress' : 'Timeline scrubber'}
           aria-valuemin={windowStart}
           aria-valuemax={windowEnd}
           aria-valuenow={cursorTs}
-          aria-valuetext={formatClock(cursorTs, timezone)}
           data-testid="flow-scrubber"
           css={{
             position: 'absolute',
@@ -378,8 +384,6 @@ export default function FlowTimelineScrubber({
             bottom: 4,
             width: '100%',
             margin: 0,
-            // Native range styling is intentionally minimal — the tick row
-            // above carries most of the visual weight.
             accentColor: theme.color.text.heading,
           }}
         />

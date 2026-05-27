@@ -83,8 +83,8 @@ describe('useFlowTrips', () => {
 
   it('filters out trips outside the requested window', async () => {
     // 100s window from fake "now" (2000s) → [1900, 2000]
-    const stale: Trip = { ...tripA, departure_ts: 1500 }  // before windowStart
-    const fresh: Trip = { ...tripA, departure_ts: 1950 }  // inside the window
+    const stale: Trip = { ...tripA, departure_ts: 1500, arrival_ts: 1600 }  // both before windowStart
+    const fresh: Trip = { ...tripA, departure_ts: 1950, arrival_ts: 1990 }  // inside the window
     vi.spyOn(api, 'fetchTrips').mockResolvedValue([stale, fresh])
 
     const { result } = renderHook(() => useFlowTrips('bcycle_santabarbara', 100))

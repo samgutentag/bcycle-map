@@ -101,6 +101,10 @@ type Props = {
    * supplied so existing callers stay functional.
    */
   allTrips?: Trip[]
+  /** Override the ghost trail fade duration (seconds). Defaults to
+   *  TRAIL_GHOST_FADE_SEC (30s). Pool mode uses a shorter value so
+   *  trails don't linger across the compressed timeline. */
+  ghostFadeSec?: number
 }
 
 function prepareTrips(
@@ -139,7 +143,9 @@ export default function BikeAnimationLayer({
   playbackLoopEnd,
   onCursorAdvance,
   allTrips,
+  ghostFadeSec: ghostFadeSecProp,
 }: Props) {
+  const ghostFadeSec = ghostFadeSecProp ?? TRAIL_GHOST_FADE_SEC
   // Gap detection (#56) uses the full trip list. When the parent doesn't
   // supply one, fall back to the visible-at-cursor `trips` subset —
   // backward-compat for any caller that pre-dates this prop.
@@ -162,7 +168,9 @@ export default function BikeAnimationLayer({
   const playbackLoopStartRef = useRef<number | undefined>(playbackLoopStart)
   const playbackLoopEndRef = useRef<number | undefined>(playbackLoopEnd)
   const onCursorAdvanceRef = useRef(onCursorAdvance)
+  const ghostFadeSecRef = useRef(ghostFadeSec)
   cursorTsRef.current = cursorTs
+  ghostFadeSecRef.current = ghostFadeSec
   playingRef.current = playing
   playbackRateRef.current = playbackRate
   windowStartRef.current = windowStart
@@ -313,9 +321,10 @@ export default function BikeAnimationLayer({
         // existence. The bike emoji is dropped on arrival (ride's over),
         // and trail alpha decays linearly across the ghost window.
         const ghostElapsed = activeCursor - trip.arrival_ts
-        if (ghostElapsed > TRAIL_GHOST_FADE_SEC) continue
+        const fade = ghostFadeSecRef.current
+        if (ghostElapsed > fade) continue
         const isGhost = ghostElapsed > 0
-        const ghostAlphaMul = isGhost ? Math.max(0, 1 - ghostElapsed / TRAIL_GHOST_FADE_SEC) : 1
+        const ghostAlphaMul = isGhost ? Math.max(0, 1 - ghostElapsed / fade) : 1
 
         const f = tripFraction(activeCursor, trip.departure_ts, trip.arrival_ts)
 

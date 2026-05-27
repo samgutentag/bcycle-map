@@ -65,7 +65,7 @@ export function useFlowTrips(systemId: string, windowSeconds = 24 * 3600): FlowT
     const windowEnd = fetchedAt
     const windowStart = windowEnd - windowSeconds
     const visible = (trips ?? []).filter(
-      t => t.departure_ts >= windowStart && t.departure_ts <= windowEnd,
+      t => t.arrival_ts >= windowStart && t.departure_ts <= windowEnd,
     )
     return { trips: visible, windowStart, windowEnd, loading, error }
   }, [trips, fetchedAt, windowSeconds, loading, error])
