@@ -314,10 +314,18 @@ export default function LiveMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-fit the camera to the new system's stations when the active system
-  // changes. Clearing the gate lets the marker-sync effect run its one-time
-  // fitBounds against the next snapshot.
-  useEffect(() => { boundsSetRef.current = false }, [SYSTEM_ID])
+  // Re-fit the camera when the active system changes. Snap to the new
+  // system's bbox from the systems index IMMEDIATELY (no waiting on its
+  // station fetch), then clear the gate so the marker-sync effect refines
+  // to the precise station bounds once the new snapshot lands.
+  useEffect(() => {
+    boundsSetRef.current = false
+    const map = mapRef.current
+    const bbox = activeSystem?.bbox
+    if (!map || !bbox) return
+    map.setMinZoom(0) // drop the floor set for the previous system before refitting
+    map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 400 })
+  }, [SYSTEM_ID, activeSystem])
 
   // swap basemap style when toggle changes
   useEffect(() => {
