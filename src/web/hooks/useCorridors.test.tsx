@@ -10,7 +10,7 @@ const ARTIFACT: CorridorArtifact = {
   assignments: { a: 'north' },
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks() })
 
 describe('useCorridors', () => {
   it('fetches the corridor artifact for the system from R2', async () => {
