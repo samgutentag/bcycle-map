@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { deriveDirectionalCorridors, corridorsFromRegions, type CorridorStation } from './corridors'
+import { deriveDirectionalCorridors, corridorsFromRegions, selectCorridors, type CorridorStation, type CorridorOverride } from './corridors'
 
 const st = (id: string, lat: number, lon: number): CorridorStation => ({ station_id: id, name: id, lat, lon })
 
@@ -72,5 +72,70 @@ describe('corridorsFromRegions', () => {
 
   it('returns null when the regions list is empty', () => {
     expect(corridorsFromRegions([{ station_id: 'a', name: 'A', lat: 1, lon: 1, region_id: 'r9' }], [])).toBeNull()
+  })
+})
+
+describe('selectCorridors', () => {
+  const NOW = 1_750_000_000
+
+  it('derived-only when no override and no usable regions', () => {
+    const stations: CorridorStation[] = [
+      { station_id: 'n', name: 'n', lat: 1, lon: 0 },
+      { station_id: 's', name: 's', lat: -1, lon: 0 },
+    ]
+    const out = selectCorridors({ stations, regions: [], override: null, now: NOW })
+    expect(out.source).toBe('derived')
+    expect(out.generated_at).toBe(NOW)
+    expect(Object.keys(out.assignments).sort()).toEqual(['n', 's'])
+  })
+
+  it('regions-only when regions are usable and no override', () => {
+    const stations: CorridorStation[] = [
+      { station_id: 'a', name: 'a', lat: 39.1, lon: -84.5, region_id: 'r9' },
+    ]
+    const out = selectCorridors({ stations, regions: [{ region_id: 'r9', region_name: 'CBD' }], override: null, now: NOW })
+    expect(out.source).toBe('regions')
+    expect(out.assignments).toEqual({ a: 'r9' })
+  })
+
+  it('override wins per-station; unassigned stations fall through to derived', () => {
+    const stations: CorridorStation[] = [
+      { station_id: 'curated', name: 'curated', lat: 1, lon: 0 },
+      { station_id: 'newbie', name: 'newbie', lat: -1, lon: 0 },
+    ]
+    const override: CorridorOverride = {
+      corridors: [{ id: 'waterfront', label: 'Waterfront' }],
+      assignments: { curated: 'waterfront' },
+    }
+    const out = selectCorridors({ stations, regions: [], override, now: NOW })
+    expect(out.source).toBe('override+derived')
+    expect(out.assignments['curated']).toBe('waterfront')
+    expect(out.assignments['newbie']).toBeTruthy()
+    expect(out.assignments['newbie']).not.toBe('waterfront')
+    expect(out.corridors[0]).toEqual({ id: 'waterfront', label: 'Waterfront' })
+    expect(out.corridors.some(c => c.id === out.assignments['newbie'])).toBe(true)
+  })
+
+  it('override is pure (source "override") when it covers every station', () => {
+    const stations: CorridorStation[] = [{ station_id: 'curated', name: 'c', lat: 1, lon: 0 }]
+    const override: CorridorOverride = {
+      corridors: [{ id: 'waterfront', label: 'Waterfront' }],
+      assignments: { curated: 'waterfront' },
+    }
+    const out = selectCorridors({ stations, regions: [], override, now: NOW })
+    expect(out.source).toBe('override')
+    expect(out.corridors).toEqual([{ id: 'waterfront', label: 'Waterfront' }])
+  })
+
+  it('override falls through to regions when regions are usable', () => {
+    const stations: CorridorStation[] = [
+      { station_id: 'curated', name: 'c', lat: 39.1, lon: -84.5, region_id: 'r9' },
+      { station_id: 'newbie', name: 'n', lat: 39.2, lon: -84.6, region_id: 'r9' },
+    ]
+    const override: CorridorOverride = { corridors: [{ id: 'special', label: 'Special' }], assignments: { curated: 'special' } }
+    const out = selectCorridors({ stations, regions: [{ region_id: 'r9', region_name: 'CBD' }], override, now: NOW })
+    expect(out.source).toBe('override+regions')
+    expect(out.assignments['curated']).toBe('special')
+    expect(out.assignments['newbie']).toBe('r9')
   })
 })

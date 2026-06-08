@@ -95,3 +95,55 @@ export function corridorsFromRegions(
     .map(r => ({ id: r.region_id, label: r.region_name }))
   return { corridors, assignments }
 }
+
+type SelectArgs = {
+  stations: CorridorStation[]
+  regions: GbfsRegion[]
+  override: CorridorOverride | null
+  now: number
+}
+
+/**
+ * Choose the corridor source for one system, highest precedence first:
+ *   1. committed override (partial -- wins per-station)
+ *   2. GBFS regions (when stations carry usable region_id)
+ *   3. directional fallback
+ *
+ * The override is intentionally partial: curated stations keep their hand
+ * authored corridor, and any station the override doesn't name falls through
+ * to the next usable tier so newly-added stations still get categorized.
+ */
+export function selectCorridors({ stations, regions, override, now }: SelectArgs): CorridorArtifact {
+  const regionResult = corridorsFromRegions(stations, regions)
+  const fallback = regionResult ?? deriveDirectionalCorridors(stations)
+  const fallbackKind: 'regions' | 'derived' = regionResult ? 'regions' : 'derived'
+
+  if (!override || Object.keys(override.assignments).length === 0) {
+    return { generated_at: now, source: fallbackKind, corridors: fallback.corridors, assignments: fallback.assignments }
+  }
+
+  const assignments: Record<string, string> = {}
+  let usedFallback = false
+  for (const s of stations) {
+    const o = override.assignments[s.station_id]
+    if (o) {
+      assignments[s.station_id] = o
+    } else if (fallback.assignments[s.station_id]) {
+      assignments[s.station_id] = fallback.assignments[s.station_id]!
+      usedFallback = true
+    }
+  }
+
+  const used = new Set(Object.values(assignments))
+  const seen = new Set<string>()
+  const corridors: Corridor[] = []
+  for (const c of override.corridors) {
+    if (used.has(c.id) && !seen.has(c.id)) { corridors.push(c); seen.add(c.id) }
+  }
+  for (const c of fallback.corridors) {
+    if (used.has(c.id) && !seen.has(c.id)) { corridors.push(c); seen.add(c.id) }
+  }
+
+  const source: CorridorArtifact['source'] = usedFallback ? `override+${fallbackKind}` : 'override'
+  return { generated_at: now, source, corridors, assignments }
+}
