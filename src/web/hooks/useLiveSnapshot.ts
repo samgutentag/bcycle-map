@@ -17,6 +17,11 @@ export function useLiveSnapshot(systemId: string): State {
 
   useEffect(() => {
     let cancelled = false
+    // Clear the previous system's snapshot immediately on switch so stale
+    // pins / camera bounds don't linger (and don't fight the new system's
+    // bbox snap) until the first fetch for the new system resolves.
+    setData(null)
+    setError(null)
     const tick = async () => {
       try {
         const v = await fetchCurrent(systemId)
