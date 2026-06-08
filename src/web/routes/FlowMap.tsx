@@ -16,14 +16,16 @@ import { computeDynamicWindow } from '../lib/flow-window'
 import { schedulePool } from '../lib/flow-pool'
 import { useSystem } from '../context/SystemContext'
 
-const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 const FOG_ENABLED_KEY = 'bcycle-map:flow-fog-enabled'
 
 export default function FlowMap() {
-  const { systemId: SYSTEM_ID } = useSystem()
+  const { systemId: SYSTEM_ID, activeSystem } = useSystem()
+  const bootCenter: [number, number] = activeSystem?.centroid ?? [-119.6982, 34.4208]
+  const bootCenterRef = useRef(bootCenter)
+  bootCenterRef.current = bootCenter
   const theme = useTheme()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [map, setMap] = useState<MlMap | null>(null)
@@ -78,7 +80,7 @@ export default function FlowMap() {
     const m = new maplibregl.Map({
       container: containerRef.current,
       style: POSITRON_STYLE,
-      center: SB_CENTER,
+      center: bootCenterRef.current,
       zoom: 13,
     })
     setMap(m)

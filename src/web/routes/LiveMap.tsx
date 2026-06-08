@@ -91,8 +91,6 @@ function stationsToHexGeoJSON(stations: StationSnapshot[]) {
   }
 }
 
-const SB_CENTER: [number, number] = [-119.6982, 34.4208]
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -149,7 +147,10 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
 }
 
 export default function LiveMap() {
-  const { systemId: SYSTEM_ID } = useSystem()
+  const { systemId: SYSTEM_ID, activeSystem } = useSystem()
+  const bootCenter: [number, number] = activeSystem?.centroid ?? [-119.6982, 34.4208]
+  const bootCenterRef = useRef(bootCenter)
+  bootCenterRef.current = bootCenter
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const markersRef = useRef<Map<string, Marker>>(new Map())
@@ -302,13 +303,18 @@ export default function LiveMap() {
     mapRef.current = new maplibregl.Map({
       container: ref.current,
       style: basemap === 'cycling' ? CYCLOSM_STYLE : POSITRON_STYLE,
-      center: SB_CENTER,
+      center: bootCenterRef.current,
       zoom: 13,
     })
     return () => { mapRef.current?.remove(); mapRef.current = null }
     // boot only; we swap style imperatively below when basemap changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Re-fit the camera to the new system's stations when the active system
+  // changes. Clearing the gate lets the marker-sync effect run its one-time
+  // fitBounds against the next snapshot.
+  useEffect(() => { boundsSetRef.current = false }, [SYSTEM_ID])
 
   // swap basemap style when toggle changes
   useEffect(() => {
