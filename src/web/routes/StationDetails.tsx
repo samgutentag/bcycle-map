@@ -33,9 +33,9 @@ import type { Trip } from '@shared/types'
 import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import { classifyTypical, type TypicalProfile } from '../lib/typical-comparison'
 import { fetchStationTypical } from '../lib/typical-fetch'
+import { useSystem } from '../context/SystemContext'
 import type { StationSnapshot } from '@shared/types'
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
@@ -139,6 +139,7 @@ function MiniMap({ station }: { station: StationSnapshot }) {
 type TypicalCalloutProps = { stationId: string; currentBikes: number }
 
 function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const [profile, setProfile] = useState<TypicalProfile | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -360,6 +361,7 @@ function TopRoutesSection({
 }
 
 export default function StationDetails() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const { stationId } = useParams<{ stationId: string }>()
   const { data: live, ageSec } = useLiveSnapshot(SYSTEM_ID)

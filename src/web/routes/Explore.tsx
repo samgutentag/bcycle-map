@@ -31,9 +31,9 @@ import PopularStationsTile from '../components/PopularStationsTile'
 import PopularRoutesTile from '../components/PopularRoutesTile'
 import { resolveRange } from '../lib/date-range'
 import TripRouteModal from '../components/TripRouteModal'
+import { useSystem } from '../context/SystemContext'
 import type { Trip } from '@shared/types'
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
@@ -96,6 +96,7 @@ function ErrorBox({ message }: { message: string }) {
 }
 
 export default function Explore() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)

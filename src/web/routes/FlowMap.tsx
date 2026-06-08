@@ -14,8 +14,8 @@ import FogToggle from '../components/FogToggle'
 import { selectVisibleTrips } from '../lib/flow-selection'
 import { computeDynamicWindow } from '../lib/flow-window'
 import { schedulePool } from '../lib/flow-pool'
+import { useSystem } from '../context/SystemContext'
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
@@ -23,6 +23,7 @@ const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64
 const FOG_ENABLED_KEY = 'bcycle-map:flow-fog-enabled'
 
 export default function FlowMap() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [map, setMap] = useState<MlMap | null>(null)

@@ -29,10 +29,10 @@ import TripRouteMap from '../components/TripRouteMap'
 import LiveDot from '../components/LiveDot'
 import ChartSkeleton from '../components/ChartSkeleton'
 import { resolveRange } from '../lib/date-range'
+import { useSystem } from '../context/SystemContext'
 
 prefetchDuckDB()
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
@@ -167,6 +167,7 @@ function formatClockTime(tsSec: number, tz?: string): string {
 }
 
 export default function RouteCheck() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const { startId, endId } = useParams<{ startId?: string; endId?: string }>()
   const navigate = useNavigate()

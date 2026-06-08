@@ -7,12 +7,13 @@ import { useTravelMatrix } from '../hooks/useTravelMatrix'
 import { useRouteCache } from '../hooks/useRouteCache'
 import ActivityLog from '../components/ActivityLog'
 import TripRouteModal from '../components/TripRouteModal'
+import { useSystem } from '../context/SystemContext'
 import type { Trip } from '@shared/types'
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 export default function Activity() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const theme = useTheme()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
   const activity = useActivity(SYSTEM_ID)

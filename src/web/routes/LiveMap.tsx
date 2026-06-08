@@ -25,6 +25,7 @@ import {
 } from '../lib/map-filters'
 import { classifyTypical, ringToneFor } from '../lib/typical-comparison'
 import { useTypicalProfiles } from '../hooks/useTypicalProfiles'
+import { useSystem } from '../context/SystemContext'
 import type { StationSnapshot } from '@shared/types'
 
 const TYPICAL_LS_KEY = 'bcycle-map:show-typical-comparison'
@@ -90,7 +91,6 @@ function stationsToHexGeoJSON(stations: StationSnapshot[]) {
   }
 }
 
-const SYSTEM_ID = 'bcycle_santabarbara'
 const SB_CENTER: [number, number] = [-119.6982, 34.4208]
 
 function escapeHtml(s: string): string {
@@ -149,6 +149,7 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
 }
 
 export default function LiveMap() {
+  const { systemId: SYSTEM_ID } = useSystem()
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const markersRef = useRef<Map<string, Marker>>(new Map())
