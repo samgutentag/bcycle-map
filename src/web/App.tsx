@@ -14,6 +14,8 @@ import { UnitSystemProvider } from './hooks/useUnitSystem'
 import AboutModal from './components/AboutModal'
 import BrandMark from './components/BrandMark'
 import ThemeToggle from './components/ThemeToggle'
+import { SystemProvider } from './context/SystemContext'
+import NetworkPicker from './components/NetworkPicker'
 import { IconLivePin, IconSignpost, IconFlow, IconBarChart } from './components/icons'
 import type { ComponentType } from 'react'
 import { useStableVerb } from './lib/spinner-verbs'
@@ -136,6 +138,7 @@ function AppHeader({ onOpenAbout }: { onOpenAbout: () => void }) {
         </Flex>
 
         <Flex alignItems="center" gap="s">
+          <NetworkPicker />
           <ThemeToggle />
           <button
             type="button"
@@ -188,7 +191,8 @@ function RouteFallback() {
 export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   return (
-    <UnitSystemProvider>
+    <SystemProvider defaultSystemId="bcycle_santabarbara">
+      <UnitSystemProvider>
       <Flex direction="column" css={{ minHeight: '100vh', background: 'var(--app-bg)' }}>
         <BeaconReporter />
         <AppHeader onOpenAbout={() => setAboutOpen(true)} />
@@ -264,6 +268,7 @@ export default function App() {
         </Routes>
         </Box>
       </Flex>
-    </UnitSystemProvider>
+      </UnitSystemProvider>
+    </SystemProvider>
   )
 }
