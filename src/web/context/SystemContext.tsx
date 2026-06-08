@@ -91,3 +91,9 @@ export function useSystem(): SystemContextValue {
     setSystemId: () => {},
   }
 }
+
+type HarnessProps = { value: SystemContextValue; children: ReactNode }
+/** Test seam: inject a fixed context value. Not used in production. */
+export function SystemContextTestHarness({ value, children }: HarnessProps) {
+  return <SystemContext.Provider value={value}>{children}</SystemContext.Provider>
+}
