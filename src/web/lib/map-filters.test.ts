@@ -133,8 +133,15 @@ describe('URL serialization', () => {
     expect(readFiltersFromSearch(params).corridor).toBe('waterfront')
   })
 
-  it('drops unknown corridor values and falls back to null', () => {
+  it('accepts any non-empty corridor id (validity is enforced by the chip options)', () => {
+    // The URL carries an opaque corridor id; readFiltersFromSearch no longer
+    // validates it against a known set. The chip constrains the choices.
     const params = new URLSearchParams('corridor=mars')
+    expect(readFiltersFromSearch(params).corridor).toBe('mars')
+  })
+
+  it('falls back to null for an empty corridor value', () => {
+    const params = new URLSearchParams('corridor=')
     expect(readFiltersFromSearch(params).corridor).toBeNull()
   })
 

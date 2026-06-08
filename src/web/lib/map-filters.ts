@@ -1,5 +1,5 @@
 import type { StationSnapshot } from '@shared/types'
-import { type CorridorId, isCorridorId } from '../config/legacy-corridors'
+import type { CorridorId } from '../config/corridors'
 
 /**
  * Filter values for the `/live` chip row. All defaults represent "no filter".
@@ -69,8 +69,9 @@ export function nextMinBikes(current: number): number {
  * Recognized keys:
  *   - `bikes`: integer; coerced into the nearest known step in
  *     `MIN_BIKES_CYCLE` (e.g. `?bikes=2` → 1+). Out-of-range values clamp to 0.
- *   - `corridor`: a known corridor id (e.g. `waterfront`). Unknown values
- *     are dropped and the filter falls back to `null` (no corridor filter).
+ *   - `corridor`: an opaque corridor id (e.g. `waterfront`). Any non-empty
+ *     string is accepted; validity is enforced at render time by the
+ *     available `<option>`s. An empty/missing value falls back to `null`.
  */
 export function readFiltersFromSearch(params: URLSearchParams): MapFilters {
   const rawBikes = params.get('bikes')
@@ -79,7 +80,7 @@ export function readFiltersFromSearch(params: URLSearchParams): MapFilters {
     ? clampMinBikes(parsedBikes)
     : 0
   const rawCorridor = params.get('corridor')
-  const corridor: CorridorId | null = rawCorridor && isCorridorId(rawCorridor) ? rawCorridor : null
+  const corridor: CorridorId | null = rawCorridor && rawCorridor.length > 0 ? rawCorridor : null
   return { minBikes, corridor }
 }
 

@@ -1,10 +1,11 @@
 import { Flex, Text, useTheme } from '@audius/harmony'
 import { MIN_BIKES_CYCLE, nextMinBikes } from '../lib/map-filters'
-import { CORRIDOR_LABELS, CORRIDOR_ORDER, type CorridorId, isCorridorId } from '../config/legacy-corridors'
+import type { CorridorId } from '../config/corridors'
 
 type Props = {
   minBikes: number
   corridor: CorridorId | null
+  corridors: Array<{ id: string; label: string }>
   onMinBikesChange: (value: number) => void
   onCorridorChange: (value: CorridorId | null) => void
   onReset: () => void
@@ -29,6 +30,7 @@ function minBikesLabel(value: number): string {
 export default function MapFilterChips({
   minBikes,
   corridor,
+  corridors,
   onMinBikesChange,
   onCorridorChange,
   onReset,
@@ -36,6 +38,7 @@ export default function MapFilterChips({
   totalCount,
 }: Props) {
   const theme = useTheme()
+  const labelById = new Map(corridors.map(c => [c.id, c.label]))
   const minBikesActive = minBikes > 0
   const corridorActive = corridor !== null
   const anyActive = minBikesActive || corridorActive
@@ -99,8 +102,10 @@ export default function MapFilterChips({
         }}
       >
         {/* Corridor chip — native <select> styled to match the chip row.
-            Native is the right call here: 11+ options, keyboard accessibility
-            for free, no custom popover machinery. */}
+            Native is the right call here: many options, keyboard accessibility
+            for free, no custom popover machinery. Hidden entirely for systems
+            that have no corridors. */}
+        {corridors.length > 0 && (
         <div
           css={{
             ...baseChip,
@@ -126,7 +131,7 @@ export default function MapFilterChips({
               whiteSpace: 'nowrap',
             }}
           >
-            {corridor === null ? 'Corridor: All' : `Corridor: ${CORRIDOR_LABELS[corridor]}`}
+            {corridor === null ? 'Corridor: All' : `Corridor: ${labelById.get(corridor) ?? corridor}`}
           </Text>
           {corridorActive && (
             <span
@@ -171,8 +176,7 @@ export default function MapFilterChips({
             value={corridor ?? ''}
             onChange={ev => {
               const v = ev.target.value
-              if (v === '') onCorridorChange(null)
-              else if (isCorridorId(v)) onCorridorChange(v)
+              onCorridorChange(v === '' ? null : v)
             }}
             css={{
               position: 'absolute',
@@ -185,11 +189,12 @@ export default function MapFilterChips({
             }}
           >
             <option value="">All corridors</option>
-            {CORRIDOR_ORDER.map(id => (
-              <option key={id} value={id}>{CORRIDOR_LABELS[id]}</option>
+            {corridors.map(c => (
+              <option key={c.id} value={c.id}>{c.label}</option>
             ))}
           </select>
         </div>
+        )}
 
         {/* Min bikes chip */}
         <Flex alignItems="center" gap="xs">
