@@ -16,7 +16,7 @@ import MapFilterChips from '../components/MapFilterChips'
 import MobileSettingsSheet from '../components/MobileSettingsSheet'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
-import { buildCorridorMap, type CorridorId } from '../config/corridors'
+import { buildCorridorMap, type CorridorId } from '../config/legacy-corridors'
 import {
   applyMapFilters,
   DEFAULT_FILTERS,

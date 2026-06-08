@@ -6,7 +6,7 @@ import {
   CORRIDOR_ORDER,
   isCorridorId,
   type CorridorId,
-} from './corridors'
+} from './legacy-corridors'
 import type { StationSnapshot } from '@shared/types'
 
 const make = (overrides: Partial<StationSnapshot> = {}): StationSnapshot => ({

@@ -1,5 +1,5 @@
 import type { StationSnapshot } from '@shared/types'
-import { type CorridorId, isCorridorId } from '../config/corridors'
+import { type CorridorId, isCorridorId } from '../config/legacy-corridors'
 
 /**
  * Filter values for the `/live` chip row. All defaults represent "no filter".

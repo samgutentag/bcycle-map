@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { renderWithTheme } from '../test-utils'
 import MapFilterChips from './MapFilterChips'
-import type { CorridorId } from '../config/corridors'
+import type { CorridorId } from '../config/legacy-corridors'
 
 afterEach(() => cleanup())
 

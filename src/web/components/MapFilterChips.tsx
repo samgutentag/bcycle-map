@@ -1,6 +1,6 @@
 import { Flex, Text, useTheme } from '@audius/harmony'
 import { MIN_BIKES_CYCLE, nextMinBikes } from '../lib/map-filters'
-import { CORRIDOR_LABELS, CORRIDOR_ORDER, type CorridorId, isCorridorId } from '../config/corridors'
+import { CORRIDOR_LABELS, CORRIDOR_ORDER, type CorridorId, isCorridorId } from '../config/legacy-corridors'
 
 type Props = {
   minBikes: number

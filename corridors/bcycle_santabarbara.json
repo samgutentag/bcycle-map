@@ -1,0 +1,147 @@
+{
+  "corridors": [
+    {
+      "id": "waterfront",
+      "label": "Waterfront"
+    },
+    {
+      "id": "cabrillo",
+      "label": "Cabrillo"
+    },
+    {
+      "id": "state_street",
+      "label": "State Street"
+    },
+    {
+      "id": "downtown",
+      "label": "Downtown core"
+    },
+    {
+      "id": "de_la_vina",
+      "label": "De La Vina"
+    },
+    {
+      "id": "funk_zone",
+      "label": "Funk Zone"
+    },
+    {
+      "id": "eastside",
+      "label": "Eastside (Milpas)"
+    },
+    {
+      "id": "mesa",
+      "label": "Mesa / Westside"
+    },
+    {
+      "id": "upper_east",
+      "label": "Upper East / Mission"
+    },
+    {
+      "id": "upper_state",
+      "label": "Upper State (La Cumbre)"
+    },
+    {
+      "id": "montecito",
+      "label": "Montecito"
+    }
+  ],
+  "assignments": {
+    "bcycle_santabarbara_4852": "state_street",
+    "bcycle_santabarbara_4853": "state_street",
+    "bcycle_santabarbara_4854": "state_street",
+    "bcycle_santabarbara_4855": "state_street",
+    "bcycle_santabarbara_4856": "state_street",
+    "bcycle_santabarbara_4857": "state_street",
+    "bcycle_santabarbara_4858": "state_street",
+    "bcycle_santabarbara_4859": "state_street",
+    "bcycle_santabarbara_4860": "state_street",
+    "bcycle_santabarbara_4861": "state_street",
+    "bcycle_santabarbara_4862": "state_street",
+    "bcycle_santabarbara_4863": "state_street",
+    "bcycle_santabarbara_4864": "state_street",
+    "bcycle_santabarbara_4865": "state_street",
+    "bcycle_santabarbara_4868": "state_street",
+    "bcycle_santabarbara_4870": "eastside",
+    "bcycle_santabarbara_4871": "upper_state",
+    "bcycle_santabarbara_4873": "eastside",
+    "bcycle_santabarbara_4874": "mesa",
+    "bcycle_santabarbara_4876": "mesa",
+    "bcycle_santabarbara_4877": "eastside",
+    "bcycle_santabarbara_4880": "state_street",
+    "bcycle_santabarbara_4905": "de_la_vina",
+    "bcycle_santabarbara_4906": "upper_east",
+    "bcycle_santabarbara_4911": "upper_east",
+    "bcycle_santabarbara_4928": "upper_state",
+    "bcycle_santabarbara_4933": "eastside",
+    "bcycle_santabarbara_4940": "upper_east",
+    "bcycle_santabarbara_4941": "upper_east",
+    "bcycle_santabarbara_4942": "upper_east",
+    "bcycle_santabarbara_4947": "upper_state",
+    "bcycle_santabarbara_4972": "upper_east",
+    "bcycle_santabarbara_4973": "downtown",
+    "bcycle_santabarbara_4993": "cabrillo",
+    "bcycle_santabarbara_4994": "waterfront",
+    "bcycle_santabarbara_4995": "waterfront",
+    "bcycle_santabarbara_4996": "cabrillo",
+    "bcycle_santabarbara_4997": "cabrillo",
+    "bcycle_santabarbara_5014": "cabrillo",
+    "bcycle_santabarbara_5015": "cabrillo",
+    "bcycle_santabarbara_6023": "funk_zone",
+    "bcycle_santabarbara_6028": "waterfront",
+    "bcycle_santabarbara_6030": "eastside",
+    "bcycle_santabarbara_6036": "cabrillo",
+    "bcycle_santabarbara_6037": "cabrillo",
+    "bcycle_santabarbara_7051": "cabrillo",
+    "bcycle_santabarbara_7132": "cabrillo",
+    "bcycle_santabarbara_7202": "mesa",
+    "bcycle_santabarbara_7203": "de_la_vina",
+    "bcycle_santabarbara_7204": "downtown",
+    "bcycle_santabarbara_7205": "waterfront",
+    "bcycle_santabarbara_7206": "downtown",
+    "bcycle_santabarbara_7207": "state_street",
+    "bcycle_santabarbara_7208": "mesa",
+    "bcycle_santabarbara_7209": "waterfront",
+    "bcycle_santabarbara_7212": "mesa",
+    "bcycle_santabarbara_7213": "montecito",
+    "bcycle_santabarbara_7231": "waterfront",
+    "bcycle_santabarbara_7232": "cabrillo",
+    "bcycle_santabarbara_7269": "eastside",
+    "bcycle_santabarbara_7270": "mesa",
+    "bcycle_santabarbara_7296": "funk_zone",
+    "bcycle_santabarbara_7300": "de_la_vina",
+    "bcycle_santabarbara_7301": "downtown",
+    "bcycle_santabarbara_7302": "mesa",
+    "bcycle_santabarbara_7326": "waterfront",
+    "bcycle_santabarbara_7329": "mesa",
+    "bcycle_santabarbara_7334": "state_street",
+    "bcycle_santabarbara_7335": "upper_east",
+    "bcycle_santabarbara_7339": "de_la_vina",
+    "bcycle_santabarbara_7340": "upper_state",
+    "bcycle_santabarbara_7359": "mesa",
+    "bcycle_santabarbara_7360": "montecito",
+    "bcycle_santabarbara_7365": "montecito",
+    "bcycle_santabarbara_7374": "eastside",
+    "bcycle_santabarbara_7388": "mesa",
+    "bcycle_santabarbara_7392": "mesa",
+    "bcycle_santabarbara_7397": "mesa",
+    "bcycle_santabarbara_7674": "waterfront",
+    "bcycle_santabarbara_7675": "waterfront",
+    "bcycle_santabarbara_7680": "de_la_vina",
+    "bcycle_santabarbara_7722": "downtown",
+    "bcycle_santabarbara_7778": "funk_zone",
+    "bcycle_santabarbara_9018": "upper_east",
+    "bcycle_santabarbara_9019": "de_la_vina",
+    "bcycle_santabarbara_9021": "upper_state",
+    "bcycle_santabarbara_9023": "eastside",
+    "bcycle_santabarbara_9025": "eastside",
+    "bcycle_santabarbara_9027": "downtown",
+    "bcycle_santabarbara_9028": "downtown",
+    "bcycle_santabarbara_9029": "mesa",
+    "bcycle_santabarbara_9031": "funk_zone",
+    "bcycle_santabarbara_9032": "upper_east",
+    "bcycle_santabarbara_9033": "upper_east",
+    "bcycle_santabarbara_9037": "downtown",
+    "bcycle_santabarbara_9040": "downtown",
+    "bcycle_santabarbara_9049": "mesa"
+  }
+}
