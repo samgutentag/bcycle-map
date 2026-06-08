@@ -6,9 +6,15 @@ import type { CorridorId } from '../config/corridors'
 
 afterEach(() => cleanup())
 
+const CORRIDORS = [
+  { id: 'waterfront', label: 'Waterfront' },
+  { id: 'mesa', label: 'Mesa' },
+]
+
 type Overrides = {
   minBikes?: number
   corridor?: CorridorId | null
+  corridors?: Array<{ id: string; label: string }>
   filteredCount?: number
   totalCount?: number
 }
@@ -21,6 +27,7 @@ function renderChips(overrides: Overrides = {}) {
     <MapFilterChips
       minBikes={overrides.minBikes ?? 0}
       corridor={overrides.corridor ?? null}
+      corridors={overrides.corridors ?? CORRIDORS}
       filteredCount={overrides.filteredCount ?? 26}
       totalCount={overrides.totalCount ?? 26}
       onMinBikesChange={onMinBikesChange}
@@ -109,6 +116,11 @@ describe('MapFilterChips', () => {
   })
 
   describe('corridor chip', () => {
+    const corridors = [
+      { id: 'r9', label: 'CBD' },
+      { id: 'r66', label: 'Clifton' },
+    ]
+
     it('renders "Corridor: All" by default with no clear button', () => {
       renderChips()
       const select = screen.getByTestId('filter-chip-corridor') as HTMLSelectElement
@@ -117,33 +129,43 @@ describe('MapFilterChips', () => {
       expect(screen.queryByTestId('filter-chip-corridor-clear')).toBeNull()
     })
 
-    it('renders the corridor label and × clear button when active', () => {
-      renderChips({ corridor: 'waterfront' })
-      // Label rendered inline as "Corridor: Waterfront"
-      expect(screen.getByText(/Corridor: Waterfront/)).toBeInTheDocument()
+    it('lists corridor options from the corridors prop', () => {
+      renderChips({ corridors })
+      expect(screen.getByRole('option', { name: 'CBD' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Clifton' })).toBeInTheDocument()
+    })
+
+    it('hides the corridor chip entirely when there are no corridors', () => {
+      renderChips({ corridors: [] })
+      expect(screen.queryByTestId('filter-chip-corridor')).toBeNull()
+    })
+
+    it('shows the active corridor label from the corridors prop', () => {
+      renderChips({ corridors, corridor: 'r66' })
+      expect(screen.getByText('Corridor: Clifton')).toBeInTheDocument()
       expect(screen.getByTestId('filter-chip-corridor-clear')).toBeInTheDocument()
     })
 
     it('calls onCorridorChange with the selected id when a corridor is picked', () => {
-      const { onCorridorChange } = renderChips()
-      fireEvent.change(screen.getByTestId('filter-chip-corridor'), { target: { value: 'mesa' } })
-      expect(onCorridorChange).toHaveBeenCalledWith('mesa')
+      const { onCorridorChange } = renderChips({ corridors })
+      fireEvent.change(screen.getByTestId('filter-chip-corridor'), { target: { value: 'r66' } })
+      expect(onCorridorChange).toHaveBeenCalledWith('r66')
     })
 
     it('calls onCorridorChange(null) when "All corridors" is picked', () => {
-      const { onCorridorChange } = renderChips({ corridor: 'waterfront' })
+      const { onCorridorChange } = renderChips({ corridors, corridor: 'r66' })
       fireEvent.change(screen.getByTestId('filter-chip-corridor'), { target: { value: '' } })
       expect(onCorridorChange).toHaveBeenCalledWith(null)
     })
 
     it('clicking the × clears the corridor without stepping through the dropdown', () => {
-      const { onCorridorChange } = renderChips({ corridor: 'mesa' })
+      const { onCorridorChange } = renderChips({ corridors, corridor: 'r9' })
       fireEvent.click(screen.getByTestId('filter-chip-corridor-clear'))
       expect(onCorridorChange).toHaveBeenCalledWith(null)
     })
 
     it('Reset link appears when only the corridor filter is active', () => {
-      renderChips({ corridor: 'waterfront' })
+      renderChips({ corridors, corridor: 'r66' })
       expect(screen.getByTestId('filter-chip-reset')).toBeInTheDocument()
     })
   })

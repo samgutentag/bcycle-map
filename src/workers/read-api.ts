@@ -9,6 +9,7 @@ import {
 } from './lib/trips-from-parquet'
 import type { Trip } from '../shared/types'
 import type { SimpleMatrix } from '../shared/trip-inference'
+import { nearestSystem, type SystemIndexEntry } from '../shared/systems-index'
 
 const CORS_HEADERS = {
   'access-control-allow-origin': '*',
@@ -24,6 +25,7 @@ const SNAPSHOTS_RE = /^\/api\/systems\/([^/]+)\/snapshots$/
 const BEACON_RE = /^\/api\/beacon$/
 const INSIGHTS_RE = /^\/api\/insights$/
 const GEOCODE_RE = /^\/api\/geocode$/
+const SYSTEMS_RE = /^\/api\/systems$/
 
 const ANALYTICS_KEY_PREFIX = 'analytics/'
 const ANALYTICS_RETENTION_DAYS = 90
@@ -87,6 +89,25 @@ async function handleBeacon(req: Request, env: Env): Promise<Response> {
     // Don't fail the response — the user's nav shouldn't degrade if analytics writes fail
   }
   return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
+async function handleSystems(req: Request, env: Env): Promise<Response> {
+  let systems: SystemIndexEntry[] = []
+  try {
+    const obj = await env.GBFS_R2.get('gbfs/systems-index.json')
+    if (obj) {
+      const parsed = JSON.parse(await obj.text()) as { systems?: SystemIndexEntry[] }
+      if (Array.isArray(parsed.systems)) systems = parsed.systems
+    }
+  } catch (err) {
+    console.error('systems index read failed:', err)
+  }
+  const cf = (req as any).cf || {}
+  const lat = Number(cf.latitude)
+  const lon = Number(cf.longitude)
+  const coord = Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null
+  const nearest = nearestSystem(systems, coord)
+  return jsonResponse({ systems, nearestId: nearest?.systemId ?? null }, 200, 'max-age=300')
 }
 
 async function handleInsights(url: URL, env: Env): Promise<Response> {
@@ -547,6 +568,10 @@ export default {
 
     if (url.pathname.match(GEOCODE_RE)) {
       return handleGeocode(url, env)
+    }
+
+    if (url.pathname.match(SYSTEMS_RE)) {
+      return handleSystems(req, env)
     }
 
     const activity = url.pathname.match(ACTIVITY_RE)

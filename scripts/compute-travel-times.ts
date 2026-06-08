@@ -1,4 +1,5 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSystems } from '../src/shared/systems'
 
 export type Station = { id: string; lat: number; lon: number }
 export type Edge = { minutes: number; meters: number }
@@ -240,7 +241,7 @@ async function fetchCurrentStations(apiBase: string, systemId: string): Promise<
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const env = process.env
-  for (const k of ['CF_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'SYSTEM_ID', 'API_BASE', 'MODE']) {
+  for (const k of ['CF_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'API_BASE', 'MODE']) {
     if (!env[k]) throw new Error(`missing env ${k}`)
   }
   const mode = env.MODE!  // 'check' | 'compute' | 'compute-full'
@@ -251,81 +252,102 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       endpoint: `https://${env.CF_ACCOUNT_ID!}.r2.cloudflarestorage.com`,
       credentials: { accessKeyId: env.R2_ACCESS_KEY_ID!, secretAccessKey: env.R2_SECRET_ACCESS_KEY! },
     })
-    const systemId = env.SYSTEM_ID!
-    const key = `gbfs/${systemId}/travel-times.json`
 
-    const current = await fetchCurrentStations(env.API_BASE!, systemId)
-    const existing = await r2Get(s3, env.R2_BUCKET!, key)
-    const diff = diffStations(existing?.stations ?? [], current)
-
-    console.log(`Stations: current=${current.length}, existing=${existing?.stations.length ?? 0}`)
-    console.log(`Diff: ${diff.added.length} added, ${diff.moved.length} moved, ${diff.removed.length} removed`)
-
-    if (mode === 'check') {
-      const summary = {
-        mode: 'check',
-        hasChanges: diff.added.length + diff.moved.length + diff.removed.length > 0,
-        added: diff.added.map(s => s.id),
-        moved: diff.moved.map(s => s.id),
-        removed: diff.removed.map(s => s.id),
-        currentStationCount: current.length,
-        existingStationCount: existing?.stations.length ?? 0,
-      }
-      console.log('CHECK_SUMMARY=' + JSON.stringify(summary))
-      return
+    // Aggregated across all systems — identical field shape to the
+    // single-system summary, so the workflow's jq/grep parse is unaffected.
+    // Station ids are globally unique (system-prefixed), so arrays concatenate
+    // and counts sum.
+    const combinedSummary = {
+      mode: 'check',
+      hasChanges: false,
+      added: [] as string[],
+      moved: [] as string[],
+      removed: [] as string[],
+      currentStationCount: 0,
+      existingStationCount: 0,
     }
-
-    if (!env.GOOGLE_MAPS_API_KEY) throw new Error('compute modes require GOOGLE_MAPS_API_KEY')
-    const apiKey = env.GOOGLE_MAPS_API_KEY
-
-    const removedIds = new Set(diff.removed.map(s => s.id))
-    let updates: Array<{ from: string; to: string; edge: Edge }> = []
 
     const logProgress = (label: string) => (done: number, total: number) => {
       if (done % 10 === 0 || done === total) console.log(`  ${label}: ${done}/${total} batches`)
     }
 
-    if (mode === 'compute-full') {
-      const elements = current.length * current.length
-      console.log(`Full recompute: ${current.length}×${current.length} = ${elements} elements`)
-      updates = await computeDistanceMatrix(current, current, apiKey, {
-        onProgress: logProgress('full'),
-      })
-    } else if (mode === 'compute') {
-      const changedSet = new Set<string>([...diff.added.map(s => s.id), ...diff.moved.map(s => s.id)])
-      if (changedSet.size === 0 && removedIds.size === 0) {
-        console.log('No changes detected; matrix unchanged.')
-        return
+    for (const cfg of getSystems()) {
+      const systemId = cfg.system_id
+      try {
+        const key = `gbfs/${systemId}/travel-times.json`
+
+        const current = await fetchCurrentStations(env.API_BASE!, systemId)
+        const existing = await r2Get(s3, env.R2_BUCKET!, key)
+        const diff = diffStations(existing?.stations ?? [], current)
+
+        console.log(`${systemId} stations: current=${current.length}, existing=${existing?.stations.length ?? 0}`)
+        console.log(`${systemId} diff: ${diff.added.length} added, ${diff.moved.length} moved, ${diff.removed.length} removed`)
+
+        combinedSummary.hasChanges = combinedSummary.hasChanges
+          || diff.added.length + diff.moved.length + diff.removed.length > 0
+        combinedSummary.added.push(...diff.added.map(s => s.id))
+        combinedSummary.moved.push(...diff.moved.map(s => s.id))
+        combinedSummary.removed.push(...diff.removed.map(s => s.id))
+        combinedSummary.currentStationCount += current.length
+        combinedSummary.existingStationCount += existing?.stations.length ?? 0
+
+        if (mode === 'check') continue
+
+        if (!env.GOOGLE_MAPS_API_KEY) throw new Error('compute modes require GOOGLE_MAPS_API_KEY')
+        const apiKey = env.GOOGLE_MAPS_API_KEY
+
+        const removedIds = new Set(diff.removed.map(s => s.id))
+        let updates: Array<{ from: string; to: string; edge: Edge }> = []
+
+        if (mode === 'compute-full') {
+          const elements = current.length * current.length
+          console.log(`${systemId} full recompute: ${current.length}×${current.length} = ${elements} elements`)
+          updates = await computeDistanceMatrix(current, current, apiKey, {
+            onProgress: logProgress('full'),
+          })
+        } else if (mode === 'compute') {
+          const changedSet = new Set<string>([...diff.added.map(s => s.id), ...diff.moved.map(s => s.id)])
+          if (changedSet.size === 0 && removedIds.size === 0) {
+            console.log(`${systemId}: no changes detected; matrix unchanged.`)
+            continue
+          }
+          if (changedSet.size > 0) {
+            const changedStations = current.filter(s => changedSet.has(s.id))
+            const nonChangedStations = current.filter(s => !changedSet.has(s.id))
+            console.log(`${systemId} pass A (changed → all): ${changedStations.length} × ${current.length}`)
+            const passA = await computeDistanceMatrix(changedStations, current, apiKey, {
+              onProgress: logProgress('pass A'),
+            })
+            console.log(`${systemId} pass B (other → changed): ${nonChangedStations.length} × ${changedStations.length}`)
+            const passB = await computeDistanceMatrix(nonChangedStations, changedStations, apiKey, {
+              onProgress: logProgress('pass B'),
+            })
+            updates = [...passA, ...passB]
+          }
+        } else {
+          throw new Error(`unknown mode: ${mode}`)
+        }
+
+        const mergedEdges = mode === 'compute-full'
+          ? buildEdgesFromUpdates(updates)
+          : mergeEdges(existing?.edges ?? {}, updates, removedIds)
+
+        const matrix: TravelMatrix = {
+          computedAt: Math.floor(Date.now() / 1000),
+          stations: current,
+          edges: mergedEdges,
+        }
+        await r2Put(s3, env.R2_BUCKET!, key, JSON.stringify(matrix))
+        const edgeCount = Object.keys(mergedEdges).reduce((s, k) => s + Object.keys(mergedEdges[k]!).length, 0)
+        console.log(`Wrote ${edgeCount} edges to ${key} (${updates.length} fresh, mode=${mode})`)
+      } catch (err) {
+        // A new system whose /current isn't live yet, or any single-system
+        // error, must not abort the others.
+        console.error(`travel-times failed for ${systemId}:`, err instanceof Error ? err.message : err)
       }
-      if (changedSet.size > 0) {
-        const changedStations = current.filter(s => changedSet.has(s.id))
-        const nonChangedStations = current.filter(s => !changedSet.has(s.id))
-        console.log(`Pass A (changed → all): ${changedStations.length} × ${current.length}`)
-        const passA = await computeDistanceMatrix(changedStations, current, apiKey, {
-          onProgress: logProgress('pass A'),
-        })
-        console.log(`Pass B (other → changed): ${nonChangedStations.length} × ${changedStations.length}`)
-        const passB = await computeDistanceMatrix(nonChangedStations, changedStations, apiKey, {
-          onProgress: logProgress('pass B'),
-        })
-        updates = [...passA, ...passB]
-      }
-    } else {
-      throw new Error(`unknown mode: ${mode}`)
     }
 
-    const mergedEdges = mode === 'compute-full'
-      ? buildEdgesFromUpdates(updates)
-      : mergeEdges(existing?.edges ?? {}, updates, removedIds)
-
-    const matrix: TravelMatrix = {
-      computedAt: Math.floor(Date.now() / 1000),
-      stations: current,
-      edges: mergedEdges,
-    }
-    await r2Put(s3, env.R2_BUCKET!, key, JSON.stringify(matrix))
-    const edgeCount = Object.keys(mergedEdges).reduce((s, k) => s + Object.keys(mergedEdges[k]!).length, 0)
-    console.log(`Wrote ${edgeCount} edges to ${key} (${updates.length} fresh, mode=${mode})`)
+    console.log('CHECK_SUMMARY=' + JSON.stringify(combinedSummary))
   })().catch(err => {
     console.error('travel-times failed:', err)
     process.exit(1)

@@ -8,6 +8,7 @@ import {
   type Station,
 } from './compute-travel-times'
 import { decodePolyline } from '../src/shared/polyline'
+import { getSystems } from '../src/shared/systems'
 import type { RouteCache, RouteEdge } from '../src/shared/route-cache'
 
 const DIRECTIONS_INTER_CALL_DELAY_MS = 100
@@ -20,7 +21,6 @@ type Env = {
   R2_SECRET_ACCESS_KEY?: string
   R2_BUCKET?: string
   GOOGLE_MAPS_API_KEY?: string
-  SYSTEM_ID?: string
   API_BASE?: string
   MODE?: string
 }
@@ -178,7 +178,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
     const env = process.env as Env
     const mode = (env.MODE ?? 'check').trim()
-    const systemId = requireEnv(env, 'SYSTEM_ID')
     const apiBase = requireEnv(env, 'API_BASE')
     const bucket = requireEnv(env, 'R2_BUCKET')
     const accountId = requireEnv(env, 'CF_ACCOUNT_ID')
@@ -191,72 +190,88 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       credentials: { accessKeyId, secretAccessKey },
     })
 
-    const key = `gbfs/${systemId}/routes.json`
-    const existing = await r2GetRoutes(s3, bucket, key)
-    const current = await fetchCurrentStations(apiBase, systemId)
-    const prev: Station[] = existing?.stations ?? []
-    const diff = diffStations(prev, current)
-    const removedIds = new Set(diff.removed.map(s => s.id))
-
-    const summary = {
-      hasChanges: diff.added.length + diff.moved.length + diff.removed.length > 0,
-      added: diff.added.map(s => s.id),
-      moved: diff.moved.map(s => s.id),
-      removed: diff.removed.map(s => s.id),
-    }
-    console.log(`CHECK_SUMMARY=${JSON.stringify(summary)}`)
-
-    if (mode === 'check') {
-      console.log(`check mode (mode=${mode}): no API calls made.`)
-      return
+    // Aggregated across all systems — same field shape the script has always
+    // emitted, so the workflow's jq/grep parsing is unaffected. Station ids are
+    // globally unique (system-prefixed), so the arrays just concatenate.
+    const combinedSummary = {
+      hasChanges: false,
+      added: [] as string[],
+      moved: [] as string[],
+      removed: [] as string[],
     }
 
-    if (!env.GOOGLE_MAPS_API_KEY) throw new Error('Missing env var: GOOGLE_MAPS_API_KEY (required for compute / compute-full)')
-    const apiKey = env.GOOGLE_MAPS_API_KEY
+    for (const cfg of getSystems()) {
+      const systemId = cfg.system_id
+      try {
+        const key = `gbfs/${systemId}/routes.json`
+        const existing = await r2GetRoutes(s3, bucket, key)
+        const current = await fetchCurrentStations(apiBase, systemId)
+        const prev: Station[] = existing?.stations ?? []
+        const diff = diffStations(prev, current)
+        const removedIds = new Set(diff.removed.map(s => s.id))
 
-    let updates: RouteUpdate[] = []
-    let attempted = 0
-    if (mode === 'compute-full') {
-      const pairs = allPairs(current)
-      attempted = pairs.length
-      console.log(`compute-full: ${pairs.length} pairs`)
-      updates = await computeRoutesSequential(pairs, apiKey, current)
-    } else if (mode === 'compute') {
-      const changedSet = new Set<string>([...diff.added.map(s => s.id), ...diff.moved.map(s => s.id)])
-      if (changedSet.size === 0 && removedIds.size === 0) {
-        console.log('No changes detected; routes unchanged.')
-        return
+        combinedSummary.hasChanges = combinedSummary.hasChanges
+          || diff.added.length + diff.moved.length + diff.removed.length > 0
+        combinedSummary.added.push(...diff.added.map(s => s.id))
+        combinedSummary.moved.push(...diff.moved.map(s => s.id))
+        combinedSummary.removed.push(...diff.removed.map(s => s.id))
+
+        if (mode === 'check') continue
+
+        if (!env.GOOGLE_MAPS_API_KEY) throw new Error('Missing env var: GOOGLE_MAPS_API_KEY (required for compute / compute-full)')
+        const apiKey = env.GOOGLE_MAPS_API_KEY
+
+        let updates: RouteUpdate[] = []
+        let attempted = 0
+        if (mode === 'compute-full') {
+          const pairs = allPairs(current)
+          attempted = pairs.length
+          console.log(`${systemId} compute-full: ${pairs.length} pairs`)
+          updates = await computeRoutesSequential(pairs, apiKey, current)
+        } else if (mode === 'compute') {
+          const changedSet = new Set<string>([...diff.added.map(s => s.id), ...diff.moved.map(s => s.id)])
+          if (changedSet.size === 0 && removedIds.size === 0) {
+            console.log(`${systemId}: no changes detected; routes unchanged.`)
+            continue
+          }
+          if (changedSet.size > 0) {
+            const pairs = pairsToRecompute(current, diff)
+            attempted = pairs.length
+            console.log(`${systemId} compute: ${pairs.length} pairs (changed × all + other × changed)`)
+            updates = await computeRoutesSequential(pairs, apiKey, current)
+          }
+        } else {
+          throw new Error(`unknown mode: ${mode}`)
+        }
+
+        if (attempted > 0 && updates.length === 0) {
+          throw new Error(
+            `compute-routes produced 0 successful edges out of ${attempted} attempted pairs. ` +
+            `Refusing to write an empty cache to R2. Check the Directions API is enabled on the ` +
+            `GCP project and the API key isn't restricted to other APIs.`,
+          )
+        }
+
+        const mergedEdges = mode === 'compute-full'
+          ? buildRouteEdgesFromUpdates(updates)
+          : mergeRouteEdges(existing?.edges ?? {}, updates, removedIds)
+
+        const cache: RouteCache = {
+          computedAt: Math.floor(Date.now() / 1000),
+          stations: current.map(s => ({ id: s.id, lat: s.lat, lon: s.lon })),
+          edges: mergedEdges,
+        }
+        await r2PutRoutes(s3, bucket, key, JSON.stringify(cache))
+        const edgeCount = Object.keys(mergedEdges).reduce((s, k) => s + Object.keys(mergedEdges[k]!).length, 0)
+        console.log(`Wrote ${edgeCount} route edges to ${key} (${updates.length} fresh, mode=${mode})`)
+      } catch (err) {
+        // A new system whose /current isn't live yet, or any single-system
+        // error, must not abort the others.
+        console.error(`compute-routes failed for ${systemId}:`, err instanceof Error ? err.message : err)
       }
-      if (changedSet.size > 0) {
-        const pairs = pairsToRecompute(current, diff)
-        attempted = pairs.length
-        console.log(`compute: ${pairs.length} pairs (changed × all + other × changed)`)
-        updates = await computeRoutesSequential(pairs, apiKey, current)
-      }
-    } else {
-      throw new Error(`unknown mode: ${mode}`)
     }
 
-    if (attempted > 0 && updates.length === 0) {
-      throw new Error(
-        `compute-routes produced 0 successful edges out of ${attempted} attempted pairs. ` +
-        `Refusing to write an empty cache to R2. Check the Directions API is enabled on the ` +
-        `GCP project and the API key isn't restricted to other APIs.`,
-      )
-    }
-
-    const mergedEdges = mode === 'compute-full'
-      ? buildRouteEdgesFromUpdates(updates)
-      : mergeRouteEdges(existing?.edges ?? {}, updates, removedIds)
-
-    const cache: RouteCache = {
-      computedAt: Math.floor(Date.now() / 1000),
-      stations: current.map(s => ({ id: s.id, lat: s.lat, lon: s.lon })),
-      edges: mergedEdges,
-    }
-    await r2PutRoutes(s3, bucket, key, JSON.stringify(cache))
-    const edgeCount = Object.keys(mergedEdges).reduce((s, k) => s + Object.keys(mergedEdges[k]!).length, 0)
-    console.log(`Wrote ${edgeCount} route edges to ${key} (${updates.length} fresh, mode=${mode})`)
+    console.log(`CHECK_SUMMARY=${JSON.stringify(combinedSummary)}`)
   })().catch(err => {
     console.error('compute-routes failed:', err)
     process.exit(1)

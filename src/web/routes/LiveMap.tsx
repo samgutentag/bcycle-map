@@ -16,7 +16,8 @@ import MapFilterChips from '../components/MapFilterChips'
 import MobileSettingsSheet from '../components/MobileSettingsSheet'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
-import { buildCorridorMap, type CorridorId } from '../config/corridors'
+import { assignmentMap, type CorridorId } from '../config/corridors'
+import { useCorridors } from '../hooks/useCorridors'
 import {
   applyMapFilters,
   DEFAULT_FILTERS,
@@ -25,6 +26,7 @@ import {
 } from '../lib/map-filters'
 import { classifyTypical, ringToneFor } from '../lib/typical-comparison'
 import { useTypicalProfiles } from '../hooks/useTypicalProfiles'
+import { useSystem } from '../context/SystemContext'
 import type { StationSnapshot } from '@shared/types'
 
 const TYPICAL_LS_KEY = 'bcycle-map:show-typical-comparison'
@@ -39,6 +41,7 @@ function readTypicalToggle(): boolean {
 const PULSE_DURATION_MS = 800
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const CYCLOSM_STYLE: maplibregl.StyleSpecification = {
@@ -90,9 +93,6 @@ function stationsToHexGeoJSON(stations: StationSnapshot[]) {
   }
 }
 
-const SYSTEM_ID = 'bcycle_santabarbara'
-const SB_CENTER: [number, number] = [-119.6982, 34.4208]
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -112,8 +112,8 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
   const ageSec = Math.max(0, nowTs - s.last_reported)
   const ageText = formatAge(ageSec)
   const offline = !s.is_renting || !s.is_returning || !s.is_installed
-  // BCycle SB is currently all-electric, so the "Electric: N" line is redundant.
-  // If non-electric types ever appear, show them so the user knows.
+  // Many BCycle systems are all-electric, so an "Electric: N" line is usually
+  // redundant. Show classic/smart counts only when a system actually has them.
   const types = [
     s.bikes_classic > 0 ? `Classic: ${s.bikes_classic}` : null,
     s.bikes_smart > 0 ? `Smart: ${s.bikes_smart}` : null,
@@ -149,6 +149,10 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
 }
 
 export default function LiveMap() {
+  const { systemId: SYSTEM_ID, activeSystem } = useSystem()
+  const bootCenter: [number, number] = activeSystem?.centroid ?? [-119.6982, 34.4208]
+  const bootCenterRef = useRef(bootCenter)
+  bootCenterRef.current = bootCenter
   const ref = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MlMap | null>(null)
   const markersRef = useRef<Map<string, Marker>>(new Map())
@@ -197,9 +201,10 @@ export default function LiveMap() {
   // Memoize the station → corridor lookup; iterates every station each
   // snapshot but identity is stable across renders, so the filter effect
   // only re-runs when the snapshot itself changes.
+  const { data: corridorArtifact } = useCorridors(R2_BASE, SYSTEM_ID)
   const corridorByStation = useMemo(
-    () => buildCorridorMap(data?.stations ?? []),
-    [data?.stations],
+    () => assignmentMap(corridorArtifact),
+    [corridorArtifact],
   )
 
   // Filter the station list driving the markers. SystemTotals always sees the
@@ -301,13 +306,26 @@ export default function LiveMap() {
     mapRef.current = new maplibregl.Map({
       container: ref.current,
       style: basemap === 'cycling' ? CYCLOSM_STYLE : POSITRON_STYLE,
-      center: SB_CENTER,
+      center: bootCenterRef.current,
       zoom: 13,
     })
     return () => { mapRef.current?.remove(); mapRef.current = null }
     // boot only; we swap style imperatively below when basemap changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Re-fit the camera when the active system changes. Snap to the new
+  // system's bbox from the systems index IMMEDIATELY (no waiting on its
+  // station fetch), then clear the gate so the marker-sync effect refines
+  // to the precise station bounds once the new snapshot lands.
+  useEffect(() => {
+    boundsSetRef.current = false
+    const map = mapRef.current
+    const bbox = activeSystem?.bbox
+    if (!map || !bbox) return
+    map.setMinZoom(0) // drop the floor set for the previous system before refitting
+    map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, duration: 400 })
+  }, [SYSTEM_ID, activeSystem])
 
   // swap basemap style when toggle changes
   useEffect(() => {
@@ -556,6 +574,7 @@ export default function LiveMap() {
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
+          corridors={corridorArtifact?.corridors ?? []}
           onCorridorChange={setCorridor}
           onMinBikesChange={setMinBikes}
           onReset={resetFilters}
@@ -609,6 +628,7 @@ export default function LiveMap() {
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
+          corridors={corridorArtifact?.corridors ?? []}
           onCorridorChange={setCorridor}
           onMinBikesChange={setMinBikes}
           onReset={resetFilters}

@@ -11,6 +11,7 @@ import {
 } from '@audius/harmony'
 import { BikeGlyph } from './BrandMark'
 import UnitSystemToggle from './UnitSystemToggle'
+import { useSystem } from '../context/SystemContext'
 
 type Props = {
   open: boolean
@@ -23,14 +24,6 @@ type LinkCard = {
   desc: string
   internal?: boolean
 }
-
-const LINKS: LinkCard[] = [
-  { href: 'https://github.com/samgutentag/bcycle-map', label: 'GitHub', desc: 'View the code' },
-  { href: 'https://gbfs.bcycle.com/bcycle_santabarbara/gbfs.json', label: 'GBFS feed', desc: 'Live data origin' },
-  { href: '/activity', label: 'Activity', desc: 'Recent rides', internal: true },
-  { href: 'https://santabarbara.bcycle.com', label: 'BCycle', desc: 'Rent a real bike' },
-  { href: 'mailto:bcycle-map@samgutentag.com', label: 'Contact', desc: 'Feedback & corrections' },
-]
 
 function LinkTile({ link, onClose }: { link: LinkCard; onClose: () => void }) {
   const theme = useTheme()
@@ -82,6 +75,14 @@ function LinkTile({ link, onClose }: { link: LinkCard; onClose: () => void }) {
 
 export default function AboutModal({ open, onClose }: Props) {
   const theme = useTheme()
+  const { activeSystem } = useSystem()
+  const LINKS: LinkCard[] = [
+    { href: 'https://github.com/samgutentag/bcycle-map', label: 'GitHub', desc: 'View the code' },
+    { href: activeSystem?.gbfsUrl ?? 'https://gbfs.bcycle.com/bcycle_santabarbara/gbfs.json', label: 'GBFS feed', desc: 'Live data origin' },
+    { href: '/activity', label: 'Activity', desc: 'Recent rides', internal: true },
+    { href: activeSystem?.rentalUrl ?? 'https://santabarbara.bcycle.com', label: 'BCycle', desc: 'Rent a real bike' },
+    { href: 'mailto:bcycle-map@samgutentag.com', label: 'Contact', desc: 'Feedback & corrections' },
+  ]
   return (
     <Modal isOpen={open} onClose={onClose} dismissOnClickOutside>
       <ModalHeader onClose={onClose}>
@@ -102,14 +103,14 @@ export default function AboutModal({ open, onClose }: Props) {
           </Flex>
           <ModalTitle title="bcycle-map" />
           <Text variant="label" size="s" color="warning" strength="strong">
-            Santa Barbara, CA
+            {activeSystem?.name ?? 'Santa Barbara BCycle'}
           </Text>
         </Flex>
       </ModalHeader>
       <ModalContent>
         <Flex direction="column" gap="l" css={{ paddingBottom: theme.spacing.l }}>
           <Text variant="body" size="m" color="default" textAlign="center">
-            A live map of Santa Barbara's BCycle bike share, with historical patterns, a route planner, and a feed
+            A live map of {activeSystem?.name ?? 'Santa Barbara'} bike share, with historical patterns, a route planner, and a feed
             of recent activity. Find an available bike or an open dock before you walk over.
           </Text>
 
@@ -166,7 +167,7 @@ export default function AboutModal({ open, onClose }: Props) {
               Sam Gutentag <IconExternalLink size="xs" color="warning" />
             </a>
             <Text variant="body" size="s" color="subdued">
-              in Santa Barbara
+              in {activeSystem?.name ?? 'Santa Barbara'}
             </Text>
           </Flex>
         </Flex>

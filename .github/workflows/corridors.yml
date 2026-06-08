@@ -1,16 +1,18 @@
-name: popularity
+name: corridors
+
+# Daily derivation of per-system corridor artifacts + the cross-system index.
+# Corridors change only when stations/regions change, so daily is plenty.
 
 on:
   schedule:
-    # Every 4 hours
-    - cron: '0 */4 * * *'
+    - cron: '42 9 * * *'
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: popularity
+  group: corridors
   cancel-in-progress: false
 
 jobs:
@@ -29,8 +31,8 @@ jobs:
 
       - run: npm ci
 
-      - name: Run popularity script
-        run: npx tsx scripts/compute-popularity.ts
+      - name: Run corridors script
+        run: npx tsx scripts/compute-corridors.ts
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
