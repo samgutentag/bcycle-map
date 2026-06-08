@@ -16,7 +16,8 @@ import MapFilterChips from '../components/MapFilterChips'
 import MobileSettingsSheet from '../components/MobileSettingsSheet'
 import { renderSparkline } from '../lib/sparkline'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
-import { buildCorridorMap, type CorridorId } from '../config/legacy-corridors'
+import { assignmentMap, type CorridorId } from '../config/corridors'
+import { useCorridors } from '../hooks/useCorridors'
 import {
   applyMapFilters,
   DEFAULT_FILTERS,
@@ -40,6 +41,7 @@ function readTypicalToggle(): boolean {
 const PULSE_DURATION_MS = 800
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+const R2_BASE = import.meta.env.VITE_R2_PUBLIC_URL ?? 'https://pub-83059e704dd64536a5166ab289eb42e5.r2.dev'
 
 const POSITRON_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 const CYCLOSM_STYLE: maplibregl.StyleSpecification = {
@@ -199,9 +201,10 @@ export default function LiveMap() {
   // Memoize the station → corridor lookup; iterates every station each
   // snapshot but identity is stable across renders, so the filter effect
   // only re-runs when the snapshot itself changes.
+  const { data: corridorArtifact } = useCorridors(R2_BASE, SYSTEM_ID)
   const corridorByStation = useMemo(
-    () => buildCorridorMap(data?.stations ?? []),
-    [data?.stations],
+    () => assignmentMap(corridorArtifact),
+    [corridorArtifact],
   )
 
   // Filter the station list driving the markers. SystemTotals always sees the
@@ -563,6 +566,7 @@ export default function LiveMap() {
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
+          corridors={corridorArtifact?.corridors ?? []}
           onCorridorChange={setCorridor}
           onMinBikesChange={setMinBikes}
           onReset={resetFilters}
@@ -616,6 +620,7 @@ export default function LiveMap() {
         <MapFilterChips
           minBikes={filters.minBikes}
           corridor={filters.corridor}
+          corridors={corridorArtifact?.corridors ?? []}
           onCorridorChange={setCorridor}
           onMinBikesChange={setMinBikes}
           onReset={resetFilters}
