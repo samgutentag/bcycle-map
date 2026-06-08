@@ -65,3 +65,33 @@ export function deriveDirectionalCorridors(stations: CorridorStation[]): Omit<Co
   const corridors: Corridor[] = SECTOR_ORDER.filter(id => present.has(id)).map(id => ({ id, label: SECTOR_LABEL[id]! }))
   return { corridors, assignments }
 }
+
+/**
+ * Build corridors from GBFS system_regions + per-station region_id. Returns
+ * null when the feed's regions are unusable for this system — either no
+ * regions, or no station carries a region_id that resolves to a named region
+ * (e.g. Santa Barbara lists a regions feed but its stations have no
+ * region_id). A null return signals the caller to fall through to the next
+ * tier.
+ */
+export function corridorsFromRegions(
+  stations: CorridorStation[],
+  regions: GbfsRegion[],
+): Omit<CorridorArtifact, 'generated_at' | 'source'> | null {
+  if (!Array.isArray(regions) || regions.length === 0) return null
+  const nameById = new Map(regions.map(r => [r.region_id, r.region_name]))
+
+  const assignments: Record<string, string> = {}
+  for (const s of stations) {
+    if (s.region_id && nameById.has(s.region_id)) {
+      assignments[s.station_id] = s.region_id
+    }
+  }
+  if (Object.keys(assignments).length === 0) return null
+
+  const used = new Set(Object.values(assignments))
+  const corridors: Corridor[] = regions
+    .filter(r => used.has(r.region_id))
+    .map(r => ({ id: r.region_id, label: r.region_name }))
+  return { corridors, assignments }
+}
