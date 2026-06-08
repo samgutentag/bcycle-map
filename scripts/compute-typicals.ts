@@ -1,5 +1,7 @@
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { parquetReadObjects } from 'hyparquet'
+import { getSystems } from '../src/shared/systems'
+import { fetchJsonWithRetry } from '../src/workers/lib/gbfs-client'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -168,25 +170,40 @@ export async function computeTypicalsForSystem(opts: {
   return { stationsWritten: written, daysCovered: maxDays }
 }
 
+async function systemTimezone(gbfsUrl: string): Promise<string> {
+  try {
+    const disc = await fetchJsonWithRetry<{ data: { en: { feeds: Array<{ name: string; url: string }> } } }>(gbfsUrl)
+    const feeds = Object.fromEntries(disc.data.en.feeds.map(f => [f.name, f.url]))
+    if (!feeds.system_information) return 'UTC'
+    const si = await fetchJsonWithRetry<{ data?: { timezone?: string } }>(feeds.system_information)
+    return si.data?.timezone || 'UTC'
+  } catch { return 'UTC' }
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const env = process.env
-  for (const k of ['CF_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'SYSTEM_ID', 'SYSTEM_TIMEZONE']) {
-    if (!env[k]) throw new Error(`missing env ${k}`)
-  }
-  const s3 = new S3Client({
-    region: 'auto',
-    endpoint: `https://${env.CF_ACCOUNT_ID!}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId: env.R2_ACCESS_KEY_ID!, secretAccessKey: env.R2_SECRET_ACCESS_KEY! },
-  })
-  computeTypicalsForSystem({
-    s3,
-    bucket: env.R2_BUCKET!,
-    systemId: env.SYSTEM_ID!,
-    timezone: env.SYSTEM_TIMEZONE!,
-  }).then(r => {
-    console.log(`typicals: wrote ${r.stationsWritten} stations, max days covered: ${r.daysCovered}`)
-  }, e => {
-    console.error('typicals failed:', e)
+  (async () => {
+    const env = process.env
+    for (const k of ['CF_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET']) {
+      if (!env[k]) throw new Error(`missing env ${k}`)
+    }
+    const s3 = new S3Client({
+      region: 'auto',
+      endpoint: `https://${env.CF_ACCOUNT_ID!}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: env.R2_ACCESS_KEY_ID!, secretAccessKey: env.R2_SECRET_ACCESS_KEY! },
+    })
+
+    for (const cfg of getSystems()) {
+      const systemId = cfg.system_id
+      try {
+        const timezone = await systemTimezone(cfg.gbfs_url)
+        const r = await computeTypicalsForSystem({ s3, bucket: env.R2_BUCKET!, systemId, timezone })
+        console.log(`${systemId}: typicals: wrote ${r.stationsWritten} stations, max days covered: ${r.daysCovered}`)
+      } catch (err) {
+        console.error(`compute-typicals failed for ${systemId}:`, err instanceof Error ? err.message : err)
+      }
+    }
+  })().catch(err => {
+    console.error('compute-typicals failed:', err)
     process.exit(1)
   })
 }

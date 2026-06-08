@@ -3,6 +3,7 @@ import { parquetToSnapshots, type SnapshotRow } from '../src/shared/parquet'
 import { inferTrips, type SimpleMatrix } from '../src/shared/trip-inference'
 import type { ActivityEvent, Trip } from '../src/shared/types'
 import type { Popularity, PairStat } from '../src/shared/popularity'
+import { getSystems } from '../src/shared/systems'
 
 const WINDOW_DAYS = 30
 const TOP_N = 10
@@ -123,7 +124,6 @@ function aggregate(events: ActivityEvent[], trips: Trip[]): {
 if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
     const env = process.env as Env
-    const systemId = requireEnv(env, 'SYSTEM_ID')
     const bucket = requireEnv(env, 'R2_BUCKET')
     const accountId = requireEnv(env, 'CF_ACCOUNT_ID')
     const accessKeyId = requireEnv(env, 'R2_ACCESS_KEY_ID')
@@ -135,80 +135,87 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       credentials: { accessKeyId, secretAccessKey },
     })
 
-    const nowTs = Math.floor(Date.now() / 1000)
-    const fromTs = nowTs - WINDOW_DAYS * 86400
-
-    console.log(`window: ${WINDOW_DAYS}d, ${new Date(fromTs * 1000).toISOString()} → ${new Date(nowTs * 1000).toISOString()}`)
-
-    const matrix = await fetchTravelMatrix(s3, bucket, systemId)
-    console.log(`travel matrix loaded: ${Object.keys(matrix).length} origins`)
-
-    const keys = await listPartitionsInWindow(s3, bucket, systemId, fromTs, nowTs)
-    console.log(`partitions in window: ${keys.length}`)
-    if (keys.length === 0) throw new Error('no partitions found in window; refusing to overwrite')
-
-    const allRows: SnapshotRow[] = []
-    let read = 0
-    for (const key of keys) {
+    for (const cfg of getSystems()) {
+      const systemId = cfg.system_id
       try {
-        const rows = await readPartition(s3, bucket, key)
-        allRows.push(...rows)
-      } catch (e: unknown) {
-        console.warn(`skipped ${key}:`, e instanceof Error ? e.message : e)
+        const nowTs = Math.floor(Date.now() / 1000)
+        const fromTs = nowTs - WINDOW_DAYS * 86400
+
+        console.log(`${systemId}: window: ${WINDOW_DAYS}d, ${new Date(fromTs * 1000).toISOString()} → ${new Date(nowTs * 1000).toISOString()}`)
+
+        const matrix = await fetchTravelMatrix(s3, bucket, systemId)
+        console.log(`${systemId}: travel matrix loaded: ${Object.keys(matrix).length} origins`)
+
+        const keys = await listPartitionsInWindow(s3, bucket, systemId, fromTs, nowTs)
+        console.log(`${systemId}: partitions in window: ${keys.length}`)
+        if (keys.length === 0) throw new Error('no partitions found in window; refusing to overwrite')
+
+        const allRows: SnapshotRow[] = []
+        let read = 0
+        for (const key of keys) {
+          try {
+            const rows = await readPartition(s3, bucket, key)
+            allRows.push(...rows)
+          } catch (e: unknown) {
+            console.warn(`skipped ${key}:`, e instanceof Error ? e.message : e)
+          }
+          read++
+          if (read % 25 === 0) console.log(`  read ${read}/${keys.length}`)
+        }
+        console.log(`${systemId}: total rows: ${allRows.length}`)
+
+        const events = synthesizeEvents(allRows)
+        console.log(`${systemId}: synthesized events: ${events.length}`)
+        if (events.length === 0) throw new Error('zero events after parsing; refusing to overwrite')
+
+        const trips = inferTrips(events, matrix, [])
+        console.log(`${systemId}: inferred trips: ${trips.length}`)
+
+        const { stationCounts, pairAgg } = aggregate(events, trips)
+
+        const topStations = [...stationCounts.entries()]
+          .map(([station_id, { departures, arrivals }]) => ({
+            station_id,
+            departures,
+            arrivals,
+            count: departures + arrivals,
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, TOP_N)
+
+        const flatPairs: Array<{ from_station_id: string; to_station_id: string; count: number }> = []
+        const pairStats: Record<string, Record<string, PairStat>> = {}
+        for (const [from, row] of pairAgg) {
+          pairStats[from] = {}
+          for (const [to, { count, durationSum }] of row) {
+            pairStats[from][to] = { count, mean_sec: Math.round(durationSum / count) }
+            flatPairs.push({ from_station_id: from, to_station_id: to, count })
+          }
+        }
+        const topRoutes = flatPairs.sort((a, b) => b.count - a.count).slice(0, TOP_N)
+
+        const popularity: Popularity = {
+          computedAt: nowTs,
+          windowStartTs: fromTs,
+          windowEndTs: nowTs,
+          topStations,
+          topRoutes,
+          pairStats,
+        }
+
+        const key = `gbfs/${systemId}/popularity.json`
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: JSON.stringify(popularity),
+          ContentType: 'application/json',
+          CacheControl: 'public, max-age=300',
+        }))
+        console.log(`wrote ${key}: ${topStations.length} stations, ${topRoutes.length} routes, ${flatPairs.length} pair stats`)
+      } catch (err) {
+        console.error(`compute-popularity failed for ${systemId}:`, err instanceof Error ? err.message : err)
       }
-      read++
-      if (read % 25 === 0) console.log(`  read ${read}/${keys.length}`)
     }
-    console.log(`total rows: ${allRows.length}`)
-
-    const events = synthesizeEvents(allRows)
-    console.log(`synthesized events: ${events.length}`)
-    if (events.length === 0) throw new Error('zero events after parsing; refusing to overwrite')
-
-    const trips = inferTrips(events, matrix, [])
-    console.log(`inferred trips: ${trips.length}`)
-
-    const { stationCounts, pairAgg } = aggregate(events, trips)
-
-    const topStations = [...stationCounts.entries()]
-      .map(([station_id, { departures, arrivals }]) => ({
-        station_id,
-        departures,
-        arrivals,
-        count: departures + arrivals,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, TOP_N)
-
-    const flatPairs: Array<{ from_station_id: string; to_station_id: string; count: number }> = []
-    const pairStats: Record<string, Record<string, PairStat>> = {}
-    for (const [from, row] of pairAgg) {
-      pairStats[from] = {}
-      for (const [to, { count, durationSum }] of row) {
-        pairStats[from][to] = { count, mean_sec: Math.round(durationSum / count) }
-        flatPairs.push({ from_station_id: from, to_station_id: to, count })
-      }
-    }
-    const topRoutes = flatPairs.sort((a, b) => b.count - a.count).slice(0, TOP_N)
-
-    const popularity: Popularity = {
-      computedAt: nowTs,
-      windowStartTs: fromTs,
-      windowEndTs: nowTs,
-      topStations,
-      topRoutes,
-      pairStats,
-    }
-
-    const key = `gbfs/${systemId}/popularity.json`
-    await s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: JSON.stringify(popularity),
-      ContentType: 'application/json',
-      CacheControl: 'public, max-age=300',
-    }))
-    console.log(`wrote ${key}: ${topStations.length} stations, ${topRoutes.length} routes, ${flatPairs.length} pair stats`)
   })().catch(err => {
     console.error('compute-popularity failed:', err)
     process.exit(1)

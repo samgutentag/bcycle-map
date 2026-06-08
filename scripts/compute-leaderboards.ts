@@ -34,6 +34,7 @@ import {
   ROUTE_MIN_TRIPS,
   LEADERBOARD_TOP_N,
 } from '../src/shared/leaderboards'
+import { getSystems } from '../src/shared/systems'
 
 const WINDOW_DAYS_30D = 30
 
@@ -216,7 +217,6 @@ function makeKVClient(opts: { accountId: string; namespaceId: string; token: str
 if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
     const env = process.env as Env
-    const systemId = requireEnv(env, 'SYSTEM_ID')
     const bucket = requireEnv(env, 'R2_BUCKET')
     const accountId = requireEnv(env, 'CF_ACCOUNT_ID')
     const accessKeyId = requireEnv(env, 'R2_ACCESS_KEY_ID')
@@ -228,82 +228,93 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       credentials: { accessKeyId, secretAccessKey },
     })
 
-    let maxBikesEver = Number(env.MAX_BIKES_EVER ?? 0)
-    if (!maxBikesEver) {
-      const kvToken = process.env.CF_KV_API_TOKEN
-      const kvNs = process.env.CF_KV_NAMESPACE_ID
-      if (kvToken && kvNs) {
-        const kv = makeKVClient({ accountId, namespaceId: kvNs, token: kvToken })
-        const raw = await kv.get(`system:${systemId}:latest`)
-        if (raw) {
-          const parsed = JSON.parse(raw) as { max_bikes_ever?: number }
-          maxBikesEver = parsed.max_bikes_ever ?? 0
-        }
-      }
-    }
-    if (!maxBikesEver) {
-      console.warn('max_bikes_ever unknown — trip pairing will identify nothing; routes window will be empty')
-    } else {
-      console.log(`Using max_bikes_ever=${maxBikesEver} for active-rider math.`)
-    }
+    const systems = getSystems()
 
-    const nowTs = Math.floor(Date.now() / 1000)
-    const sinceTs30d = nowTs - WINDOW_DAYS_30D * 86400
-
-    const allKeys = await listAllPartitions(s3, bucket, systemId)
-    console.log(`partitions in archive: ${allKeys.length}`)
-    if (allKeys.length === 0) throw new Error('no partitions found; refusing to overwrite')
-
-    const cap = env.MAX_PARTITIONS ? Number(env.MAX_PARTITIONS) : allKeys.length
-    const keys = allKeys.slice(-cap)
-    console.log(`reading ${keys.length} partitions${cap < allKeys.length ? ` (capped from ${allKeys.length})` : ''}`)
-
-    const allSnaps: Snap[] = []
-    let read = 0
-    for (const key of keys) {
+    for (const cfg of systems) {
+      const systemId = cfg.system_id
       try {
-        const snaps = await readPartition(s3, bucket, key)
-        allSnaps.push(...snaps)
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
-        console.warn(`skipped ${key}: ${msg}`)
+        // MAX_BIKES_EVER override only makes sense for a single system; with
+        // multiple systems it would wrongly apply to all, so rely on per-system KV.
+        let maxBikesEver = systems.length === 1 ? Number(env.MAX_BIKES_EVER ?? 0) : 0
+        if (!maxBikesEver) {
+          const kvToken = process.env.CF_KV_API_TOKEN
+          const kvNs = process.env.CF_KV_NAMESPACE_ID
+          if (kvToken && kvNs) {
+            const kv = makeKVClient({ accountId, namespaceId: kvNs, token: kvToken })
+            const raw = await kv.get(`system:${systemId}:latest`)
+            if (raw) {
+              const parsed = JSON.parse(raw) as { max_bikes_ever?: number }
+              maxBikesEver = parsed.max_bikes_ever ?? 0
+            }
+          }
+        }
+        if (!maxBikesEver) {
+          console.warn(`${systemId}: max_bikes_ever unknown — trip pairing will identify nothing; routes window will be empty`)
+        } else {
+          console.log(`${systemId}: using max_bikes_ever=${maxBikesEver} for active-rider math.`)
+        }
+
+        const nowTs = Math.floor(Date.now() / 1000)
+        const sinceTs30d = nowTs - WINDOW_DAYS_30D * 86400
+
+        const allKeys = await listAllPartitions(s3, bucket, systemId)
+        console.log(`${systemId}: partitions in archive: ${allKeys.length}`)
+        if (allKeys.length === 0) throw new Error('no partitions found; refusing to overwrite')
+
+        const cap = env.MAX_PARTITIONS ? Number(env.MAX_PARTITIONS) : allKeys.length
+        const keys = allKeys.slice(-cap)
+        console.log(`${systemId}: reading ${keys.length} partitions${cap < allKeys.length ? ` (capped from ${allKeys.length})` : ''}`)
+
+        const allSnaps: Snap[] = []
+        let read = 0
+        for (const key of keys) {
+          try {
+            const snaps = await readPartition(s3, bucket, key)
+            allSnaps.push(...snaps)
+          } catch (e: unknown) {
+            const msg = e instanceof Error ? e.message : String(e)
+            console.warn(`skipped ${key}: ${msg}`)
+          }
+          read++
+          if (read % 50 === 0) console.log(`  read ${read}/${keys.length}`)
+        }
+        allSnaps.sort((a, b) => a.ts - b.ts)
+        console.log(`${systemId}: total snapshots: ${allSnaps.length}`)
+
+        if (allSnaps.length < 2) {
+          throw new Error('not enough snapshots to compute leaderboards; refusing to overwrite')
+        }
+
+        const { events, trips } = eventsAndTrips(allSnaps, maxBikesEver)
+        console.log(`${systemId}: derived ${events.length} events, ${trips.length} trips`)
+
+        const windows30d = buildLeaderboardWindow(events, trips, sinceTs30d)
+        const windowsAll = buildLeaderboardWindow(events, trips, 0)
+        console.log(
+          `${systemId}: 30d: ${windows30d.stations.length} stations, ${windows30d.routes.length} routes / ` +
+          `all: ${windowsAll.stations.length} stations, ${windowsAll.routes.length} routes`,
+        )
+
+        const out: Leaderboards = {
+          generated_at: nowTs,
+          windows: { '30d': windows30d, all: windowsAll },
+        }
+        const body = JSON.stringify(out)
+        console.log(`${systemId}: rollup size: ${body.length} bytes`)
+
+        const key = `gbfs/${systemId}/leaderboards.json`
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ContentType: 'application/json',
+          CacheControl: 'public, max-age=300',
+        }))
+        console.log(`wrote ${key}`)
+      } catch (err) {
+        console.error(`compute-leaderboards failed for ${systemId}:`, err instanceof Error ? err.message : err)
       }
-      read++
-      if (read % 50 === 0) console.log(`  read ${read}/${keys.length}`)
     }
-    allSnaps.sort((a, b) => a.ts - b.ts)
-    console.log(`total snapshots: ${allSnaps.length}`)
-
-    if (allSnaps.length < 2) {
-      throw new Error('not enough snapshots to compute leaderboards; refusing to overwrite')
-    }
-
-    const { events, trips } = eventsAndTrips(allSnaps, maxBikesEver)
-    console.log(`derived ${events.length} events, ${trips.length} trips`)
-
-    const windows30d = buildLeaderboardWindow(events, trips, sinceTs30d)
-    const windowsAll = buildLeaderboardWindow(events, trips, 0)
-    console.log(
-      `30d: ${windows30d.stations.length} stations, ${windows30d.routes.length} routes / ` +
-      `all: ${windowsAll.stations.length} stations, ${windowsAll.routes.length} routes`,
-    )
-
-    const out: Leaderboards = {
-      generated_at: nowTs,
-      windows: { '30d': windows30d, all: windowsAll },
-    }
-    const body = JSON.stringify(out)
-    console.log(`rollup size: ${body.length} bytes`)
-
-    const key = `gbfs/${systemId}/leaderboards.json`
-    await s3.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: 'application/json',
-      CacheControl: 'public, max-age=300',
-    }))
-    console.log(`wrote ${key}`)
   })().catch(err => {
     console.error('compute-leaderboards failed:', err)
     process.exit(1)
