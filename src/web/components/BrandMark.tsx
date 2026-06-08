@@ -1,4 +1,5 @@
 import { Flex, Text } from '@audius/harmony'
+import { useSystem } from '../context/SystemContext'
 
 /**
  * Inline bike SVG that picks up `currentColor`, so it tints to whatever heading
@@ -28,6 +29,8 @@ export function BikeGlyph({ size = 22 }: { size?: number }) {
 }
 
 export default function BrandMark() {
+  const { activeSystem } = useSystem()
+  const subtitle = activeSystem ? `${activeSystem.name} · Live` : 'Santa Barbara · Live'
   return (
     <Flex alignItems="center" gap="s" aria-label="bcycle-map home">
       <Flex
@@ -55,7 +58,7 @@ export default function BrandMark() {
           lineHeight="single"
           css={{ '@media (max-width: 600px)': { display: 'none' } }}
         >
-          Santa Barbara · Live
+          {subtitle}
         </Text>
       </Flex>
     </Flex>
