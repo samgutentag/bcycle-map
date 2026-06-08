@@ -611,4 +611,43 @@ describe('read-api', () => {
       expect(res.headers.get('cache-control')).toBe('max-age=600')
     })
   })
+
+  it('GET /api/systems returns the index with nearestId from request geo', async () => {
+    const index = {
+      generated_at: 1,
+      systems: [
+        { systemId: 'bcycle_santabarbara', name: 'SB', gbfsUrl: '', rentalUrl: null, timezone: 'UTC', centroid: [-119.7, 34.42], bbox: [0,0,0,0], stationCount: 1 },
+        { systemId: 'bcycle_cincyredbike', name: 'Cincy', gbfsUrl: '', rentalUrl: null, timezone: 'UTC', centroid: [-84.51, 39.10], bbox: [0,0,0,0], stationCount: 1 },
+      ],
+    }
+    const env = makeEnv({ r2Get: { 'gbfs/systems-index.json': JSON.stringify(index) } })
+    const req = new Request('https://example/api/systems')
+    ;(req as any).cf = { latitude: '39.1', longitude: '-84.5' }
+    const res = await worker.fetch(req, env)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { systems: any[]; nearestId: string | null }
+    expect(body.systems).toHaveLength(2)
+    expect(body.nearestId).toBe('bcycle_cincyredbike')
+    expect(res.headers.get('access-control-allow-origin')).toBeTruthy()
+  })
+
+  it('GET /api/systems returns nearestId null when geo is absent', async () => {
+    const index = { generated_at: 1, systems: [
+      { systemId: 'bcycle_santabarbara', name: 'SB', gbfsUrl: '', rentalUrl: null, timezone: 'UTC', centroid: [-119.7, 34.42], bbox: [0,0,0,0], stationCount: 1 },
+    ] }
+    const env = makeEnv({ r2Get: { 'gbfs/systems-index.json': JSON.stringify(index) } })
+    const res = await worker.fetch(new Request('https://example/api/systems'), env)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { systems: any[]; nearestId: string | null }
+    expect(body.nearestId).toBeNull()
+  })
+
+  it('GET /api/systems returns empty list + null when the index is missing', async () => {
+    const env = makeEnv()
+    const res = await worker.fetch(new Request('https://example/api/systems'), env)
+    expect(res.status).toBe(200)
+    const body = await res.json() as { systems: any[]; nearestId: string | null }
+    expect(body.systems).toEqual([])
+    expect(body.nearestId).toBeNull()
+  })
 })
