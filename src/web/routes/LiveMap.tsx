@@ -112,8 +112,8 @@ function buildPopupHTML(s: StationSnapshot, nowTs: number): string {
   const ageSec = Math.max(0, nowTs - s.last_reported)
   const ageText = formatAge(ageSec)
   const offline = !s.is_renting || !s.is_returning || !s.is_installed
-  // BCycle SB is currently all-electric, so the "Electric: N" line is redundant.
-  // If non-electric types ever appear, show them so the user knows.
+  // Many BCycle systems are all-electric, so an "Electric: N" line is usually
+  // redundant. Show classic/smart counts only when a system actually has them.
   const types = [
     s.bikes_classic > 0 ? `Classic: ${s.bikes_classic}` : null,
     s.bikes_smart > 0 ? `Smart: ${s.bikes_smart}` : null,

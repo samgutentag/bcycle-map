@@ -96,7 +96,7 @@ function ErrorBox({ message }: { message: string }) {
 }
 
 export default function Explore() {
-  const { systemId: SYSTEM_ID } = useSystem()
+  const { systemId: SYSTEM_ID, activeSystem } = useSystem()
   const theme = useTheme()
   const navigate = useNavigate()
   const { data: live } = useLiveSnapshot(SYSTEM_ID)
@@ -167,7 +167,7 @@ export default function Explore() {
             >Explore</Text>
           </Flex>
           <Text variant="body" size="s" color="subdued">
-            Historical patterns for the Santa Barbara BCycle system.
+            Historical patterns for the {activeSystem?.name ?? 'Santa Barbara BCycle'} system.
           </Text>
         </Flex>
       </Flex>

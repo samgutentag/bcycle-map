@@ -153,7 +153,7 @@ function TypicalCallout({ stationId, currentBikes }: TypicalCalloutProps) {
       e => { if (!cancelled) { setError(e as Error); setLoading(false) } },
     )
     return () => { cancelled = true }
-  }, [stationId])
+  }, [stationId, SYSTEM_ID])
 
   if (loading) {
     return <Hint icon={IconInfo}>Comparing to typical…</Hint>
