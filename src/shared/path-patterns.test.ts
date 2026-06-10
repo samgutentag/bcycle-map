@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizePath } from './path-patterns'
+import { normalizePath, displayNameForPath } from './path-patterns'
 
 describe('normalizePath', () => {
   it('collapses station detail paths', () => {
@@ -40,5 +40,32 @@ describe('normalizePath', () => {
   it('tolerates trailing slashes', () => {
     expect(normalizePath('/explore/')).toBe('/explore')
     expect(normalizePath('/station/abc/details/')).toBe('/station/:id/details')
+  })
+
+  it('classifies /flow (previously uncategorized)', () => {
+    expect(normalizePath('/flow')).toBe('/flow')
+  })
+})
+
+describe('displayNameForPath', () => {
+  it('maps known routes to friendly names', () => {
+    expect(displayNameForPath('/')).toBe('Live map')
+    expect(displayNameForPath('/route/abc/def')).toBe('Route planner')
+    expect(displayNameForPath('/route/abc')).toBe('Route planner')
+    expect(displayNameForPath('/route')).toBe('Route planner')
+    expect(displayNameForPath('/station/abc/details')).toBe('Station details')
+    expect(displayNameForPath('/flow')).toBe('Flow')
+    expect(displayNameForPath('/explore')).toBe('Explore')
+    expect(displayNameForPath('/activity')).toBe('Activity')
+    expect(displayNameForPath('/insights')).toBe('Insights')
+  })
+
+  it('strips query/hash and tolerates trailing slashes', () => {
+    expect(displayNameForPath('/route/a/b?x=1')).toBe('Route planner')
+    expect(displayNameForPath('/explore/#foo')).toBe('Explore')
+  })
+
+  it('falls back to the normalized label for unknown paths', () => {
+    expect(displayNameForPath('/random/path')).toBe('(other)')
   })
 })

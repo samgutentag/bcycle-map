@@ -15,6 +15,7 @@ import PollPinger from '../components/PollPinger'
 import MapFilterChips from '../components/MapFilterChips'
 import MobileSettingsSheet from '../components/MobileSettingsSheet'
 import { renderSparkline } from '../lib/sparkline'
+import { trackEvent } from '../lib/analytics'
 import { diffSnapshots, type PulseDirection } from '../lib/pin-pulse'
 import { assignmentMap, type CorridorId } from '../config/corridors'
 import { useCorridors } from '../hooks/useCorridors'
@@ -273,6 +274,7 @@ export default function LiveMap() {
       .setLngLat([s.lon, s.lat])
       .setHTML(buildPopupHTML(s, Math.floor(Date.now() / 1000)))
       .addTo(map)
+    trackEvent('station_opened', { stationId: s.station_id, stationName: s.name, source: 'pin' })
     // Intercept clicks on `data-spa` anchors so they use SPA navigation instead
     // of a full page reload (preserves the MapLibre instance and is much faster).
     popup.getElement()?.addEventListener('click', ev => {

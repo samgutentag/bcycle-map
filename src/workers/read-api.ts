@@ -30,8 +30,21 @@ const SYSTEMS_RE = /^\/api\/systems$/
 const ANALYTICS_KEY_PREFIX = 'analytics/'
 const ANALYTICS_RETENTION_DAYS = 90
 
+// Legacy layout: one mutable object per day holding an events array. Read-only
+// now (no new writes) and ages out within the retention window. See #103.
 function analyticsKey(dateStr: string): string {
   return `${ANALYTICS_KEY_PREFIX}${dateStr}.json`
+}
+
+// Current layout: one immutable object per event under a per-day prefix. The
+// write is a single PUT (no read-modify-write), so concurrent beacons can't
+// clobber each other's events.
+function analyticsDayPrefix(dateStr: string): string {
+  return `${ANALYTICS_KEY_PREFIX}${dateStr}/`
+}
+
+function analyticsEventKey(dateStr: string, tsSec: number, id: string): string {
+  return `${analyticsDayPrefix(dateStr)}${tsSec}-${id}.json`
 }
 
 function utcDateStr(tsSec: number): string {
@@ -40,11 +53,61 @@ function utcDateStr(tsSec: number): string {
 
 type BeaconEvent = {
   ts: number
+  type: 'pageview' | 'event'
   path: string
+  name: string | null              // event name when type==='event'
+  props: Record<string, string> | null  // small label bag for events
   referrer: string | null
   country: string | null
   session: string | null
   viewport: string | null  // "WxH" or null
+}
+
+const PROPS_MAX_KEYS = 8
+const PROPS_MAX_VALUE_LEN = 100
+const PROPS_MAX_SERIALIZED = 1024
+
+/**
+ * Coerce an untrusted props bag into a safe string map, or null. Caps key
+ * count, stringifies + truncates values, and bails to null if the whole thing
+ * serializes too large. The beacon endpoint is public, so this is a guard.
+ */
+function sanitizeProps(raw: unknown): Record<string, string> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out: Record<string, string> = {}
+  let count = 0
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (count >= PROPS_MAX_KEYS) break
+    if (typeof k !== 'string' || k.length === 0 || k.length > 64) continue
+    if (v == null) continue
+    const s = typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : null
+    if (s == null) continue
+    out[k] = s.slice(0, PROPS_MAX_VALUE_LEN)
+    count++
+  }
+  if (count === 0) return null
+  if (JSON.stringify(out).length > PROPS_MAX_SERIALIZED) return null
+  return out
+}
+
+/**
+ * Backfill the enriched fields on a stored event read from either storage
+ * layout, so the insights client always sees the full shape regardless of
+ * when the event was written.
+ */
+function normalizeStoredEvent(e: any): BeaconEvent | null {
+  if (!e || typeof e.ts !== 'number' || typeof e.path !== 'string') return null
+  return {
+    ts: e.ts,
+    type: e.type === 'event' ? 'event' : 'pageview',
+    path: e.path,
+    name: typeof e.name === 'string' ? e.name : null,
+    props: e.props && typeof e.props === 'object' && !Array.isArray(e.props) ? e.props : null,
+    referrer: typeof e.referrer === 'string' ? e.referrer : null,
+    country: typeof e.country === 'string' ? e.country : null,
+    session: typeof e.session === 'string' ? e.session : null,
+    viewport: typeof e.viewport === 'string' ? e.viewport : null,
+  }
 }
 
 async function handleBeacon(req: Request, env: Env): Promise<Response> {
@@ -66,29 +129,91 @@ async function handleBeacon(req: Request, env: Env): Promise<Response> {
   if (typeof body?.path !== 'string' || body.path.length === 0 || body.path.length > 200) {
     return new Response('invalid path', { status: 400, headers: CORS_HEADERS })
   }
+  const type: 'pageview' | 'event' = body.type === 'event' ? 'event' : 'pageview'
+  const name = type === 'event' && typeof body.name === 'string' && body.name.length > 0 && body.name.length <= 64
+    ? body.name
+    : null
+  // An 'event' beacon with no valid name is malformed — reject so we don't
+  // store unattributable interaction rows.
+  if (type === 'event' && name == null) {
+    return new Response('invalid event name', { status: 400, headers: CORS_HEADERS })
+  }
   const ts = Math.floor(Date.now() / 1000)
   const cf = (req as any).cf || {}
   const event: BeaconEvent = {
     ts,
+    type,
     path: body.path,
+    name,
+    props: type === 'event' ? sanitizeProps(body.props) : null,
     referrer: typeof body.referrer === 'string' && body.referrer.length <= 500 ? body.referrer : null,
     country: typeof cf.country === 'string' ? cf.country : null,
     session: typeof body.session === 'string' && body.session.length <= 64 ? body.session : null,
     viewport: typeof body.viewport === 'string' && body.viewport.length <= 16 ? body.viewport : null,
   }
-  const key = analyticsKey(utcDateStr(ts))
+  // One immutable object per event — a single PUT, no read-modify-write, so
+  // concurrent beacons never clobber each other (#103).
+  const dateStr = utcDateStr(ts)
+  const id = crypto.randomUUID().slice(0, 8)
   try {
-    const existing = await env.GBFS_R2.get(key)
-    const day: { date: string; events: BeaconEvent[] } = existing
-      ? JSON.parse(await existing.text())
-      : { date: utcDateStr(ts), events: [] }
-    day.events.push(event)
-    await env.GBFS_R2.put(key, JSON.stringify(day), { httpMetadata: { contentType: 'application/json' } })
+    await env.GBFS_R2.put(
+      analyticsEventKey(dateStr, ts, id),
+      JSON.stringify(event),
+      { httpMetadata: { contentType: 'application/json' } },
+    )
   } catch (err) {
     console.error('beacon write failed:', err)
     // Don't fail the response — the user's nav shouldn't degrade if analytics writes fail
   }
   return new Response(null, { status: 204, headers: CORS_HEADERS })
+}
+
+/**
+ * Read every analytics event for one UTC day from BOTH storage layouts: the
+ * legacy daily aggregate file and the current per-event objects. Legacy files
+ * age out within the retention window, after which the daily-file read can go.
+ */
+async function readAnalyticsDay(env: Env, dateStr: string): Promise<BeaconEvent[]> {
+  const out: BeaconEvent[] = []
+
+  // Legacy: single daily file with an events array.
+  try {
+    const legacy = await env.GBFS_R2.get(analyticsKey(dateStr))
+    if (legacy) {
+      const day = JSON.parse(await legacy.text()) as { events?: unknown[] }
+      for (const e of day.events ?? []) {
+        const norm = normalizeStoredEvent(e)
+        if (norm) out.push(norm)
+      }
+    }
+  } catch (err) {
+    console.error(`insights: failed to read legacy ${dateStr}:`, err)
+  }
+
+  // Current: per-event objects under analytics/<date>/. List can be truncated
+  // at 1000 keys, so page through with the cursor.
+  try {
+    let cursor: string | undefined
+    do {
+      const listed: any = await env.GBFS_R2.list({ prefix: analyticsDayPrefix(dateStr), cursor })
+      const objects: Array<{ key: string }> = listed?.objects ?? []
+      await Promise.all(objects.map(async (o) => {
+        try {
+          const obj = await env.GBFS_R2.get(o.key)
+          if (!obj) return
+          const norm = normalizeStoredEvent(JSON.parse(await obj.text()))
+          if (norm) out.push(norm)
+        } catch (err) {
+          console.error(`insights: failed to read ${o.key}:`, err)
+        }
+      }))
+      cursor = listed?.truncated ? listed.cursor : undefined
+    } while (cursor)
+  } catch (err) {
+    console.error(`insights: failed to list ${dateStr}:`, err)
+  }
+
+  return out
 }
 
 async function handleSystems(req: Request, env: Env): Promise<Response> {
@@ -113,18 +238,9 @@ async function handleSystems(req: Request, env: Env): Promise<Response> {
 async function handleInsights(url: URL, env: Env): Promise<Response> {
   const days = Math.min(ANALYTICS_RETENTION_DAYS, Math.max(1, Number(url.searchParams.get('days') ?? '30')))
   const nowSec = Math.floor(Date.now() / 1000)
-  const allEvents: BeaconEvent[] = []
-  for (let i = 0; i < days; i++) {
-    const dateStr = utcDateStr(nowSec - i * 86400)
-    try {
-      const obj = await env.GBFS_R2.get(analyticsKey(dateStr))
-      if (!obj) continue
-      const day = JSON.parse(await obj.text()) as { events: BeaconEvent[] }
-      allEvents.push(...day.events)
-    } catch (err) {
-      console.error(`insights: failed to read ${dateStr}:`, err)
-    }
-  }
+  const dayStrs = Array.from({ length: days }, (_, i) => utcDateStr(nowSec - i * 86400))
+  const perDay = await Promise.all(dayStrs.map(d => readAnalyticsDay(env, d)))
+  const allEvents = perDay.flat()
   allEvents.sort((a, b) => a.ts - b.ts)
   return new Response(JSON.stringify({ events: allEvents, days }), {
     status: 200,
