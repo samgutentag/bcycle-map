@@ -276,6 +276,32 @@
     <text x="286" y="210" text-anchor="middle" class="svg-label" font-size="9" fill="#555">your browser</text>
     <line x1="432" y1="60" x2="358" y2="188" stroke="#bbb" stroke-width="1.2" marker-end="url(#ar)"/>
     <line x1="432" y1="156" x2="358" y2="200" stroke="#bbb" stroke-width="1.2" marker-end="url(#ar)"/>
+
+    <!-- ANIMATION (5s loop; static boxes/arrows carry the meaning when frozen) -->
+    <!-- packet: feed -> reader, once per cycle ("every 5 min") -->
+    <circle r="5" fill="#0d6cb0" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M160,70 L214,70" keyPoints="0;1;1" keyTimes="0;0.18;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.18;0.2;1"/>
+    </circle>
+    <!-- packet: reader -> live store -->
+    <circle r="5" fill="#1d7a4d" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M356,60 L430,40" keyPoints="0;0;1;1" keyTimes="0;0.24;0.46;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.24;0.26;0.46;0.48;1"/>
+    </circle>
+    <!-- live store border flash on arrival -->
+    <rect x="432" y="20" width="186" height="56" rx="8" fill="none" stroke="#1d7a4d" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;0;0" keyTimes="0;0.46;0.54;0.68;1"/>
+    </rect>
+    <!-- packet: reader -> archive store -->
+    <circle r="5" fill="#888" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M356,80 L430,150" keyPoints="0;0;1;1" keyTimes="0;0.3;0.54;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3;0.32;0.54;0.56;1"/>
+    </circle>
+    <!-- archive store border flash on arrival -->
+    <rect x="432" y="128" width="186" height="56" rx="8" fill="none" stroke="#888" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;0;0" keyTimes="0;0.54;0.62;0.76;1"/>
+    </rect>
+
     <defs>
       <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#888"/></marker>
     </defs>
@@ -313,6 +339,28 @@
     <rect x="486" y="46" width="138" height="48" rx="8" fill="#eef4fb" stroke="#0d6cb0"/>
     <text x="555" y="68" text-anchor="middle" class="svg-label" font-size="11" font-weight="700" fill="#1a1a1a">Inferred trip</text>
     <text x="555" y="84" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">A &rarr; B, 15 min</text>
+
+    <!-- ANIMATION (5s loop; static elements above carry the meaning when frozen) -->
+    <!-- departure pulse at A -->
+    <circle cx="90" cy="70" r="26" fill="none" stroke="#b2741a" stroke-width="2.5" opacity="0">
+      <animate attributeName="r" dur="5s" repeatCount="indefinite" values="26;40;40;40" keyTimes="0;0.12;0.99;1"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0.8;0;0;0" keyTimes="0;0.12;0.99;1"/>
+    </circle>
+    <!-- the bike travelling A -> B along the route -->
+    <circle r="7" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M124,70 L396,70" keyPoints="0;0;1;1" keyTimes="0;0.12;0.6;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.12;0.58;0.62;1"/>
+    </circle>
+    <!-- arrival pulse ring at B -->
+    <circle cx="430" cy="70" r="26" fill="none" stroke="#1d7a4d" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="5s" repeatCount="indefinite" values="26;26;42;42" keyTimes="0;0.58;0.7;1"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;0.85;0;0" keyTimes="0;0.58;0.64;0.78;1"/>
+    </circle>
+    <!-- inferred-trip box flash (the static box stays underneath) -->
+    <rect x="486" y="46" width="138" height="48" rx="8" fill="none" stroke="#0d6cb0" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.7;0.74;0.9;0.95;1"/>
+    </rect>
+
     <defs>
       <marker id="ar2" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#888"/></marker>
     </defs>
@@ -341,6 +389,13 @@
 
 <hr class="soft">
 <p class="updated">Companion guide to the BCycle Map web app. If a screen looks different from this guide, the app is the source of truth &mdash; features are still being added.</p>
+
+<script>
+  // Respect prefers-reduced-motion: freeze the SVG animations for anyone who opts out.
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('svg').forEach(function (s) { if (s.pauseAnimations) s.pauseAnimations(); });
+  }
+</script>
 
 </body>
 </html>
