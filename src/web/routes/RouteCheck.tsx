@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { trackEvent } from '../lib/analytics'
 import type { StationSnapshot, Trip, ActivityLog as ActivityLogData } from '@shared/types'
 import {
   Box,
@@ -186,6 +187,7 @@ export default function RouteCheck() {
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 2000)
     })
+    trackEvent('share_link', { kind: 'route' })
   }, [])
 
   const [nowTick, setNowTick] = useState(() => Math.floor(Date.now() / 1000))
@@ -229,6 +231,25 @@ export default function RouteCheck() {
   const edge = lookupTravelTime(matrix.data, startId, endId)
   const travelTimeSec = edge ? edge.minutes * 60 : null
   const routeEdge = lookupRoute(routeCache.data, startId, endId)
+
+  // Fire `route_check_run` once per from→to pair, when a real estimate has
+  // resolved (a travel time or a cached route). Deduped via a ref so re-renders
+  // and tick updates don't re-emit for the same pair.
+  const trackedPairRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!startId || !endId) return
+    const hasEstimate = travelTimeSec != null || routeEdge != null
+    if (!hasEstimate) return
+    const pairKey = `${startId}|${endId}`
+    if (trackedPairRef.current === pairKey) return
+    trackedPairRef.current = pairKey
+    trackEvent('route_check_run', {
+      from: startId,
+      to: endId,
+      fromName: startStation?.name ?? startId,
+      toName: destStation?.name ?? endId,
+    })
+  }, [startId, endId, travelTimeSec, routeEdge, startStation?.name, destStation?.name])
 
   const startExternalGuide = hover?.source === 'dest' && travelTimeSec ? hover.timeSec - travelTimeSec : null
   const destExternalGuide = hover?.source === 'start' && travelTimeSec ? hover.timeSec + travelTimeSec : null

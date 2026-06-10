@@ -2,9 +2,14 @@ import { useEffect, useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
+export type BeaconType = 'pageview' | 'event'
+
 export type BeaconEvent = {
   ts: number
+  type: BeaconType
   path: string
+  name: string | null
+  props: Record<string, string> | null
   referrer: string | null
   country: string | null
   session: string | null

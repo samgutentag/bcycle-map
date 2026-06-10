@@ -10,51 +10,26 @@ import {
   Text,
   useTheme,
 } from '@audius/harmony'
-import { useInsights, type BeaconEvent } from '../hooks/useInsights'
+import { useInsights } from '../hooks/useInsights'
 import { normalizePath } from '@shared/path-patterns'
+import {
+  filterToWindow,
+  pageviews,
+  interactions,
+  countTop,
+  topPages,
+  topRoutePairs,
+  topStations,
+  topActions,
+  bucketByHour,
+  bucketByDay,
+} from '../lib/insights-agg'
 import MiniLine from '../components/MiniLine'
 import { useStableVerb } from '../lib/spinner-verbs'
 
 type Window = '24h' | '7d' | '30d'
 const WINDOW_DAYS: Record<Window, number> = { '24h': 1, '7d': 7, '30d': 30 }
 const WINDOW_LABEL: Record<Window, string> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' }
-
-function filterToWindow(events: BeaconEvent[], windowDays: number): BeaconEvent[] {
-  const nowSec = Math.floor(Date.now() / 1000)
-  const cutoff = nowSec - windowDays * 86400
-  return events.filter(e => e.ts >= cutoff)
-}
-
-function topNBy<T extends string | null>(events: BeaconEvent[], extract: (e: BeaconEvent) => T, n: number) {
-  const counts = new Map<string, number>()
-  for (const e of events) {
-    const k = extract(e) ?? '(none)'
-    counts.set(k, (counts.get(k) ?? 0) + 1)
-  }
-  return Array.from(counts.entries()).sort(([, a], [, b]) => b - a).slice(0, n)
-}
-
-function bucketByHour(events: BeaconEvent[], hours: number): number[] {
-  const nowSec = Math.floor(Date.now() / 1000)
-  const bucketStart = (Math.floor(nowSec / 3600) - hours + 1) * 3600
-  const buckets = new Array(hours).fill(0)
-  for (const e of events) {
-    const idx = Math.floor((e.ts - bucketStart) / 3600)
-    if (idx >= 0 && idx < hours) buckets[idx] += 1
-  }
-  return buckets
-}
-
-function bucketByDay(events: BeaconEvent[], days: number): number[] {
-  const nowDayStart = Math.floor(Date.now() / 86400_000) * 86400
-  const bucketStart = nowDayStart - (days - 1) * 86400
-  const buckets = new Array(days).fill(0)
-  for (const e of events) {
-    const idx = Math.floor((e.ts - bucketStart) / 86400)
-    if (idx >= 0 && idx < days) buckets[idx] += 1
-  }
-  return buckets
-}
 
 function StatCard({ label, value, sublabel }: { label: string; value: string | number; sublabel?: string }) {
   return (
@@ -146,22 +121,31 @@ export default function Insights() {
     return filterToWindow(insights.data.events, days)
   }, [insights.data, days])
 
-  const totalViews = filtered.length
+  const pageviewEvents = useMemo(() => pageviews(filtered), [filtered])
+  const eventEvents = useMemo(() => interactions(filtered), [filtered])
+
+  const totalViews = pageviewEvents.length
+  const totalActions = eventEvents.length
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session ?? '(none)')).size, [filtered])
-  const distinctPaths = useMemo(() => new Set(filtered.map(e => normalizePath(e.path))).size, [filtered])
+  const distinctPaths = useMemo(() => new Set(pageviewEvents.map(e => normalizePath(e.path))).size, [pageviewEvents])
 
+  // Histogram counts pageviews only, so "views" stays consistent with the
+  // Page views stat. Interactions get their own tables below.
   const timeBuckets = useMemo(() => {
-    if (days <= 1) return { values: bucketByHour(filtered, 24), label: 'Views per hour (last 24h)' }
-    return { values: bucketByDay(filtered, days), label: `Views per day (last ${days}d)` }
-  }, [filtered, days])
+    if (days <= 1) return { values: bucketByHour(pageviewEvents, 24), label: 'Views per hour (last 24h)' }
+    return { values: bucketByDay(pageviewEvents, days), label: `Views per day (last ${days}d)` }
+  }, [pageviewEvents, days])
 
-  const topPaths = useMemo(() => topNBy(filtered, e => normalizePath(e.path), 10), [filtered])
-  const topReferrers = useMemo(() => topNBy(filtered, e => {
+  const topPagesRows = useMemo(() => topPages(filtered, 10), [filtered])
+  const topRoutePairsRows = useMemo(() => topRoutePairs(filtered, 10), [filtered])
+  const topStationsRows = useMemo(() => topStations(filtered, 10), [filtered])
+  const topActionsRows = useMemo(() => topActions(filtered, 10), [filtered])
+  const topReferrers = useMemo(() => countTop(filtered, e => {
     if (!e.referrer) return null
     try { const u = new URL(e.referrer); return u.hostname || '(direct)' } catch { return '(invalid)' }
   }, 10), [filtered])
-  const topCountries = useMemo(() => topNBy(filtered, e => e.country, 10), [filtered])
-  const topViewports = useMemo(() => topNBy(filtered, e => {
+  const topCountries = useMemo(() => countTop(filtered, e => e.country, 10), [filtered])
+  const topViewports = useMemo(() => countTop(filtered, e => {
     if (!e.viewport) return null
     const [w] = e.viewport.split('x')
     const width = Number(w)
@@ -230,7 +214,7 @@ export default function Insights() {
         </Flex>
       )}
 
-      {insights.data && totalViews === 0 && (
+      {insights.data && totalViews === 0 && totalActions === 0 && (
         <Paper p="xl" borderRadius="m" border="default" alignItems="center" justifyContent="center" direction="column" gap="xs">
           <Text variant="title" size="s" strength="strong" color="default">
             No views in {WINDOW_LABEL[window].toLowerCase()}
@@ -241,7 +225,7 @@ export default function Insights() {
         </Paper>
       )}
 
-      {insights.data && totalViews > 0 && (
+      {insights.data && (totalViews > 0 || totalActions > 0) && (
         <>
           <Flex gap="s" css={{
             display: 'grid',
@@ -249,12 +233,12 @@ export default function Insights() {
             '@media (min-width: 768px)': { gridTemplateColumns: 'repeat(4, 1fr)' },
           }}>
             <StatCard label="Page views" value={totalViews} sublabel={WINDOW_LABEL[window]} />
+            <StatCard label="Actions" value={totalActions} sublabel="route checks, opens, shares" />
             <StatCard label="Unique sessions" value={uniqueSessions} sublabel="distinct browser tabs" />
-            <StatCard label="Routes visited" value={distinctPaths} sublabel="normalized patterns" />
             <StatCard
               label="Views/session"
               value={uniqueSessions === 0 ? '—' : (totalViews / uniqueSessions).toFixed(1)}
-              sublabel="average click-around depth"
+              sublabel={`${distinctPaths} distinct pages`}
             />
           </Flex>
 
@@ -301,7 +285,10 @@ export default function Insights() {
             gap: theme.spacing.m,
             '@media (min-width: 1024px)': { gridTemplateColumns: 'repeat(2, 1fr)' },
           }}>
-            <CountTable title="Top routes (normalized)" rows={topPaths} emptyText="No path data yet." />
+            <CountTable title="Top pages" rows={topPagesRows} emptyText="No page data yet." />
+            <CountTable title="Top actions" rows={topActionsRows} emptyText="No interactions yet." valueLabel="count" />
+            <CountTable title="Top route pairs" rows={topRoutePairsRows} emptyText="No route checks yet." valueLabel="checks" />
+            <CountTable title="Top stations" rows={topStationsRows} emptyText="No station opens yet." valueLabel="opens" />
             <CountTable title="Top referrers" rows={topReferrers} emptyText="No referrer data — most visits are direct." />
             <CountTable title="Country breakdown" rows={topCountries} emptyText="No country data." />
             <CountTable title="Viewport size" rows={topViewports} emptyText="No viewport data." />

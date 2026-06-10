@@ -27,6 +27,7 @@ function makeEnv({
         if (val == null) return null
         return { text: async () => val } as any
       }),
+      put: vi.fn(async (_key: string, _body: any, _opts?: any) => undefined),
     } as any,
     GOOGLE_MAPS_API_KEY: googleMapsApiKey,
   }
@@ -649,5 +650,92 @@ describe('read-api', () => {
     const body = await res.json() as { systems: any[]; nearestId: string | null }
     expect(body.systems).toEqual([])
     expect(body.nearestId).toBeNull()
+  })
+
+  describe('analytics beacon (#103)', () => {
+    function beacon(body: unknown): Request {
+      return new Request('https://example/api/beacon', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+    }
+
+    it('writes a pageview as a single per-event PUT (no read-modify-write)', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(beacon({ path: '/', session: 's1', viewport: '390x844' }), env)
+      expect(res.status).toBe(204)
+      // No read of a daily file — the whole point of the storage change.
+      expect(env.GBFS_R2.get).not.toHaveBeenCalled()
+      expect(env.GBFS_R2.put).toHaveBeenCalledTimes(1)
+      const [key, payload] = (env.GBFS_R2.put as any).mock.calls[0]
+      expect(key).toMatch(/^analytics\/\d{4}-\d{2}-\d{2}\/\d+-[0-9a-f]+\.json$/)
+      const stored = JSON.parse(payload)
+      expect(stored.type).toBe('pageview')
+      expect(stored.path).toBe('/')
+      expect(stored.name).toBeNull()
+    })
+
+    it('stores an interaction event with name + sanitized props', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(
+        beacon({ type: 'event', path: '/route/a/b', name: 'route_check_run', props: { from: 'a', to: 'b', fromName: 'State St', toName: 'Beach' } }),
+        env,
+      )
+      expect(res.status).toBe(204)
+      const stored = JSON.parse((env.GBFS_R2.put as any).mock.calls[0][1])
+      expect(stored.type).toBe('event')
+      expect(stored.name).toBe('route_check_run')
+      expect(stored.props).toEqual({ from: 'a', to: 'b', fromName: 'State St', toName: 'Beach' })
+    })
+
+    it('rejects an event beacon with no name', async () => {
+      const env = makeEnv()
+      const res = await worker.fetch(beacon({ type: 'event', path: '/route' }), env)
+      expect(res.status).toBe(400)
+      expect(env.GBFS_R2.put).not.toHaveBeenCalled()
+    })
+
+    it('caps props key count and value length', async () => {
+      const env = makeEnv()
+      const props: Record<string, unknown> = { huge: 'x'.repeat(500) }
+      for (let i = 0; i < 20; i++) props[`k${i}`] = i
+      await worker.fetch(beacon({ type: 'event', path: '/x', name: 'e', props }), env)
+      const stored = JSON.parse((env.GBFS_R2.put as any).mock.calls[0][1])
+      expect(Object.keys(stored.props).length).toBeLessThanOrEqual(8)
+      expect(stored.props.huge?.length ?? 0).toBeLessThanOrEqual(100)
+    })
+
+    it('rejects a missing/oversized path', async () => {
+      const env = makeEnv()
+      expect((await worker.fetch(beacon({ session: 's' }), env)).status).toBe(400)
+      expect((await worker.fetch(beacon({ path: 'x'.repeat(201) }), env)).status).toBe(400)
+    })
+  })
+
+  describe('insights read (#103)', () => {
+    it('merges legacy daily-file events with new per-event objects', async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      const legacy = { date: today, events: [{ ts: 100, path: '/', referrer: null, country: 'US', session: 'old', viewport: null }] }
+      const perEvent = { ts: 200, type: 'event', path: '/route/a/b', name: 'route_check_run', props: { fromName: 'A', toName: 'B' }, referrer: null, country: 'US', session: 'new', viewport: null }
+      const env = makeEnv({
+        r2Objects: [{ key: `analytics/${today}/200-abcd.json` }],
+        r2Get: {
+          [`analytics/${today}.json`]: JSON.stringify(legacy),
+          [`analytics/${today}/200-abcd.json`]: JSON.stringify(perEvent),
+        },
+      })
+      const res = await worker.fetch(new Request('https://example/api/insights?days=1'), env)
+      expect(res.status).toBe(200)
+      const body = await res.json() as { events: any[] }
+      expect(body.events).toHaveLength(2)
+      // Legacy event backfilled to the full shape.
+      const legacyEv = body.events.find(e => e.session === 'old')
+      expect(legacyEv.type).toBe('pageview')
+      expect(legacyEv.name).toBeNull()
+      // New event preserved, sorted after the legacy one by ts.
+      expect(body.events[1].name).toBe('route_check_run')
+      expect(body.events[1].props.fromName).toBe('A')
+    })
   })
 })

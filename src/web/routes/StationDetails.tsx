@@ -34,6 +34,7 @@ import { buildPinSVG, pinSize } from '../lib/pin-svg'
 import { classifyTypical, type TypicalProfile } from '../lib/typical-comparison'
 import { fetchStationTypical } from '../lib/typical-fetch'
 import { useSystem } from '../context/SystemContext'
+import { trackEvent } from '../lib/analytics'
 import type { StationSnapshot } from '@shared/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
@@ -382,6 +383,21 @@ export default function StationDetails() {
   }, [])
 
   const station = live?.stations.find(s => s.station_id === stationId)
+
+  // Fire `station_opened` (source: details) once per station id, upgrading the
+  // name once live data resolves. Deduped so re-renders don't re-emit.
+  const trackedStationRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!stationId) return
+    if (trackedStationRef.current === stationId) return
+    trackedStationRef.current = stationId
+    trackEvent('station_opened', {
+      stationId,
+      stationName: station?.name ?? stationId,
+      source: 'details',
+    })
+  }, [stationId, station?.name])
+
   const totalDocks = station ? station.num_bikes_available + station.num_docks_available : undefined
   const offline = station ? !station.is_renting || !station.is_returning || !station.is_installed : false
   const mapsHref = station ? `https://www.google.com/maps/search/?api=1&query=${station.lat},${station.lon}` : null

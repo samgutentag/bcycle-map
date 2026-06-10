@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { Flex, Text, useTheme } from '@audius/harmony'
 import { pickTickInterval } from '../lib/flow-window'
+import { trackEvent } from '../lib/analytics'
 
 /**
  * 24-hour timeline scrubber for the flow map.
@@ -75,6 +76,27 @@ export default function FlowTimelineScrubber({
   const theme = useTheme()
   const trackRef = useRef<HTMLDivElement | null>(null)
 
+  // Debounced usage tracking: scrubbing fires continuously, so coalesce each
+  // gesture into a single `flow_used` event (1s trailing) per action kind.
+  const flowTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const trackFlow = useCallback((action: 'scrub' | 'play') => {
+    const timers = flowTimersRef.current
+    if (timers[action]) clearTimeout(timers[action])
+    timers[action] = setTimeout(() => {
+      trackEvent('flow_used', { action })
+      delete timers[action]
+    }, 1000)
+  }, [])
+  useEffect(() => {
+    const timers = flowTimersRef.current
+    return () => { for (const t of Object.values(timers)) clearTimeout(t) }
+  }, [])
+
+  const handlePlayToggle = useCallback(() => {
+    onPlayToggle()
+    trackFlow('play')
+  }, [onPlayToggle, trackFlow])
+
   // Sorted copy of trip departure timestamps for prev/next jumping +
   // density-marker rendering. Memoized so repeated sorts don't happen on
   // every parent render.
@@ -135,9 +157,12 @@ export default function FlowTimelineScrubber({
   const onSliderInput = useCallback(
     (ev: React.ChangeEvent<HTMLInputElement>) => {
       const next = Number(ev.target.value)
-      if (Number.isFinite(next)) onCursorChange(next)
+      if (Number.isFinite(next)) {
+        onCursorChange(next)
+        trackFlow('scrub')
+      }
     },
-    [onCursorChange],
+    [onCursorChange, trackFlow],
   )
 
   // Jump to "now" (windowEnd). Useful after manually scrubbing back.
@@ -153,8 +178,9 @@ export default function FlowTimelineScrubber({
       const pct = (ev.clientX - rect.left) / rect.width
       const clamped = Math.max(0, Math.min(1, pct))
       onCursorChange(windowStart + clamped * (windowEnd - windowStart))
+      trackFlow('scrub')
     },
-    [onCursorChange, windowStart, windowEnd],
+    [onCursorChange, windowStart, windowEnd, trackFlow],
   )
 
   return (
@@ -176,7 +202,7 @@ export default function FlowTimelineScrubber({
         <Flex alignItems="center" gap="s">
           <button
             type="button"
-            onClick={onPlayToggle}
+            onClick={handlePlayToggle}
             aria-label={playing ? 'Pause playback' : 'Play playback'}
             aria-pressed={playing}
             title={`${playing ? 'Pause' : 'Play'} (Space)`}
