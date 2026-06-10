@@ -119,14 +119,32 @@
     <!-- big example pin -->
     <g transform="translate(150,40)">
       <path d="M0,0 C-33,0 -60,27 -60,60 C-60,103 0,150 0,150 C0,150 60,103 60,60 C60,27 33,0 0,0 Z" fill="#0d6cb0" stroke="#0a5896" stroke-width="3"/>
-      <!-- bikes: live count gently ticks 7 -> 6 (a bike taken) and back -->
-      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff">7<animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.42;0.47;0.72;0.77;1"/></text>
-      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff" opacity="0">6<animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.42;0.47;0.72;0.77;1"/></text>
+      <!-- bikes: 7 at rest, bumps to 8 when a bike arrives, back to 7 when one departs -->
+      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff">7<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff" opacity="0">8<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
       <line x1="-34" y1="64" x2="34" y2="64" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.5"/>
-      <!-- docks rise as bikes fall (inverse): 11 -> 12 -->
-      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe">11<animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.42;0.47;0.72;0.77;1"/></text>
-      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe" opacity="0">12<animate attributeName="opacity" dur="6s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.42;0.47;0.72;0.77;1"/></text>
+      <!-- docks move inversely: 11 at rest, 10 while that extra bike occupies a dock -->
+      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe">11<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe" opacity="0">10<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
     </g>
+    <!-- a bike ARRIVES from the top, lands in the pin (bikes 7->8, docks 11->10) -->
+    <circle r="6" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="8s" repeatCount="indefinite" path="M150,4 L150,72" keyPoints="0;0;1;1" keyTimes="0;0.14;0.28;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.14;0.16;0.28;0.30;1"/>
+    </circle>
+    <circle cx="150" cy="72" r="8" fill="none" stroke="#16a34a" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="8s" repeatCount="indefinite" values="8;8;26;26" keyTimes="0;0.28;0.4;1"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.85;0;0" keyTimes="0;0.28;0.32;0.44;1"/>
+    </circle>
+    <!-- then a bike DEPARTS out the bottom (bikes 8->7, docks 10->11) -->
+    <circle r="6" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="8s" repeatCount="indefinite" path="M150,150 L214,186" keyPoints="0;0;1;1" keyTimes="0;0.6;0.74;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6;0.62;0.74;0.76;1"/>
+    </circle>
+    <circle cx="150" cy="150" r="8" fill="none" stroke="#f59e0b" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="8s" repeatCount="indefinite" values="8;8;26;26" keyTimes="0;0.6;0.72;1"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.8;0;0" keyTimes="0;0.6;0.64;0.76;1"/>
+    </circle>
     <!-- callouts -->
     <line x1="150" y1="92" x2="270" y2="92" stroke="#888" stroke-width="1"/>
     <text x="278" y="89" class="svg-label" font-size="13" font-weight="700" fill="#1a1a1a">Top number = bikes available</text>
@@ -147,7 +165,7 @@
     <text x="380" y="278" class="svg-label" font-size="10.5" fill="#1a1a1a">Amber &mdash; new station (added &lt; 14 days ago)</text>
   </svg>
   </div>
-  <figcaption>One pin, four signals: bikes (top), docks (bottom), capacity (size), and status (color).</figcaption>
+  <figcaption>One pin, four signals: bikes (top), docks (bottom), capacity (size), and status (color). Watch it move: a bike arrives (bikes up, a dock fills), then one departs (and back).</figcaption>
 </figure>
 
 <p><strong>Tap any pin</strong> to open its popup: the station name, a link to it in Google Maps, the live bikes/docks, what kinds of bikes are there, how long ago the data was read, and a little sparkline of bikes over the last day. From the popup, <strong>"Open details &rarr;"</strong> takes you to the full station page (<a href="#station">section 6</a>).</p>
