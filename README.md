@@ -217,8 +217,83 @@ scripts/
 wrangler.toml                # poller config
 wrangler.read-api.toml       # read API config
 wrangler.smoke.toml          # smoke worker config
-systems.json                 # list of GBFS systems to poll (one entry at v1)
+systems.json                 # list of GBFS systems to poll (with per-system enabled flag)
 ```
+
+## Managing systems
+
+Every system the app touches is one entry in `systems.json`. The poller, all
+`scripts/compute-*` rollups, and the picker's `systems-index.json` read the
+list through a single function — `getSystems()` in `src/shared/systems.ts` — so
+that one file is the only place you edit.
+
+### Add a system
+
+1. Append an entry to `systems.json`. `enabled` is optional; omit it (or set
+   `true`) to make the system active immediately:
+
+   ```json
+   {
+     "system_id": "bcycle_madison",
+     "name": "Madison BCycle",
+     "gbfs_url": "https://gbfs.bcycle.com/bcycle_madison/gbfs.json",
+     "version": "1.1"
+   }
+   ```
+
+   `system_id` must match the slug in the GBFS URL. Find systems at the
+   [BCycle GBFS index](https://gbfs.bcycle.com/).
+
+2. Redeploy the poller so the new entry is bundled in and polling starts:
+
+   ```bash
+   gh workflow run deploy-workers.yml -f target=poller
+   ```
+
+3. Run corridors once to add the system to the picker (it writes
+   `gbfs/systems-index.json`, the file `/api/systems` serves to the frontend):
+
+   ```bash
+   gh workflow run corridors.yml
+   ```
+
+   The network dropdown only appears once two or more systems are active
+   (`NetworkPicker` hides itself below that). The rest of the rollups
+   (leaderboards, popularity, routes, travel-times, typicals) pick the new
+   system up on their next scheduled run, or trigger them manually the same way.
+
+### Enable or disable a system
+
+Disabling is the reverse switch — useful for staying under the Workers Free KV
+cap (1000 puts/day; each active system costs ~576 puts/day at the 5-min poll
+interval, so two systems is already over). Flip the flag, don't delete the
+entry — already-collected data stays frozen in R2/KV and `getSystem(id)` still
+resolves it, so re-enabling is lossless.
+
+1. Set the flag in `systems.json`:
+
+   ```json
+   { "system_id": "bcycle_cincyredbike", "...": "...", "enabled": false }
+   ```
+
+   `enabled: false` removes the system from `getSystems()`; omitting the flag or
+   setting `true` keeps it active.
+
+2. Redeploy the poller so it stops (or resumes) polling that system:
+
+   ```bash
+   gh workflow run deploy-workers.yml -f target=poller
+   ```
+
+3. Run corridors to rewrite `systems-index.json`, which drops the system from
+   (or restores it to) the picker:
+
+   ```bash
+   gh workflow run corridors.yml
+   ```
+
+   Disabled systems leave the dropdown on the next corridors run; if only one
+   system remains active the picker disappears entirely.
 
 ## npm scripts
 
