@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BCycle Map: User Guide</title>
+<style>
+  :root {
+    --ink:#1a1a1a; --mute:#555; --faint:#888; --rule:#ddd;
+    --accent:#0d6cb0; --code:#f4f5f7; --warn:#b2741a; --ok:#1d7a4d;
+    --callout:#eef4fb;
+  }
+  * { box-sizing:border-box; }
+  body {
+    font:16px/1.65 Georgia,"Iowan Old Style","Times New Roman",serif;
+    color:var(--ink); max-width:50rem; margin:0 auto; padding:2.5rem 1.5rem 5rem;
+  }
+  h1,h2,h3,h4,th,.lbl,nav,.tag { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+  h1 { font-size:2rem; margin:0 0 .2rem; line-height:1.15; }
+  .subtitle { color:var(--mute); font-style:italic; margin:0 0 1.5rem; }
+  h2 { font-size:1.35rem; margin:2.4rem 0 .6rem; padding-top:1.1rem; border-top:2px solid var(--rule); }
+  h3 { font-size:1.08rem; margin:1.5rem 0 .35rem; }
+  h4 { font-size:.96rem; margin:1.1rem 0 .25rem; color:var(--mute); }
+  p { margin:.6rem 0; }
+  ul,ol { margin:.5rem 0; padding-left:1.4rem; } li { margin:.4rem 0; }
+  code { font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.82em; background:var(--code); padding:.1em .35em; border-radius:3px; }
+  table { border-collapse:collapse; width:100%; margin:.8rem 0; font-size:.9rem; }
+  th,td { text-align:left; padding:.42rem .55rem; border-bottom:1px solid var(--rule); vertical-align:top; }
+  th { font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--faint); }
+  .note { border-left:3px solid var(--accent); background:var(--callout); padding:.55rem .9rem; margin:.9rem 0; font-size:.95rem; }
+  .warn { border-left:3px solid var(--warn); background:#fdf7ec; padding:.55rem .9rem; margin:.9rem 0; font-size:.95rem; }
+  .ok { border-left:3px solid var(--ok); background:#f1f8f3; padding:.55rem .9rem; margin:.9rem 0; font-size:.95rem; }
+  nav { background:var(--code); border:1px solid var(--rule); border-radius:8px; padding:1rem 1.25rem; margin:1.5rem 0 2rem; font-size:.9rem; }
+  nav h2 { border:none; padding:0; margin:0 0 .5rem; font-size:.8rem; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); }
+  nav ol { margin:0; padding-left:1.3rem; columns:2; column-gap:2rem; }
+  nav a { color:var(--accent); text-decoration:none; }
+  nav a:hover { text-decoration:underline; }
+  .tag { display:inline-block; font-size:.66rem; text-transform:uppercase; letter-spacing:.05em; background:var(--accent); color:#fff; padding:.08rem .42rem; border-radius:3px; vertical-align:middle; margin-left:.4rem; }
+  .tag.alt { background:#444; }
+  .defn { margin:.5rem 0; }
+  .defn dt { font-family:-apple-system,system-ui,sans-serif; font-weight:600; font-size:.92rem; }
+  .defn dd { margin:.1rem 0 .7rem; color:var(--ink); }
+  hr.soft { border:none; border-top:1px solid var(--rule); margin:1.6rem 0; }
+  figure { margin:1.6rem 0; }
+  figure .diagram { border:1px solid var(--rule); border-radius:8px; padding:1.1rem 1rem; background:#fff; }
+  figure svg { display:block; max-width:100%; height:auto; margin:0 auto; }
+  figcaption { font-family:-apple-system,system-ui,sans-serif; font-size:.8rem; color:var(--mute); margin-top:.55rem; text-align:center; }
+  .svg-label { font-family:-apple-system,"Segoe UI",system-ui,sans-serif; }
+  .updated { color:var(--faint); font-size:.8rem; font-family:-apple-system,system-ui,sans-serif; }
+  @media print {
+    body { max-width:none; font-size:11.5pt; }
+    nav { break-inside:avoid; }
+    h2 { break-after:avoid; }
+    table,.note,.warn,.ok,figure { break-inside:avoid; }
+    a { color:inherit; text-decoration:none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>BCycle Map: User Guide</h1>
+<p class="subtitle">What every screen does, what the pins and colors mean, and where the numbers come from. Written to be read cold, with no prior knowledge of the app or of bike-share.</p>
+
+<nav>
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#what">What this is</a></li>
+    <li><a href="#vocab">Words you need first</a></li>
+    <li><a href="#pin">How to read a pin</a></li>
+    <li><a href="#ring">The colored ring</a></li>
+    <li><a href="#live">The Live map</a></li>
+    <li><a href="#station">Station details</a></li>
+    <li><a href="#route">Route check</a></li>
+    <li><a href="#flow">Flow</a></li>
+    <li><a href="#explore">Explore &amp; Activity</a></li>
+    <li><a href="#data">Where the data comes from</a></li>
+    <li><a href="#trips">How trips are figured out</a></li>
+    <li><a href="#faq">Good to know</a></li>
+  </ol>
+</nav>
+
+<h2 id="what">1. What this is</h2>
+<p>This is a live map of a city's <strong>BCycle</strong> bike-share system. BCycle runs the actual bikes and docking stations on the street; this site is an independent viewer on top of the public data they publish. It does three things the official app doesn't lean into:</p>
+<ul>
+  <li><strong>Right now</strong> &mdash; how many bikes and open docks are at every station this minute.</li>
+  <li><strong>Over time</strong> &mdash; what a station, or the whole system, usually looks like at this hour, so you can tell "busy for a Tuesday morning" from "normal."</li>
+  <li><strong>Movement</strong> &mdash; an animated replay of where bikes have been going over the last day.</li>
+</ul>
+<p>You don't need an account and nothing here rents you a bike &mdash; for that you still use the BCycle app. This is the map you check <em>before</em> you walk to a station, to make sure a bike (or an open dock) will be there when you arrive.</p>
+
+<h3>The four screens</h3>
+<p>Everything lives behind four tabs in the top bar: <strong>Live</strong>, <strong>Route</strong>, <strong>Flow</strong>, and <strong>Explore</strong>. The rest of this guide walks each one. There's also a light/dark toggle and an <strong>About</strong> button (the &#9432; icon) in the top bar.</p>
+
+<h2 id="vocab">2. Words you need first</h2>
+<p>A handful of terms show up everywhere. Read these once and the rest of the guide reads easily.</p>
+<dl class="defn">
+  <dt>Station</dt>
+  <dd>A physical docking rack on the street. Bikes are locked into <em>docks</em>. On the map, a station is one teardrop-shaped <strong>pin</strong>.</dd>
+  <dt>Bikes vs. docks</dt>
+  <dd>Two numbers that always move in opposite directions. <strong>Bikes available</strong> = what you can ride away. <strong>Open docks</strong> = empty spots to <em>return</em> a bike. A full station has lots of bikes and zero open docks; an empty one is the reverse. Both matter: bikes if you're starting a trip, docks if you're ending one.</dd>
+  <dt>Capacity</dt>
+  <dd>Bikes + open docks = the total size of a station. A 25-dock station is bigger than a 6-dock one, and the pin is drawn larger to match.</dd>
+  <dt>Live / staleness</dt>
+  <dd>"Live" data is the most recent reading, refreshed every few minutes. A small pulsing green dot marks live numbers. If the feed goes quiet, the app tells you how old the data is rather than pretending it's current &mdash; see <a href="#faq">Good to know</a>.</dd>
+  <dt>Typical</dt>
+  <dd>What a station <em>usually</em> has at this hour and day of week, learned from weeks of history. Used to tell you whether right now is above or below normal.</dd>
+  <dt>Corridor</dt>
+  <dd>A named group of nearby stations (a neighborhood, or a compass sector like "north"). Used to filter the map down to one part of town.</dd>
+  <dt>Trip</dt>
+  <dd>One bike's journey from one station to another. The app <em>infers</em> these by watching counts change (it can't see riders directly) &mdash; explained in <a href="#trips">section 11</a>.</dd>
+</dl>
+
+<h2 id="pin">3. How to read a pin</h2>
+<p>The pin is the whole map in miniature, so it's worth thirty seconds. Every pin carries four pieces of information at once: two numbers, a size, a color, and (optionally) a colored ring.</p>
+
+<figure>
+  <div class="diagram">
+  <svg viewBox="0 0 640 300" role="img" aria-label="Anatomy of a station pin: top number is bikes available, bottom number is open docks, size scales with capacity, color shows status, and an optional ring compares to typical">
+    <!-- big example pin -->
+    <g transform="translate(150,40)">
+      <path d="M0,0 C-33,0 -60,27 -60,60 C-60,103 0,150 0,150 C0,150 60,103 60,60 C60,27 33,0 0,0 Z" fill="#0d6cb0" stroke="#0a5896" stroke-width="3"/>
+      <!-- bikes: 7 at rest, bumps to 8 when a bike arrives, back to 7 when one departs -->
+      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff">7<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+      <text x="0" y="52" text-anchor="middle" class="svg-label" font-size="34" font-weight="800" fill="#fff" opacity="0">8<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+      <line x1="-34" y1="64" x2="34" y2="64" stroke="#ffffff" stroke-opacity="0.5" stroke-width="1.5"/>
+      <!-- docks move inversely: 11 at rest, 10 while that extra bike occupies a dock -->
+      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe">11<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="1;1;0;0;1;1" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+      <text x="0" y="98" text-anchor="middle" class="svg-label" font-size="26" font-weight="700" fill="#dbeafe" opacity="0">10<animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.26;0.30;0.62;0.66;1"/></text>
+    </g>
+    <!-- a bike ARRIVES from the top, lands in the pin (bikes 7->8, docks 11->10) -->
+    <circle r="6" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="8s" repeatCount="indefinite" path="M150,4 L150,72" keyPoints="0;0;1;1" keyTimes="0;0.14;0.28;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.14;0.16;0.28;0.30;1"/>
+    </circle>
+    <circle cx="150" cy="72" r="8" fill="none" stroke="#16a34a" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="8s" repeatCount="indefinite" values="8;8;26;26" keyTimes="0;0.28;0.4;1"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.85;0;0" keyTimes="0;0.28;0.32;0.44;1"/>
+    </circle>
+    <!-- then a bike DEPARTS out the bottom (bikes 8->7, docks 10->11) -->
+    <circle r="6" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="8s" repeatCount="indefinite" path="M150,150 L214,186" keyPoints="0;0;1;1" keyTimes="0;0.6;0.74;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6;0.62;0.74;0.76;1"/>
+    </circle>
+    <circle cx="150" cy="150" r="8" fill="none" stroke="#f59e0b" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="8s" repeatCount="indefinite" values="8;8;26;26" keyTimes="0;0.6;0.72;1"/>
+      <animate attributeName="opacity" dur="8s" repeatCount="indefinite" values="0;0;0.8;0;0" keyTimes="0;0.6;0.64;0.76;1"/>
+    </circle>
+    <!-- callouts -->
+    <line x1="150" y1="92" x2="270" y2="92" stroke="#888" stroke-width="1"/>
+    <text x="278" y="89" class="svg-label" font-size="13" font-weight="700" fill="#1a1a1a">Top number = bikes available</text>
+    <text x="278" y="106" class="svg-label" font-size="10.5" fill="#555">what you can ride away right now</text>
+    <line x1="150" y1="138" x2="270" y2="138" stroke="#888" stroke-width="1"/>
+    <text x="278" y="135" class="svg-label" font-size="13" font-weight="700" fill="#1a1a1a">Bottom number = open docks</text>
+    <text x="278" y="152" class="svg-label" font-size="10.5" fill="#555">empty spots to return a bike</text>
+    <!-- size note -->
+    <text x="90" y="218" class="svg-label" font-size="11" font-weight="700" fill="#1a1a1a">Bigger pin = bigger station</text>
+    <text x="90" y="233" class="svg-label" font-size="10" fill="#555">size grows with total capacity</text>
+    <!-- color swatches -->
+    <text x="350" y="200" class="svg-label" font-size="11" font-weight="700" fill="#1a1a1a">Color = status</text>
+    <circle cx="362" cy="222" r="9" fill="#0d6cb0" stroke="#0a5896" stroke-width="2"/>
+    <text x="380" y="226" class="svg-label" font-size="10.5" fill="#1a1a1a">Blue &mdash; normal, online</text>
+    <circle cx="362" cy="248" r="9" fill="#9ca3af" stroke="#6b7280" stroke-width="2"/>
+    <text x="380" y="252" class="svg-label" font-size="10.5" fill="#1a1a1a">Grey &mdash; offline (not renting/returning)</text>
+    <circle cx="362" cy="274" r="9" fill="#f59e0b" stroke="#d97706" stroke-width="2"/>
+    <text x="380" y="278" class="svg-label" font-size="10.5" fill="#1a1a1a">Amber &mdash; new station (added &lt; 14 days ago)</text>
+  </svg>
+  </div>
+  <figcaption>One pin, four signals: bikes (top), docks (bottom), capacity (size), and status (color). Watch it move: a bike arrives (bikes up, a dock fills), then one departs (and back).</figcaption>
+</figure>
+
+<p><strong>Tap any pin</strong> to open its popup: the station name, a link to it in Google Maps, the live bikes/docks, what kinds of bikes are there, how long ago the data was read, and a little sparkline of bikes over the last day. From the popup, <strong>"Open details &rarr;"</strong> takes you to the full station page (<a href="#station">section 6</a>).</p>
+
+<h2 id="ring">4. The colored ring</h2>
+<p>Some pins have a thin colored ring around them. The ring is the single most useful feature for planning, so it gets its own section. It answers: <em>is this station better or worse stocked than usual right now?</em></p>
+
+<figure>
+  <div class="diagram">
+  <svg viewBox="0 0 640 220" role="img" aria-label="The ring compares current bikes against the typical band for this hour. Above typical gets a green ring, below gets an amber ring, in-range gets no ring">
+    <!-- baseline -->
+    <text x="20" y="30" class="svg-label" font-size="11" font-weight="700" fill="#1a1a1a">Compared to what's typical for this hour &amp; weekday&hellip;</text>
+    <!-- green case -->
+    <g transform="translate(70,60)">
+      <circle cx="0" cy="40" r="30" fill="#0d6cb0" stroke="#16a34a" stroke-width="5">
+        <animate attributeName="stroke-width" dur="3s" repeatCount="indefinite" values="5;7;5" keyTimes="0;0.5;1"/>
+      </circle>
+      <text x="0" y="48" text-anchor="middle" class="svg-label" font-size="20" font-weight="800" fill="#fff">12</text>
+    </g>
+    <text x="70" y="150" text-anchor="middle" class="svg-label" font-size="11" font-weight="700" fill="#1d7a4d">Green ring</text>
+    <text x="70" y="166" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">noticeably MORE</text>
+    <text x="70" y="179" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">bikes than usual</text>
+    <!-- amber case -->
+    <g transform="translate(250,60)">
+      <circle cx="0" cy="40" r="30" fill="#0d6cb0" stroke="#f59e0b" stroke-width="5">
+        <animate attributeName="stroke-width" dur="3s" repeatCount="indefinite" values="5;7;5" keyTimes="0;0.5;1" begin="-1.5s"/>
+      </circle>
+      <text x="0" y="48" text-anchor="middle" class="svg-label" font-size="20" font-weight="800" fill="#fff">2</text>
+    </g>
+    <text x="250" y="150" text-anchor="middle" class="svg-label" font-size="11" font-weight="700" fill="#b2741a">Amber ring</text>
+    <text x="250" y="166" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">noticeably FEWER</text>
+    <text x="250" y="179" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">bikes than usual</text>
+    <!-- none case -->
+    <g transform="translate(430,60)">
+      <circle cx="0" cy="40" r="30" fill="#0d6cb0" stroke="#0a5896" stroke-width="3"/>
+      <text x="0" y="48" text-anchor="middle" class="svg-label" font-size="20" font-weight="800" fill="#fff">6</text>
+    </g>
+    <text x="430" y="150" text-anchor="middle" class="svg-label" font-size="11" font-weight="700" fill="#555">No ring</text>
+    <text x="430" y="166" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">about normal, or</text>
+    <text x="430" y="179" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">not enough history yet</text>
+  </svg>
+  </div>
+  <figcaption>The ring is a relative signal, not an absolute one. "2 bikes" might be normal for a quiet station and alarming for a busy one &mdash; the ring already accounts for that.</figcaption>
+</figure>
+
+<p>Why this is useful: a station with 2 bikes sounds low, but if it's <em>usually</em> empty at 8am, that's just Tuesday. The ring compares against that station's own history, so a green ring means "stocked better than this station normally is," and amber means "running lower than normal &mdash; don't count on it." A station that's behaving normally gets no ring, which keeps the map calm and makes the rings that <em>do</em> appear worth noticing.</p>
+<div class="note"><strong>Rings need a little history to appear.</strong> A station needs at least a few days of data before any ring shows, and a few weeks before the comparison gets specific to each day of the week. Brand-new stations won't have rings until they've been watched for a while. You can hide the rings entirely from the map if you prefer a plain view.</div>
+
+<h2 id="live">5. The Live map <span class="tag">Live tab</span></h2>
+<p>This is the home screen: the whole system on one map, every station a pin, updated continuously. Pan and zoom like any map. The map fits itself to the city's stations the first time it loads.</p>
+<h4>What's on screen</h4>
+<ul>
+  <li><strong>Pins</strong> for every station, drawn as described in <a href="#pin">section 3</a>.</li>
+  <li><strong>A totals card</strong> showing the system-wide bikes, docks, and capacity right now, plus how long ago that changed.</li>
+  <li><strong>Filter chips</strong> at the top (a gear button on mobile opens the same controls).</li>
+</ul>
+<h4>Filtering the map</h4>
+<ul>
+  <li><strong>Minimum bikes</strong> &mdash; hide stations below a threshold (Any, 1+, 5+, 10+, 15+). Useful when you only care where you can actually grab a bike.</li>
+  <li><strong>Corridor</strong> &mdash; narrow to one neighborhood or sector (only appears when the city has more than one corridor).</li>
+</ul>
+<p>Filters are saved in the page address, so a filtered view survives a refresh and can be shared by copying the URL. A pin briefly pulses when its bike count changes, so you can catch activity as it happens.</p>
+
+<h2 id="station">6. Station details <span class="tag">tap a pin &rarr; Open details</span></h2>
+<p>The deep-dive on a single station. Reach it from any pin's popup, from "nearby" lists, or directly by URL.</p>
+<ul>
+  <li><strong>Right-now stats</strong> &mdash; current bikes and open docks, with the live green dot.</li>
+  <li><strong>A mini map</strong> pinpointing the station, and a Google Maps link for walking directions.</li>
+  <li><strong>Today's chart</strong> &mdash; bikes available over the last 24 hours, in the station's local time. Hover (or tap) any point for the exact reading.</li>
+  <li><strong>Typical comparison</strong> &mdash; the same idea as the pin ring, spelled out in words: how now stacks up against this station's normal for this hour.</li>
+  <li><strong>Activity</strong> &mdash; recent comings and goings at this station, and trips inferred to or from it.</li>
+  <li><strong>Top routes</strong> &mdash; the most common destinations <em>from</em> here and origins <em>to</em> here, with how long the ride usually takes.</li>
+  <li><strong>Nearby stations</strong> &mdash; the closest few, with their live counts and a link each, for when your first choice is empty.</li>
+</ul>
+
+<h2 id="route">7. Route check <span class="tag">Route tab</span></h2>
+<p>Planning a specific A&rarr;B trip. Pick a <strong>start</strong> and a <strong>destination</strong> from the two dropdowns (the swap button reverses them). The page then answers the two questions that actually matter for a bike-share trip:</p>
+<ul>
+  <li><strong>Will there be a bike where I'm starting?</strong> &mdash; the start station's bikes over the day.</li>
+  <li><strong>Will there be an open dock where I'm going?</strong> &mdash; the destination's open docks over the day. (A trip you can't <em>end</em> is as bad as one you can't start.)</li>
+</ul>
+<p>You also get an <strong>estimated ride time</strong> and distance, a map of the approximate route, and &mdash; if enough real trips have been observed &mdash; an <strong>average actual duration</strong> ("avg 14 min over 23 trips"). Hovering one chart shifts a guide line on the other by the travel time, so you can line up "leave now" against "arrive then." <strong>Copy link to this route</strong> shares the exact pair.</p>
+
+<h2 id="flow">8. Flow <span class="tag">Flow tab</span></h2>
+<p>A replay, not a planner. Flow animates the trips inferred over the last 24 hours as dots moving between stations, so you can watch the city's bike movement as a time-lapse.</p>
+<ul>
+  <li><strong>Play / pause</strong> with the button or the spacebar.</li>
+  <li><strong>Scrub</strong> the timeline to jump to any moment; the caption shows how many trips are in flight.</li>
+  <li><strong>Fog</strong> (top-left toggle) darkens the map and only reveals the paths bikes have actually traveled, so popular corridors light up over the replay. It's off by default &mdash; flip it on for the prettier, more revealing view.</li>
+</ul>
+<div class="note">Flow shows <em>inferred</em> trips (<a href="#trips">section 11</a>), packed so there's always something moving. Treat it as an impression of where bikes go, not an exact ledger of every ride.</div>
+
+<h2 id="explore">9. Explore &amp; Activity <span class="tag">Explore tab</span></h2>
+<p>The patterns view, for the whole system rather than one station.</p>
+<ul>
+  <li><strong>Active riders over time</strong> &mdash; roughly how many bikes are out (not parked) across the week.</li>
+  <li><strong>Hour-of-week heatmaps</strong> &mdash; a 7&times;24 grid of when bikes are out riding vs. sitting in docks. The dark squares are your rush hours.</li>
+  <li><strong>Travel-time matrix</strong> &mdash; a grid of estimated ride times between every pair of stations. Pick an origin and destination to highlight, or click any cell to jump straight into a Route check for that pair.</li>
+  <li><strong>Activity log</strong> &mdash; a preview of recent events, with a "View all" link to the full <strong>Activity</strong> page (every recent departure, arrival, and inferred trip). Click a trip to see its route on a map.</li>
+</ul>
+<div class="note">Some panels say "coming soon" until enough history has piled up &mdash; the weekly heatmaps, for instance, need about a week of readings before they're meaningful. They fill in on their own.</div>
+
+<h2 id="data">10. Where the data comes from</h2>
+<p>Understanding the plumbing explains a few things you'll notice, like why numbers update on a delay and why history takes time to appear.</p>
+
+<figure>
+  <div class="diagram">
+  <svg viewBox="0 0 640 250" role="img" aria-label="BCycle publishes a public feed; a scheduled job reads it every five minutes; the latest reading is kept for the live map while older readings are archived for history; the app reads both">
+    <!-- feed -->
+    <rect x="20" y="40" width="140" height="60" rx="8" fill="#eef4fb" stroke="#0d6cb0"/>
+    <text x="90" y="66" text-anchor="middle" class="svg-label" font-size="12" font-weight="700" fill="#1a1a1a">BCycle feed</text>
+    <text x="90" y="84" text-anchor="middle" class="svg-label" font-size="9" fill="#555">public GBFS data</text>
+    <!-- arrow -->
+    <line x1="160" y1="70" x2="214" y2="70" stroke="#888" stroke-width="1.5" marker-end="url(#ar)"/>
+    <text x="187" y="60" text-anchor="middle" class="svg-label" font-size="8.5" fill="#b2741a">every 5 min</text>
+    <!-- poller -->
+    <rect x="216" y="40" width="140" height="60" rx="8" fill="#fff" stroke="#0d6cb0"/>
+    <text x="286" y="66" text-anchor="middle" class="svg-label" font-size="12" font-weight="700" fill="#1a1a1a">Reader job</text>
+    <text x="286" y="84" text-anchor="middle" class="svg-label" font-size="9" fill="#555">takes a snapshot</text>
+    <!-- split to live + history -->
+    <line x1="356" y1="60" x2="430" y2="40" stroke="#888" stroke-width="1.5" marker-end="url(#ar)"/>
+    <line x1="356" y1="80" x2="430" y2="150" stroke="#888" stroke-width="1.5" marker-end="url(#ar)"/>
+    <!-- live store -->
+    <rect x="432" y="20" width="186" height="56" rx="8" fill="#f1f8f3" stroke="#1d7a4d"/>
+    <text x="525" y="42" text-anchor="middle" class="svg-label" font-size="11.5" font-weight="700" fill="#1a1a1a">Latest reading "live"</text>
+    <text x="525" y="60" text-anchor="middle" class="svg-label" font-size="9" fill="#555">powers the map &amp; pins</text>
+    <!-- history store -->
+    <rect x="432" y="128" width="186" height="56" rx="8" fill="#f4f5f7" stroke="#888"/>
+    <text x="525" y="150" text-anchor="middle" class="svg-label" font-size="11.5" font-weight="700" fill="#1a1a1a">Archive "history"</text>
+    <text x="525" y="168" text-anchor="middle" class="svg-label" font-size="9" fill="#555">charts, typicals, trips, flow</text>
+    <!-- app -->
+    <rect x="216" y="170" width="140" height="56" rx="8" fill="#eef4fb" stroke="#0d6cb0"/>
+    <text x="286" y="192" text-anchor="middle" class="svg-label" font-size="12" font-weight="700" fill="#1a1a1a">This app</text>
+    <text x="286" y="210" text-anchor="middle" class="svg-label" font-size="9" fill="#555">your browser</text>
+    <line x1="432" y1="60" x2="358" y2="188" stroke="#bbb" stroke-width="1.2" marker-end="url(#ar)"/>
+    <line x1="432" y1="156" x2="358" y2="200" stroke="#bbb" stroke-width="1.2" marker-end="url(#ar)"/>
+
+    <!-- ANIMATION (5s loop; static boxes/arrows carry the meaning when frozen) -->
+    <!-- packet: feed -> reader, once per cycle ("every 5 min") -->
+    <circle r="5" fill="#0d6cb0" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M160,70 L214,70" keyPoints="0;1;1" keyTimes="0;0.18;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="1;1;0;0" keyTimes="0;0.18;0.2;1"/>
+    </circle>
+    <!-- packet: reader -> live store -->
+    <circle r="5" fill="#1d7a4d" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M356,60 L430,40" keyPoints="0;0;1;1" keyTimes="0;0.24;0.46;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.24;0.26;0.46;0.48;1"/>
+    </circle>
+    <!-- live store border flash on arrival -->
+    <rect x="432" y="20" width="186" height="56" rx="8" fill="none" stroke="#1d7a4d" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;0;0" keyTimes="0;0.46;0.54;0.68;1"/>
+    </rect>
+    <!-- packet: reader -> archive store -->
+    <circle r="5" fill="#888" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M356,80 L430,150" keyPoints="0;0;1;1" keyTimes="0;0.3;0.54;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3;0.32;0.54;0.56;1"/>
+    </circle>
+    <!-- archive store border flash on arrival -->
+    <rect x="432" y="128" width="186" height="56" rx="8" fill="none" stroke="#888" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;0;0" keyTimes="0;0.54;0.62;0.76;1"/>
+    </rect>
+
+    <defs>
+      <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#888"/></marker>
+    </defs>
+  </svg>
+  </div>
+  <figcaption>A scheduled job reads BCycle's public feed every five minutes. The newest reading drives the live map; the running archive of older readings powers everything historical.</figcaption>
+</figure>
+
+<p>Two consequences worth knowing:</p>
+<ul>
+  <li><strong>The map is a few minutes behind reality.</strong> Readings land every five minutes, so a bike grabbed thirty seconds ago may still show. That's normal, and the app tells you the reading's age rather than hiding it.</li>
+  <li><strong>History accumulates.</strong> Typical comparisons, the weekly heatmaps, and trip stats all get better the longer the system has been watched. A freshly added city or station starts sparse and fills in.</li>
+</ul>
+
+<h2 id="trips">11. How trips are figured out</h2>
+<p>The feed never says "rider X rode from A to B." It only reports how many bikes sit at each station. So trips are <strong>inferred</strong>: when a bike disappears from one station and one appears at another a sensible ride-time later, the app pairs them into a likely trip.</p>
+
+<figure>
+  <div class="diagram">
+  <svg viewBox="0 0 640 170" role="img" aria-label="A bike count drops by one at station A, then rises by one at station B fifteen minutes later; the two are paired into one inferred trip from A to B">
+    <!-- A -->
+    <circle cx="90" cy="70" r="26" fill="#0d6cb0" stroke="#0a5896" stroke-width="2"/>
+    <text x="90" y="76" text-anchor="middle" class="svg-label" font-size="15" font-weight="800" fill="#fff">A</text>
+    <text x="90" y="118" text-anchor="middle" class="svg-label" font-size="10" fill="#b2741a" font-weight="700">9:02 &mdash; bikes &minus;1</text>
+    <text x="90" y="132" text-anchor="middle" class="svg-label" font-size="9" fill="#555">a bike left</text>
+    <!-- arrow -->
+    <line x1="124" y1="70" x2="396" y2="70" stroke="#888" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+    <text x="260" y="58" text-anchor="middle" class="svg-label" font-size="10" fill="#1a1a1a" font-weight="700">~15 min later, a plausible ride time</text>
+    <!-- B -->
+    <circle cx="430" cy="70" r="26" fill="#0d6cb0" stroke="#0a5896" stroke-width="2"/>
+    <text x="430" y="76" text-anchor="middle" class="svg-label" font-size="15" font-weight="800" fill="#fff">B</text>
+    <text x="430" y="118" text-anchor="middle" class="svg-label" font-size="10" fill="#1d7a4d" font-weight="700">9:17 &mdash; bikes +1</text>
+    <text x="430" y="132" text-anchor="middle" class="svg-label" font-size="9" fill="#555">a bike arrived</text>
+    <!-- result -->
+    <rect x="486" y="46" width="138" height="48" rx="8" fill="#eef4fb" stroke="#0d6cb0"/>
+    <text x="555" y="68" text-anchor="middle" class="svg-label" font-size="11" font-weight="700" fill="#1a1a1a">Inferred trip</text>
+    <text x="555" y="84" text-anchor="middle" class="svg-label" font-size="9.5" fill="#555">A &rarr; B, 15 min</text>
+
+    <!-- ANIMATION (5s loop; static elements above carry the meaning when frozen) -->
+    <!-- departure pulse at A -->
+    <circle cx="90" cy="70" r="26" fill="none" stroke="#b2741a" stroke-width="2.5" opacity="0">
+      <animate attributeName="r" dur="5s" repeatCount="indefinite" values="26;40;40;40" keyTimes="0;0.12;0.99;1"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0.8;0;0;0" keyTimes="0;0.12;0.99;1"/>
+    </circle>
+    <!-- the bike travelling A -> B along the route -->
+    <circle r="7" fill="#f59e0b" stroke="#fff" stroke-width="1.5" opacity="0">
+      <animateMotion dur="5s" repeatCount="indefinite" path="M124,70 L396,70" keyPoints="0;0;1;1" keyTimes="0;0.12;0.6;1" calcMode="linear"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.12;0.58;0.62;1"/>
+    </circle>
+    <!-- arrival pulse ring at B -->
+    <circle cx="430" cy="70" r="26" fill="none" stroke="#1d7a4d" stroke-width="3" opacity="0">
+      <animate attributeName="r" dur="5s" repeatCount="indefinite" values="26;26;42;42" keyTimes="0;0.58;0.7;1"/>
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;0.85;0;0" keyTimes="0;0.58;0.64;0.78;1"/>
+    </circle>
+    <!-- inferred-trip box flash (the static box stays underneath) -->
+    <rect x="486" y="46" width="138" height="48" rx="8" fill="none" stroke="#0d6cb0" stroke-width="3" opacity="0">
+      <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.7;0.74;0.9;0.95;1"/>
+    </rect>
+
+    <defs>
+      <marker id="ar2" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#888"/></marker>
+    </defs>
+  </svg>
+  </div>
+  <figcaption>Quiet moments pair cleanly. When several bikes move at once, the app matches departures to arrivals using how long that exact route usually takes.</figcaption>
+</figure>
+
+<p>Quiet periods are easy &mdash; one bike out, one bike in, obvious pair. Busy periods are harder, so the app leans on the travel-time matrix (the same ride-time estimates from Route check) to match each arrival to the departure whose timing fits best. It's a best guess, kept to a recent rolling window, which is why Flow and the activity log are labeled as inferred. They're directionally honest, not a receipt for every ride.</p>
+
+<h2 id="faq">12. Good to know</h2>
+<dl class="defn">
+  <dt>The numbers stopped updating &mdash; is it broken?</dt>
+  <dd>If a reading is more than a few minutes old you'll see an amber "X min ago" note; past ten minutes, a red banner warns the feed looks stale. Usually it's a brief hiccup on the source feed and it catches up on its own.</dd>
+  <dt>A station is grey. What does that mean?</dt>
+  <dd>It's offline &mdash; not currently renting or accepting returns (maintenance, full lockout, etc.). Its numbers may be there but you can't rely on using it.</dd>
+  <dt>Why does a station have no ring?</dt>
+  <dd>Either it's behaving about normally for this hour, or it doesn't have enough history yet for a confident comparison (new stations, or a newly added city).</dd>
+  <dt>Can I share what I'm looking at?</dt>
+  <dd>Yes. Filters, a selected station, and a route pair all live in the page address, so copying the URL shares your exact view. Route check has a dedicated copy button.</dd>
+  <dt>Is this the official BCycle app?</dt>
+  <dd>No. It's an independent viewer built on BCycle's public data. To actually rent a bike, use BCycle's own app &mdash; there's a link in the About dialog.</dd>
+  <dt>Does it track me?</dt>
+  <dd>There's no login and no personal data. The app keeps anonymous, aggregate usage counts (which pages get viewed) to guide what to improve &mdash; nothing tied to you.</dd>
+</dl>
+
+<hr class="soft">
+<p class="updated">Companion guide to the BCycle Map web app. If a screen looks different from this guide, the app is the source of truth &mdash; features are still being added.</p>
+
+<script>
+  // Respect prefers-reduced-motion: freeze the SVG animations for anyone who opts out.
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('svg').forEach(function (s) { if (s.pauseAnimations) s.pauseAnimations(); });
+  }
+</script>
+
+</body>
+</html>

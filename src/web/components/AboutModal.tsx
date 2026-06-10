@@ -77,6 +77,7 @@ export default function AboutModal({ open, onClose }: Props) {
   const theme = useTheme()
   const { activeSystem } = useSystem()
   const LINKS: LinkCard[] = [
+    { href: '/user-guide.html', label: 'User guide', desc: 'How to read the map' },
     { href: 'https://github.com/samgutentag/bcycle-map', label: 'GitHub', desc: 'View the code' },
     { href: activeSystem?.gbfsUrl ?? 'https://gbfs.bcycle.com/bcycle_santabarbara/gbfs.json', label: 'GBFS feed', desc: 'Live data origin' },
     { href: '/activity', label: 'Activity', desc: 'Recent rides', internal: true },
