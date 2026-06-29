@@ -56,10 +56,10 @@ jobs:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           API_BASE: https://bcycle-map-read-api.developer-95b.workers.dev
 
-      - name: File / update issue if changes detected (check mode only)
+      - name: File / update Linear issue if changes detected (check mode only)
         if: github.event.inputs.mode == 'check' || github.event_name == 'schedule'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           SUMMARY: ${{ steps.run.outputs.summary }}
         run: |
           HAS_CHANGES=$(echo "$SUMMARY" | jq -r '.hasChanges // false')
@@ -71,8 +71,8 @@ jobs:
           MOVED=$(echo "$SUMMARY" | jq -r '.moved | join(", ")')
           REMOVED=$(echo "$SUMMARY" | jq -r '.removed | join(", ")')
 
-          TITLE="Travel-time matrix: station changes need a recompute"
-          BODY=$(cat <<EOF
+          export TITLE="Travel-time matrix: station changes need a recompute"
+          export BODY=$(cat <<EOF
           The daily \`travel-times\` check detected station changes that affect the routing matrix.
 
           - **Added**: $ADDED
@@ -85,10 +85,4 @@ jobs:
           EOF
           )
 
-          # Find or create the issue (one rolling issue, label \`travel-times\`)
-          EXISTING=$(gh issue list --label travel-times --state open --json number --jq '.[0].number' || true)
-          if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "$BODY"
-          else
-            gh issue create --title "$TITLE" --label travel-times --body "$BODY"
-          fi
+          bash scripts/file-linear-issue.sh
