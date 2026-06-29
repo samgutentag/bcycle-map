@@ -17,7 +17,6 @@ import {
   detectEvents,
   emptyActivityLog,
 } from '../shared/activity'
-import { inferTrips, type SimpleMatrix } from '../shared/trip-inference'
 
 type PollDeps = {
   fetchImpl?: typeof fetch
@@ -167,28 +166,14 @@ export async function writeSnapshotToKV(kv: KVNamespace, r2: R2Bucket, snap: KVV
     const transition = applyTripTransition(activity, events, snap.snapshot_ts, prevActive, currActive)
     nextActivity = appendTick(activity, events, transition)
 
-    // Layer greedy inference on top: take whatever the conservative
-    // applyTripTransition couldn't pair (busy periods where multiple riders
-    // are out) and try to match departures with arrivals using the travel-
-    // time matrix as a duration oracle. Idempotent — inferTrips skips
-    // events already accounted for in existingTrips.
-    try {
-      const matrixObj = await r2.get(`gbfs/${snap.system.system_id}/travel-times.json`)
-      if (matrixObj) {
-        const matrixData = JSON.parse(await matrixObj.text()) as { edges: SimpleMatrix }
-        const newGreedyTrips = inferTrips(nextActivity.events, matrixData.edges, nextActivity.trips)
-        if (newGreedyTrips.length > 0) {
-          const mergedTrips = [...nextActivity.trips, ...newGreedyTrips]
-            .sort((a, b) => a.departure_ts - b.departure_ts)
-            .slice(-50)
-          nextActivity = { ...nextActivity, trips: mergedTrips }
-        }
-      } else {
-        console.warn(`travel-times.json missing for ${snap.system.system_id}; greedy inference skipped`)
-      }
-    } catch (e) {
-      console.warn('greedy trip inference failed (continuing):', e instanceof Error ? e.message : e)
-    }
+    // Greedy trip inference (parse travel-times.json + inferTrips) used to run
+    // here every tick, but it was the poller's heaviest synchronous block and
+    // pushed each invocation over the free-tier 10ms CPU cap. It's redundant
+    // in the hot path: the same greedy pairing is re-derived on demand by the
+    // /trips endpoint (tripsFromSnapshots) and offline by
+    // scripts/backfill-activity.ts. The conservative applyTripTransition pass
+    // above still posts high-confidence single-rider trips to the live feed;
+    // richer greedy trips remain available via /flow's /trips fetch.
   }
 
   const bufKey = currentBufferKey(snap.system.system_id, snap.snapshot_ts)

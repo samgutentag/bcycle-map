@@ -3,6 +3,13 @@ main = "src/workers/poller.ts"
 compatibility_date = "2024-09-25"
 compatibility_flags = ["nodejs_compat"]
 
+# Observability: persist console.* output (the poller's console.error calls)
+# and keep per-invocation summary logs so CPU-time / quota errors are
+# visible in the dashboard. `enabled = true` turns on Workers Logs.
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # scheduled (cron) trigger — every 5 minutes. Wider interval keeps the
 # per-day KV put count under the Workers free-tier cap of 1000/day.
 # 5 min × 24h = 288 ticks/day × 2 mandatory puts (latest + buffer) = 576,
